@@ -1,5 +1,6 @@
 """
-dtab: config files made of tab-separated paths. One line is one path into a tree.
+dtab (Delta Tab): config files made of tab-separated paths. One line is one path into a tree,
+and later lines are deltas on top of earlier ones.
 
     objects	l1,l2 light                ->  {"objects": {"l1": "light", "l2": "light"}}
     deltas	l1	position	x 1	y .5     ->  {"deltas": {"l1": {"position": {"x": "1", "y": ".5"}}}}

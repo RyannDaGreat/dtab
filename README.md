@@ -2,7 +2,7 @@
 
 # dtab
 
-Config files made of tab-separated paths. One line is one path into a tree.
+**Delta Tab.** Config files made of tab-separated paths. One line is one path into a tree, and later lines are deltas on top of earlier ones.
 [Try it in your browser](https://ryanndagreat.github.io/dtab/): dtab on the left, JSON on the right.
 
 ```
