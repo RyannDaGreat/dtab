@@ -41,21 +41,24 @@
     header .spacer { flex: 1; }
     main { height: calc(100% - var(--header-height)); display: flex; gap: var(--gap); padding: var(--gap); }
     .pane { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-    .pane .label { padding: calc(var(--gap) / 2) var(--pad); color: var(--muted); border-bottom: 1px solid var(--border); }
+    .pane .label { display: flex; align-items: center; gap: var(--gap); padding: calc(var(--gap) / 2) var(--pad); color: var(--muted); border-bottom: 1px solid var(--border); }
     .pane .label b { color: var(--text); font-weight: normal; }
+    .pane .label .spacer { flex: 1; }
+    .pane .label label { cursor: pointer; user-select: none; }
+    .pane .label input { vertical-align: middle; accent-color: var(--accent); }
     .CodeMirror, pre {
         flex: 1; height: auto; padding: var(--pad); font: inherit; line-height: var(--line-height); tab-size: var(--tab-size);
         background: transparent; color: var(--text); overflow: auto; white-space: pre;
     }
     .CodeMirror-cursor { border-left-color: var(--text); }
     .CodeMirror-selected { background: var(--border); }
-    .cm-dtab-object-key { color: var(--key-object); }
-    .cm-dtab-leaf-key { color: var(--key-leaf); }
-    .cm-dtab-value { color: var(--value); }
-    .cm-dtab-comment { color: var(--comment); }
-    .cm-dtab-bad-key { color: var(--error); text-decoration: underline wavy; }
-    .cm-tab { position: relative; }
-    .cm-tab::before { content: "\2192"; position: absolute; left: 0; color: var(--tab-glyph); }   /* → drawn under each tab */
+    .highlight .cm-dtab-object-key { color: var(--key-object); }
+    .highlight .cm-dtab-leaf-key { color: var(--key-leaf); }
+    .highlight .cm-dtab-value { color: var(--value); }
+    .highlight .cm-dtab-comment { color: var(--comment); }
+    .highlight .cm-dtab-bad-key { color: var(--error); text-decoration: underline wavy; }
+    .show-tabs .cm-tab { position: relative; }
+    .show-tabs .cm-tab::before { content: "\2192"; position: absolute; left: 0; color: var(--tab-glyph); }   /* → drawn under each tab */
     pre .k { color: var(--key-object); }
     pre .s { color: var(--value); }
     pre .error { color: var(--error); }
@@ -72,7 +75,12 @@
 </header>
 <main>
     <section class="pane">
-        <div class="label"><b>dtab</b> &middot; edit me &middot; tabs are shown as &rarr;</div>
+        <div class="label">
+            <b>dtab</b> &middot; edit me
+            <span class="spacer"></span>
+            <label><input type="checkbox" id="toggle-highlight" checked> highlight</label>
+            <label><input type="checkbox" id="toggle-tabs" checked> tabs &rarr;</label>
+        </div>
         <textarea id="source"></textarea>
     </section>
     <section class="pane">
@@ -188,6 +196,17 @@ function render() {
     } catch (error) {
         output.innerHTML = '<span class="error">' + String(error.message).replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c])) + '</span>'
     }
+}
+
+// The two toggles add or remove a class on the editor's pane; CSS does the rest. Remembered per browser.
+const TOGGLES = [['toggle-highlight', 'highlight'], ['toggle-tabs', 'show-tabs']]
+const pane = document.querySelector('.pane')
+for (const [id, cls] of TOGGLES) {
+    const box = document.getElementById(id)
+    box.checked = localStorage.getItem(id) !== 'off'
+    const apply = () => { pane.classList.toggle(cls, box.checked); localStorage.setItem(id, box.checked ? 'on' : 'off') }
+    box.addEventListener('change', apply)
+    apply()
 }
 
 editor.on('change', render)

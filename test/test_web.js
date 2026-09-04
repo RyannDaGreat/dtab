@@ -73,7 +73,23 @@ async function main() {
         const error = await page.$eval('#output', element => element.textContent)
         assert.ok(error.includes('line 3') && error.includes('bad.key'), 'error not shown: ' + error)
 
-        // 3. The Tab key inserts a tab character instead of leaving the editor.
+        // 3. The toggles: unchecking removes the colors and the tab glyphs, and the choice survives a reload.
+        const valueColor = () => page.evaluate(() => getComputedStyle(document.querySelector('.cm-dtab-value')).color)
+        const glyph = () => page.evaluate(() => getComputedStyle(document.querySelector('.cm-tab'), '::before').content)
+        const plainColor = await page.evaluate(() => getComputedStyle(document.querySelector('.CodeMirror')).color)
+        assert.notStrictEqual(await valueColor(), plainColor, 'values should be colored while highlight is on')
+        await page.click('#toggle-highlight')
+        assert.strictEqual(await valueColor(), plainColor, 'highlight off should leave values uncolored')
+        await page.click('#toggle-tabs')
+        assert.strictEqual(await glyph(), 'none', 'tabs off should hide the arrows')
+        await page.reload({waitUntil: 'networkidle0'})
+        assert.strictEqual(await page.$eval('#toggle-highlight', e => e.checked), false, 'toggle state should persist')
+        await page.click('#toggle-highlight')
+        await page.click('#toggle-tabs')
+        await setEditorText(page, ' a comment\ncamera\tposition\tx 0\ty 5\nbad.key 1\n')
+        assert.strictEqual(await glyph(), '"→"', 'tabs back on should draw the arrows')
+
+        // 4. The Tab key inserts a tab character instead of leaving the editor.
         await setEditorText(page, 'a')
         await page.evaluate(() => { const cm = document.querySelector('.CodeMirror').CodeMirror; cm.focus(); cm.setCursor({line: 0, ch: 1}) })
         await page.keyboard.press('Tab')
