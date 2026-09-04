@@ -1,0 +1,36 @@
+{
+    "name": "dtab",
+    "displayName": "dtab (Delta Tab)",
+    "description": "Syntax highlighting and a Δ file icon for .dtab files: config files made of tab-separated paths.",
+    "version": "0.1.0",
+    "publisher": "oneoverzero",
+    "license": "SEE LICENSE IN ../LICENSE",
+    "icon": "icons/delta-128.png",
+    "repository": {"type": "git", "url": "https://github.com/RyannDaGreat/dtab.git", "directory": "vscode"},
+    "homepage": "https://ryanndagreat.github.io/dtab/",
+    "engines": {"vscode": "^1.75.0"},
+    "categories": ["Programming Languages"],
+    "keywords": ["dtab", "config", "tab", "tree"],
+    "contributes": {
+        "languages": [{
+            "id": "dtab",
+            "aliases": ["dtab", "Delta Tab"],
+            "extensions": [".dtab"],
+            "configuration": "./language-configuration.json",
+            "icon": {"light": "./icons/delta-light.svg", "dark": "./icons/delta-dark.svg"}
+        }],
+        "grammars": [{
+            "language": "dtab",
+            "scopeName": "source.dtab",
+            "path": "./syntaxes/dtab.tmLanguage.json"
+        }],
+        "configurationDefaults": {
+            "[dtab]": {
+                "editor.insertSpaces": false,
+                "editor.tabSize": 4,
+                "editor.detectIndentation": false,
+                "editor.renderWhitespace": "all"
+            }
+        }
+    }
+}

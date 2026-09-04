@@ -53,11 +53,10 @@ so attribute access like `config.deltas.l1` works with EasyDict and friends.
 
 ## Install
 
-| | |
-|---|---|
-| Python | `pip install dtab` then `import dtab` |
-| JavaScript | `npm install deltatab` then `const dtab = require('deltatab')`, or `<script src="https://cdn.jsdelivr.net/npm/deltatab/dtab.js">` for `window.dtab` |
-| Vim | `Plugin 'RyannDaGreat/dtab'` (Vundle) or `Plug 'RyannDaGreat/dtab'` (vim-plug). Or paste `dtab.vim` into your vimrc. Highlights `*.dtab` and flags bad keys and trailing tabs. |
+- **Python**: `pip install dtab` then `import dtab`
+- **JavaScript**: `npm install deltatab` then `const dtab = require('deltatab')`, or `<script src="https://cdn.jsdelivr.net/npm/deltatab/dtab.js">` for `window.dtab`
+- **Vim**: `Plugin 'RyannDaGreat/dtab'` (Vundle) or `Plug 'RyannDaGreat/dtab'` (vim-plug), or paste `dtab.vim` into your vimrc. Highlights `*.dtab`, flags bad keys and trailing tabs, and gives the file a Δ icon in NERDTree if vim-devicons is installed.
+- **VS Code**: search "dtab" in Extensions, or `code --install-extension oneoverzero.dtab`. Highlighting plus a Δ file icon.
 
 ## API
 

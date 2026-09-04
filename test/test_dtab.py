@@ -21,6 +21,9 @@ Checks:
      filetype when the repo is on 'runtimepath', which is what Vundle and vim-plug do.
   8. docs/index.html in headless Chrome (test/test_web.js), skipped with a message if puppeteer is not
      installed (`npm install --no-save puppeteer && npx puppeteer browsers install chrome`).
+  9. The VS Code extension's TextMate grammar tokenizes the vim highlight sample the same way vim does
+     (test/test_vscode.js), skipped if vscode-textmate is not installed
+     (`npm install --no-save vscode-textmate vscode-oniguruma`).
 
 Needs: python 3, node, vim.
 """
@@ -142,9 +145,16 @@ def test_web_demo():
     subprocess.run(["node", "test/test_web.js"], check=True, cwd=ROOT)
 
 
+def test_vscode_grammar():
+    if not (ROOT / "node_modules" / "vscode-textmate").is_dir():
+        print("    (skipped: vscode-textmate not installed)")
+        return
+    subprocess.run(["node", "test/test_vscode.js"], check=True, cwd=ROOT)
+
+
 if __name__ == "__main__":
     for test in [test_doctests, test_readers_agree, test_round_trips, test_key_rule, test_js_suite,
-                 test_vim_highlighting, test_vim_plugin_shim, test_web_demo]:
+                 test_vim_highlighting, test_vim_plugin_shim, test_web_demo, test_vscode_grammar]:
         test()
         print("ok  " + test.__name__)
     print("All dtab tests passed")

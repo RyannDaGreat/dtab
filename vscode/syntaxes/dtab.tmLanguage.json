@@ -1,0 +1,66 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "dtab",
+    "scopeName": "source.dtab",
+    "comment": "Same tokens as dtab.vim: an entry between tabs is a comment (leading space), a leaf (key value) or an object key. Keys must be identifiers.",
+    "patterns": [
+        {
+            "comment": "A whitespace-only line",
+            "match": "^\\s*$"
+        },
+        {
+            "comment": "Leading tabs (indent), then the entries of the line",
+            "begin": "^(\\t*)",
+            "beginCaptures": {"1": {"name": "punctuation.whitespace.indent.dtab"}},
+            "end": "$",
+            "patterns": [{"include": "#entry"}]
+        }
+    ],
+    "repository": {
+        "entry": {
+            "patterns": [
+                {
+                    "comment": "Tab run between entries",
+                    "match": "\\t+",
+                    "name": "punctuation.separator.tab.dtab"
+                },
+                {
+                    "comment": "Comment: an entry that starts with a space",
+                    "match": " [^\\t]*",
+                    "name": "comment.line.dtab"
+                },
+                {
+                    "comment": "Leaf: identifier key(s), one space, value up to the next tab",
+                    "match": "([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) ([^\\t]*)",
+                    "captures": {
+                        "1": {"name": "entity.name.tag.leaf-key.dtab", "patterns": [{"include": "#comma"}]},
+                        "2": {"name": "string.unquoted.value.dtab"}
+                    }
+                },
+                {
+                    "comment": "Object key: identifier key(s) with no space",
+                    "match": "[\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*(?=\\t|$)",
+                    "name": "entity.name.type.object-key.dtab",
+                    "patterns": [{"include": "#comma"}]
+                },
+                {
+                    "comment": "Anything else before a space: a bad key, with its value",
+                    "match": "([^\\t ]+) ([^\\t]*)",
+                    "captures": {
+                        "1": {"name": "invalid.illegal.key.dtab"},
+                        "2": {"name": "string.unquoted.value.dtab"}
+                    }
+                },
+                {
+                    "comment": "Anything else with no space: a bad object key",
+                    "match": "[^\\t ]+",
+                    "name": "invalid.illegal.key.dtab"
+                }
+            ]
+        },
+        "comma": {
+            "match": ",",
+            "name": "punctuation.separator.comma.dtab"
+        }
+    }
+}

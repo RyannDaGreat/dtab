@@ -19,6 +19,10 @@ augroup dtab
     autocmd ColorScheme * if &filetype ==# 'dtab' | call s:DtabHighlight() | endif
 augroup END
 
+" File icon for NERDTree, airline etc. via vim-devicons: a delta. Only takes effect if devicons is loaded.
+let g:WebDevIconsUnicodeDecorateFileNodesExtensionSymbols = get(g:, 'WebDevIconsUnicodeDecorateFileNodesExtensionSymbols', {})
+let g:WebDevIconsUnicodeDecorateFileNodesExtensionSymbols['dtab'] = 'Δ'
+
 function! s:DtabSyntax() abort
     " An entry is a run of non-tab characters bounded by tabs or the line's ends.
     " No space in the entry: object key.  Space in the entry: leaf `key value`.  Leading space: comment.
