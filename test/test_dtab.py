@@ -19,7 +19,7 @@ Checks:
   7. Vim: the syntax groups over test/samples/highlight.dtab match test/expected/highlight.txt byte by byte
      (that sample deliberately contains invalid keys, so it is not parsed), and plugin/dtab.vim sets the
      filetype when the repo is on 'runtimepath', which is what Vundle and vim-plug do.
-  8. web/index.html in headless Chrome (test/test_web.js), skipped with a message if puppeteer is not
+  8. docs/index.html in headless Chrome (test/test_web.js), skipped with a message if puppeteer is not
      installed (`npm install --no-save puppeteer && npx puppeteer browsers install chrome`).
 
 Needs: python 3, node, vim.

@@ -1,4 +1,4 @@
-// Drives web/index.html in headless Chrome: the example parses, the JSON pane matches dtab.js on the
+// Drives docs/index.html in headless Chrome: the example parses, the JSON pane matches dtab.js on the
 // same text, typing a tab inserts a tab, and a bad key shows the parser's error with its line number.
 // Serves the repo root over HTTP so the page's CDN-or-local script fallback works offline.
 // Run:  node test/test_web.js        (needs `npm install --no-save puppeteer` and a downloaded Chrome)
@@ -35,7 +35,7 @@ async function main() {
         const page = await browser.newPage()
         const failures = []
         page.on('pageerror', error => failures.push(error.message))
-        await page.goto('http://127.0.0.1:' + port + '/web/index.html', {waitUntil: 'networkidle0'})
+        await page.goto('http://127.0.0.1:' + port + '/docs/index.html', {waitUntil: 'networkidle0'})
 
         // 1. The example renders as JSON, and it is exactly what dtab.js says about the same text.
         const sourceText = await page.$eval('#source', element => element.value)
