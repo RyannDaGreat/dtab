@@ -1,5 +1,6 @@
 // Drives docs/index.html in headless Chrome: the example parses, the JSON pane matches dtab.js on the
-// same text, typing a tab inserts a tab, and a bad key shows the parser's error with its line number.
+// same text, the editor highlights entries with the same classes dtab.vim uses, tabs are drawn, typing
+// a tab inserts a tab, and a bad key shows the parser's error with its line number.
 // Serves the repo root over HTTP so the page's CDN-or-local script fallback works offline.
 // Run:  node test/test_web.js        (needs `npm install --no-save puppeteer` and a downloaded Chrome)
 'use strict'
@@ -28,6 +29,21 @@ function serve() {
     })
 }
 
+/** Query (reads the page). The editor's text. */
+const editorText = page => page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror.getValue())
+
+/** Command (edits the page). Replaces the editor's text, which re-renders the JSON pane. */
+const setEditorText = (page, text) => page.evaluate(t => document.querySelector('.CodeMirror').CodeMirror.setValue(t), text)
+
+/**
+ * Query (reads the page). The [class, text] of every highlighted span on a 1-based editor line.
+ * CodeMirror draws each tab as nested spans of padding spaces, so a tab is reported once as ['tab', '\t'].
+ */
+const lineTokens = (page, line) => page.evaluate(n =>
+    [...document.querySelectorAll('.CodeMirror-line')[n - 1].querySelectorAll('span[class*="cm-"]')]
+        .map(s => { const cls = s.className.replace(/\s*cm-/g, ' ').trim(); return [cls, cls === 'tab' ? '\t' : s.textContent] })
+        .filter((token, i, all) => !(token[0] === 'tab' && i > 0 && all[i - 1][0] === 'tab')), line)
+
 async function main() {
     const [server, port] = await serve()
     const browser = await puppeteer.launch({headless: true})
@@ -38,25 +54,32 @@ async function main() {
         await page.goto('http://127.0.0.1:' + port + '/docs/index.html', {waitUntil: 'networkidle0'})
 
         // 1. The example renders as JSON, and it is exactly what dtab.js says about the same text.
-        const sourceText = await page.$eval('#source', element => element.value)
+        const sourceText = await editorText(page)
         const shown = await page.$eval('#output', element => element.textContent)
         assert.deepStrictEqual(JSON.parse(shown), dtab.parse(sourceText), 'JSON pane differs from dtab.parse')
-        assert.ok(sourceText.includes('\t'), 'example has no tabs')
         assert.strictEqual(JSON.parse(shown).camera.fov, '35', 'last line should win')
         assert.strictEqual(JSON.parse(shown).lights.fill.castShadow, 'true', 'comma key should fan out')
 
-        // 2. The Tab key inserts a tab character instead of leaving the textarea.
-        await page.focus('#source')
-        await page.evaluate(() => { const s = document.getElementById('source'); s.value = 'a'; s.selectionStart = s.selectionEnd = 1 })
+        // 2. Highlighting: object keys, leaf keys, values, comments, tabs, and a bad key each get their class.
+        await setEditorText(page, ' a comment\ncamera\tposition\tx 0\ty 5\nbad.key 1\n')
+        assert.deepStrictEqual(await lineTokens(page, 1), [['dtab-comment', ' a comment']])
+        assert.deepStrictEqual(await lineTokens(page, 2), [
+            ['dtab-object-key', 'camera'], ['tab', '\t'], ['dtab-object-key', 'position'], ['tab', '\t'],
+            ['dtab-leaf-key', 'x '], ['dtab-value', '0'], ['tab', '\t'], ['dtab-leaf-key', 'y '], ['dtab-value', '5'],
+        ])
+        assert.deepStrictEqual(await lineTokens(page, 3), [['dtab-bad-key', 'bad.key '], ['dtab-value', '1']])
+        const tabGlyph = await page.evaluate(() => getComputedStyle(document.querySelector('.cm-tab'), '::before').content)
+        assert.strictEqual(tabGlyph, '"→"', 'tabs should be drawn as an arrow')
+        const error = await page.$eval('#output', element => element.textContent)
+        assert.ok(error.includes('line 3') && error.includes('bad.key'), 'error not shown: ' + error)
+
+        // 3. The Tab key inserts a tab character instead of leaving the editor.
+        await setEditorText(page, 'a')
+        await page.evaluate(() => { const cm = document.querySelector('.CodeMirror').CodeMirror; cm.focus(); cm.setCursor({line: 0, ch: 1}) })
         await page.keyboard.press('Tab')
         await page.keyboard.type('b 1')
-        assert.strictEqual(await page.$eval('#source', element => element.value), 'a\tb 1', 'Tab key did not insert a tab')
+        assert.strictEqual(await editorText(page), 'a\tb 1', 'Tab key did not insert a tab')
         assert.deepStrictEqual(JSON.parse(await page.$eval('#output', element => element.textContent)), {a: {b: '1'}})
-
-        // 3. A bad key shows the parser's own message, line number included.
-        await page.evaluate(() => { const s = document.getElementById('source'); s.value = 'ok 1\nbad.key 2'; s.dispatchEvent(new Event('input')) })
-        const error = await page.$eval('#output', element => element.textContent)
-        assert.ok(error.includes('line 2') && error.includes('bad.key'), 'error not shown: ' + error)
 
         assert.deepStrictEqual(failures, [], 'page errors: ' + failures.join('; '))
         console.log('test_web.js: all checks passed')

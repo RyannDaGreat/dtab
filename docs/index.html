@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>dtab</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
 <style>
     :root {
         --bg: #0d0d0d;
@@ -13,11 +14,14 @@
         --muted: #8a8a8a;
         --accent: #5fd7ff;
         --error: #ff6b6b;
-        --key-object: #d787d7;
+        --tab-glyph: #3a3a3a;
+        --key-object: #d787d7;   /* same colors as dtab.vim */
         --key-leaf: #5fd7ff;
         --value: #5fafff;
+        --comment: #6a6a6a;
         --font-mono: "PT Mono", "SF Mono", Menlo, Consolas, monospace;
         --font-size: 14px;
+        --line-height: 1.45;
         --tab-size: 4;
         --gap: 12px;
         --pad: 16px;
@@ -36,13 +40,22 @@
     header a:hover { color: var(--text); }
     header .spacer { flex: 1; }
     main { height: calc(100% - var(--header-height)); display: flex; gap: var(--gap); padding: var(--gap); }
-    .pane { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
+    .pane { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
     .pane .label { padding: calc(var(--gap) / 2) var(--pad); color: var(--muted); border-bottom: 1px solid var(--border); }
     .pane .label b { color: var(--text); font-weight: normal; }
-    textarea, pre {
-        flex: 1; padding: var(--pad); font: inherit; line-height: 1.45; tab-size: var(--tab-size);
-        background: transparent; color: var(--text); border: 0; outline: 0; resize: none; overflow: auto; white-space: pre;
+    .CodeMirror, pre {
+        flex: 1; height: auto; padding: var(--pad); font: inherit; line-height: var(--line-height); tab-size: var(--tab-size);
+        background: transparent; color: var(--text); overflow: auto; white-space: pre;
     }
+    .CodeMirror-cursor { border-left-color: var(--text); }
+    .CodeMirror-selected { background: var(--border); }
+    .cm-dtab-object-key { color: var(--key-object); }
+    .cm-dtab-leaf-key { color: var(--key-leaf); }
+    .cm-dtab-value { color: var(--value); }
+    .cm-dtab-comment { color: var(--comment); }
+    .cm-dtab-bad-key { color: var(--error); text-decoration: underline wavy; }
+    .cm-tab { position: relative; }
+    .cm-tab::before { content: "\2192"; position: absolute; left: 0; color: var(--tab-glyph); }   /* → drawn under each tab */
     pre .k { color: var(--key-object); }
     pre .s { color: var(--value); }
     pre .error { color: var(--error); }
@@ -59,8 +72,8 @@
 </header>
 <main>
     <section class="pane">
-        <div class="label"><b>dtab</b> &middot; edit me &middot; the Tab key inserts a tab</div>
-        <textarea id="source" spellcheck="false" autofocus></textarea>
+        <div class="label"><b>dtab</b> &middot; edit me &middot; tabs are shown as &rarr;</div>
+        <textarea id="source"></textarea>
     </section>
     <section class="pane">
         <div class="label"><b>JSON</b> &middot; what parse() returns</div>
@@ -68,9 +81,10 @@
     </section>
 </main>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/deltatab/dtab.js"></script>
 <script>
-// If the CDN copy failed to load (offline, or before the first npm publish), use the repo's own copy.
+// If the CDN copy failed to load (offline), use the repo's own copy.
 if (typeof dtab === 'undefined') document.write('<script src="../dtab.js"><\/script>')
 </script>
 <script>
@@ -106,8 +120,53 @@ const EXAMPLE = [
     'debug\tenabled false\tlevel 2',
 ].join('\n')
 
-const source = document.getElementById('source')
+const KEY_NAME = /^[\p{XID_Start}_]\p{XID_Continue}*$/u   // same key rule as dtab.js (named differently: dtab.js already declares IDENTIFIER globally)
+
+/**
+ * Pure function. The CodeMirror token class for one dtab entry (the text between tabs).
+ * A key part that is not an identifier is flagged; commas between identifiers are fine.
+ *
+ * @param {string} key - the entry's key (text before its first space, or the whole entry)
+ * @param {boolean} isLeaf - whether the entry has a space (key value)
+ * @returns {string}
+ * @example entryClass('l1,l2', true)   // 'dtab-leaf-key'
+ * @example entryClass('a.b', false)    // 'dtab-bad-key'
+ */
+function entryClass(key, isLeaf) {
+    if (!key.split(',').every(name => KEY_NAME.test(name))) return 'dtab-bad-key'
+    return isLeaf ? 'dtab-leaf-key' : 'dtab-object-key'
+}
+
+// A line is entries separated by tab runs. Each entry is a comment (starts with a space), a leaf
+// (key, one space, value) or an object key. State is only "the next run is a value", per line.
+CodeMirror.defineMode('dtab', () => ({
+    startState: () => ({inValue: false}),
+    token(stream, state) {
+        if (stream.sol()) state.inValue = false
+        if (state.inValue) {
+            state.inValue = false
+            stream.skipTo('\t') || stream.skipToEnd()
+            return 'dtab-value'
+        }
+        if (stream.eatWhile('\t')) return 'tab'                        // CodeMirror styles 'tab' tokens as .cm-tab
+        if (stream.eat(' ')) { stream.skipTo('\t') || stream.skipToEnd(); return 'dtab-comment' }
+        const start = stream.pos
+        while (!stream.eol() && stream.peek() !== '\t' && stream.peek() !== ' ') stream.next()
+        const key = stream.string.slice(start, stream.pos)
+        const isLeaf = stream.peek() === ' '
+        if (isLeaf) { stream.next(); state.inValue = !stream.eol() }
+        return entryClass(key, isLeaf)
+    },
+}))
+
 const output = document.getElementById('output')
+const editor = CodeMirror.fromTextArea(document.getElementById('source'), {
+    mode: 'dtab',
+    indentWithTabs: true,
+    tabSize: 4,
+    lineWrapping: false,
+    extraKeys: {Tab: cm => cm.replaceSelection('\t')},               // Tab inserts a tab; tabs are the whole point
+})
 
 /**
  * Pure function. JSON.stringify with keys and strings wrapped in spans for color.
@@ -122,28 +181,18 @@ function colorized(tree) {
         colon ? '<span class="k">"' + text + '"</span>:' : '<span class="s">"' + text + '"</span>')
 }
 
-/** Command. Re-parses the left pane into the right pane; shows the parser's error if there is one. */
+/** Command. Re-parses the editor into the right pane; shows the parser's error if there is one. */
 function render() {
     try {
-        output.innerHTML = colorized(dtab.parse(source.value))
+        output.innerHTML = colorized(dtab.parse(editor.getValue()))
     } catch (error) {
         output.innerHTML = '<span class="error">' + String(error.message).replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c])) + '</span>'
     }
 }
 
-// Tab inserts a real tab instead of moving focus, since tabs are the whole point.
-source.addEventListener('keydown', event => {
-    if (event.key !== 'Tab') return
-    event.preventDefault()
-    const {selectionStart, selectionEnd, value} = source
-    source.value = value.slice(0, selectionStart) + '\t' + value.slice(selectionEnd)
-    source.selectionStart = source.selectionEnd = selectionStart + 1
-    render()
-})
-source.addEventListener('input', render)
-
-source.value = EXAMPLE
-render()
+editor.on('change', render)
+editor.setValue(EXAMPLE)
+editor.focus()
 </script>
 </body>
 </html>
