@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dtab"
+description = "Config files made of tab-separated paths. One line is one path into a tree."
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = ["fire"]
+dynamic = ["version"]
+
+[project.scripts]
+dtab = "dtab:_main"
+
+[project.urls]
+Homepage = "https://github.com/RyannDaGreat/dtab"
+
+[tool.setuptools]
+py-modules = ["dtab"]
+
+[tool.setuptools.dynamic]
+version = {attr = "dtab.__version__"}

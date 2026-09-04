@@ -1,0 +1,5 @@
+objects	l1,l2,l3 light
+deltas	initial	l1,l2,l3	castShadow true
+deltas	initial	l1	position	y 10	x 2
+deltas	initial	l1,l2	intensity .4	color	b 0.6	g 0.4
+nested	a,b	c,d	e 1

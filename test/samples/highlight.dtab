@@ -1,0 +1,12 @@
+objects	l1,l2 light
+deltas	initial	l1	position	x 1	y .5	 inline comment
+	 sub comment
+trailing	
+x 1	y 2
+key  two spaces
+checkpoint.initial 1
+2nd_key 5
+_private 1
+café 1
+~scope
+	@ first

@@ -1,0 +1,27 @@
+
+__pycache__/
+.frenzy
+*.bak
+*.blend1
+*.DS_Store
+*.egg-info/
+*.gstmp
+*.ipynb_checkpoints
+*.pyc
+*.swh
+*.swi
+*.swj
+*.swk
+*.swl
+*.swm
+*.swn
+*.swo
+*.swp
+*.un~
+#<RP Default Gitignore End>
+#<RP Default Gitignore Start>
+~$*.pptx
+build/
+dist/
+node_modules/
+.claude_todo.md

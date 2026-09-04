@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dtab</title>
+<style>
+    :root {
+        --bg: #0d0d0d;
+        --panel: #161616;
+        --border: #2a2a2a;
+        --text: #e6e6e6;
+        --muted: #8a8a8a;
+        --accent: #5fd7ff;
+        --error: #ff6b6b;
+        --key-object: #d787d7;
+        --key-leaf: #5fd7ff;
+        --value: #5fafff;
+        --font-mono: "PT Mono", "SF Mono", Menlo, Consolas, monospace;
+        --font-size: 14px;
+        --tab-size: 4;
+        --gap: 12px;
+        --pad: 16px;
+        --header-height: 48px;
+        --radius: 6px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-mono); font-size: var(--font-size); }
+    header {
+        height: var(--header-height); display: flex; align-items: center; gap: var(--gap);
+        padding: 0 var(--pad); border-bottom: 1px solid var(--border);
+    }
+    header h1 { font-size: var(--font-size); font-weight: normal; }
+    header h1 span { color: var(--accent); }
+    header a { color: var(--muted); text-decoration: none; }
+    header a:hover { color: var(--text); }
+    header .spacer { flex: 1; }
+    main { height: calc(100% - var(--header-height)); display: flex; gap: var(--gap); padding: var(--gap); }
+    .pane { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
+    .pane .label { padding: calc(var(--gap) / 2) var(--pad); color: var(--muted); border-bottom: 1px solid var(--border); }
+    .pane .label b { color: var(--text); font-weight: normal; }
+    textarea, pre {
+        flex: 1; padding: var(--pad); font: inherit; line-height: 1.45; tab-size: var(--tab-size);
+        background: transparent; color: var(--text); border: 0; outline: 0; resize: none; overflow: auto; white-space: pre;
+    }
+    pre .k { color: var(--key-object); }
+    pre .s { color: var(--value); }
+    pre .error { color: var(--error); }
+    @media (max-width: 720px) { main { flex-direction: column; } }
+</style>
+</head>
+<body>
+<header>
+    <h1><span>.dtab</span> &nbsp;config files made of tab-separated paths</h1>
+    <div class="spacer"></div>
+    <a href="https://github.com/RyannDaGreat/dtab">GitHub</a>
+    <a href="https://pypi.org/project/dtab/">PyPI</a>
+    <a href="https://www.npmjs.com/package/deltatab">npm</a>
+</header>
+<main>
+    <section class="pane">
+        <div class="label"><b>dtab</b> &middot; edit me &middot; the Tab key inserts a tab</div>
+        <textarea id="source" spellcheck="false" autofocus></textarea>
+    </section>
+    <section class="pane">
+        <div class="label"><b>JSON</b> &middot; what parse() returns</div>
+        <pre id="output"></pre>
+    </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/deltatab/dtab.js"></script>
+<script>
+// If the CDN copy failed to load (offline, or before the first npm publish), use the repo's own copy.
+if (typeof dtab === 'undefined') document.write('<script src="../dtab.js"><\/script>')
+</script>
+<script>
+'use strict'
+
+// Every feature in one file, with tabs aligned the way a careful author would write them.
+const EXAMPLE = [
+    ' Tabs separate the steps of a path. The last entry is "key value".',
+    'scene\tname Demo scene',
+    'scene\twidth 1280',
+    'scene\theight 720',
+    '',
+    ' Paths stack: these three lines all write into camera',
+    'camera\tposition\tx 0\ty 5\tz 25',
+    'camera\trotation\tx -10',
+    'camera\tfov 50',
+    '',
+    ' Or go deep instead of wide. This is the same tree as one long line.',
+    'lights',
+    '\tkey',
+    '\t\tintensity 1',
+    '\t\tcolor\tr 1\tg .9\tb .8',
+    '\tfill',
+    '\t\tintensity .3',
+    '',
+    ' a,b writes the same value under several keys',
+    'lights\tkey,fill\tcastShadow true',
+    '',
+    ' Writing a key again replaces it. Last line wins.',
+    'camera\tfov 35',
+    '',
+    ' Every value is a string. Cast the ones you need.',
+    'debug\tenabled false\tlevel 2',
+].join('\n')
+
+const source = document.getElementById('source')
+const output = document.getElementById('output')
+
+/**
+ * Pure function. JSON.stringify with keys and strings wrapped in spans for color.
+ *
+ * @param {object} tree
+ * @returns {string} HTML
+ * @example colorized({a: '1'})  // '{\n    <span class="k">"a"</span>: <span class="s">"1"</span>\n}'
+ */
+function colorized(tree) {
+    const escaped = JSON.stringify(tree, null, 4).replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]))
+    return escaped.replace(/"((?:[^"\\]|\\.)*)"(:)?/g, (match, text, colon) =>
+        colon ? '<span class="k">"' + text + '"</span>:' : '<span class="s">"' + text + '"</span>')
+}
+
+/** Command. Re-parses the left pane into the right pane; shows the parser's error if there is one. */
+function render() {
+    try {
+        output.innerHTML = colorized(dtab.parse(source.value))
+    } catch (error) {
+        output.innerHTML = '<span class="error">' + String(error.message).replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c])) + '</span>'
+    }
+}
+
+// Tab inserts a real tab instead of moving focus, since tabs are the whole point.
+source.addEventListener('keydown', event => {
+    if (event.key !== 'Tab') return
+    event.preventDefault()
+    const {selectionStart, selectionEnd, value} = source
+    source.value = value.slice(0, selectionStart) + '\t' + value.slice(selectionEnd)
+    source.selectionStart = source.selectionEnd = selectionStart + 1
+    render()
+})
+source.addEventListener('input', render)
+
+source.value = EXAMPLE
+render()
+</script>
+</body>
+</html>

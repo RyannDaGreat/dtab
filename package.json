@@ -1,0 +1,26 @@
+{
+    "name": "deltatab",
+    "version": "0.1.0",
+    "description": "Config files made of tab-separated paths. One line is one path into a tree.",
+    "main": "dtab.js",
+    "bin": {
+        "dtab": "dtab.js"
+    },
+    "files": [
+        "dtab.js"
+    ],
+    "scripts": {
+        "test": "node test/test_dtab.js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/RyannDaGreat/dtab.git"
+    },
+    "keywords": [
+        "config",
+        "tab",
+        "tree",
+        "tsv",
+        "indent"
+    ]
+}

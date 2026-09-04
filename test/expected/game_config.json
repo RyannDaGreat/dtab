@@ -1,0 +1,179 @@
+{
+    "preview": {
+        "height": "75",
+        "type": "djson",
+        "mode": "sublime",
+        "numbers": "true"
+    },
+    "geometries": {
+        "simpleBeakerFluid": "./Assets/Models/SimpleBeaker/Fluid.obj",
+        "simpleBeakerBeaker": "./Assets/Models/SimpleBeaker/Beaker.obj",
+        "dog": "./Assets/dog.obj",
+        "flask": "./Assets/flask.obj"
+    },
+    "textures": {
+        "dog": "./Assets/dog.jpg",
+        "weird": "./Assets/weird.jpg",
+        "blank": "./Assets/blank.png"
+    },
+    "sounds": {
+        "woof": "./Assets/Sounds/Woof.mp3",
+        "nyan": "./Assets/Sounds/Nyan.mp3",
+        "sadness": "./Assets/Sounds/Sadviolin.mp3"
+    },
+    "objects": {
+        "l1": "light",
+        "l2": "light",
+        "l3": "light",
+        "l4": "light",
+        "l5": "light",
+        "l6": "light",
+        "table_bottom": "mesh",
+        "table_top": "mesh"
+    },
+    "deltas": {
+        "initial": {
+            "l1": {
+                "castShadow": "true",
+                "position": {
+                    "y": "10"
+                },
+                "intensity": "1",
+                "color": {
+                    "b": "0.6",
+                    "g": "0.4"
+                }
+            },
+            "l2": {
+                "castShadow": "true",
+                "position": {
+                    "x": "10",
+                    "y": "10",
+                    "z": "-6"
+                },
+                "intensity": ".4",
+                "color": {
+                    "b": "0.6",
+                    "g": "0.4"
+                }
+            },
+            "l3": {
+                "castShadow": "true",
+                "position": {
+                    "x": "-10",
+                    "y": "10",
+                    "z": "-6"
+                },
+                "intensity": ".4",
+                "color": {
+                    "b": "0.6",
+                    "g": "0.4"
+                }
+            },
+            "l4": {
+                "castShadow": "true",
+                "intensity": ".3",
+                "position": {
+                    "z": "10",
+                    "x": "7",
+                    "y": "2"
+                }
+            },
+            "l5": {
+                "castShadow": "true",
+                "intensity": ".3",
+                "position": {
+                    "z": "10",
+                    "x": "-7",
+                    "y": "2"
+                }
+            },
+            "l6": {
+                "castShadow": "true",
+                "intensity": ".3",
+                "position": {
+                    "z": "10",
+                    "y": "0",
+                    "x": "0"
+                }
+            },
+            "camera": {
+                "transform": {
+                    "position": {
+                        "x": " 00",
+                        "y": "05",
+                        "z": "25"
+                    },
+                    "rotation": {
+                        "x": "-10",
+                        "y": "00",
+                        "z": "00"
+                    }
+                },
+                "fov": "50"
+            },
+            "table_bottom": {
+                "geometry": "plane",
+                "transform": {
+                    "rotation": {
+                        "x": "-90"
+                    },
+                    "scale": {
+                        "overall": "30"
+                    },
+                    "position": {
+                        "y": "-2"
+                    }
+                },
+                "material": {
+                    "modes": {
+                        "standard": {
+                            "color": {
+                                "r": ".5",
+                                "g": "0.5",
+                                "b": "0.5"
+                            }
+                        }
+                    }
+                },
+                "receiveShadow": "true"
+            },
+            "table_top": {
+                "geometry": "plane",
+                "transform": {
+                    "rotation": {
+                        "x": "-90"
+                    },
+                    "scale": {
+                        "overall": "30"
+                    },
+                    "position": {
+                        "y": "-1.995"
+                    }
+                },
+                "material": {
+                    "modes": {
+                        "standard": {
+                            "wireframe": "true",
+                            "emissive": {
+                                "r": "-0.7",
+                                "g": "0.1",
+                                "b": "1.3"
+                            }
+                        }
+                    }
+                }
+            },
+            "sky": {
+                "luminance": "1.1",
+                "sunX": "0.8",
+                "sunY": "0.3",
+                "mieDirectionalG": "0.6",
+                "mieCoefficient": "-0.195"
+            }
+        },
+        "checkpoint_initial": {
+            "inherit": "initial"
+        }
+    }
+}

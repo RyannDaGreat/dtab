@@ -1,0 +1,785 @@
+{
+  "meta": {
+    "name": "Untitled",
+    "slideW": 1280,
+    "slideH": 720,
+    "script": ""
+  },
+  "slides": [
+    {
+      "id": "2e66c4e0",
+      "name": "Slide 1",
+      "transition": {
+        "seconds": 0.5,
+        "curve": "smooth",
+        "sound": null,
+        "type": "tween"
+      },
+      "delta": {
+        "items": {
+          "1979e191": {
+            "type": "camera",
+            "name": "Camera",
+            "x": -745.5405307977765,
+            "y": -503.6138686689706,
+            "w": 2302.5408185495517,
+            "h": 1434.2554713529782,
+            "x~interp": "expTween",
+            "y~interp": "expTween",
+            "w~interp": "expTween",
+            "h~interp": "expTween",
+            "naturalZoom": true,
+            "maxTimestep": 0.1,
+            "z": 2,
+            "rotation": 0,
+            "scale": 1,
+            "active": true,
+            "background": "#afafaf00",
+            "antialias": "standard",
+            "retina": true,
+            "wireStyle": "bezier"
+          },
+          "f083ae5e": {
+            "type": "iconify",
+            "x": 264.0613265937018,
+            "y": 131.8016368113979,
+            "w": 96,
+            "h": 96,
+            "z": 3,
+            "rotation": 0,
+            "scale": 1,
+            "rotationAnchor": {
+              "x": "self.anchors.center.x",
+              "y": "self.anchors.center.y"
+            },
+            "preserveAspect": true,
+            "ink": "#000000",
+            "fill": {
+              "type": "linearGradient",
+              "solid": "#7aa2f7",
+              "linear": {
+                "stops": [
+                  {
+                    "offset": 0,
+                    "color": "#fadbd8"
+                  },
+                  {
+                    "offset": 0.2,
+                    "color": "#f5cba7"
+                  },
+                  {
+                    "offset": 0.4,
+                    "color": "#fff2cc"
+                  },
+                  {
+                    "offset": 0.6,
+                    "color": "#d5f4e6"
+                  },
+                  {
+                    "offset": 0.8,
+                    "color": "#d6eaf8"
+                  },
+                  {
+                    "offset": 1,
+                    "color": "#e8daef"
+                  }
+                ],
+                "angle": 0,
+                "wavelength": 1.72,
+                "phase": 0,
+                "center": {
+                  "x": 1.0088559096857057,
+                  "y": 0.4549420787462619
+                }
+              },
+              "radial": {
+                "stops": [
+                  {
+                    "offset": 0,
+                    "color": "#7aa2f7"
+                  },
+                  {
+                    "offset": 1,
+                    "color": "#ffffff"
+                  }
+                ],
+                "center": {
+                  "x": 0.5,
+                  "y": 0.5
+                },
+                "r": 0.5
+              },
+              "material": {
+                "id": "crt"
+              }
+            },
+            "stroke": {
+              "type": "linearGradient",
+              "solid": "#000000",
+              "linear": {
+                "stops": [
+                  {
+                    "offset": 0,
+                    "color": "#000000"
+                  },
+                  {
+                    "offset": 1,
+                    "color": "#ffffff"
+                  }
+                ],
+                "angle": 0,
+                "wavelength": 1,
+                "phase": 0
+              },
+              "radial": {
+                "stops": [
+                  {
+                    "offset": 0,
+                    "color": "#000000"
+                  },
+                  {
+                    "offset": 1,
+                    "color": "#ffffff"
+                  }
+                ],
+                "center": {
+                  "x": 0.5,
+                  "y": 0.5
+                },
+                "r": 0.5
+              },
+              "material": {
+                "id": "crt"
+              }
+            },
+            "strokeWidth": 2,
+            "cornerRadius": 0,
+            "opacity": 1,
+            "shadow": {
+              "dx": 0,
+              "dy": 0,
+              "blur": 0,
+              "color": "#000000",
+              "opacity": 0
+            },
+            "bloom": {
+              "radius": 10,
+              "strength": 0
+            },
+            "blendMode": "normal",
+            "innerShadow": {
+              "dx": 0,
+              "dy": 0,
+              "blur": 0,
+              "color": "#000000",
+              "opacity": 0
+            },
+            "softEdges": 0,
+            "gaussianBlur": 0,
+            "icon": "boxicons:delta",
+            "active": true,
+            "strokeOffset": 1,
+            "strokeJoin": "round"
+          },
+          "5eca2352": {
+            "type": "iconify",
+            "x": 351.12588235269413,
+            "y": 121.43337334485447,
+            "w": 110.89335935712961,
+            "h": 110.89335935712961,
+            "z": 4,
+            "rotation": 0,
+            "scale": 1,
+            "rotationAnchor": {
+              "x": "self.anchors.center.x",
+              "y": "self.anchors.center.y"
+            },
+            "preserveAspect": true,
+            "ink": "#000000",
+            "fill": {
+              "type": "linearGradient",
+              "solid": "#7aa2f7",
+              "linear": {
+                "stops": [
+                  {
+                    "offset": 0,
+                    "color": "#000080"
+                  },
+                  {
+                    "offset": 0.14285714285714285,
+                    "color": "#0000ff"
+                  },
+                  {
+                    "offset": 0.2857142857142857,
+                    "color": "#00b0ff"
+                  },
+                  {
+                    "offset": 0.42857142857142855,
+                    "color": "#00ffb0"
+                  },
+                  {
+                    "offset": 0.5714285714285714,
+                    "color": "#80ff00"
+                  },
+                  {
+                    "offset": 0.7142857142857143,
+                    "color": "#ffe000"
+                  },
+                  {
+                    "offset": 0.8571428571428571,
+                    "color": "#ff5000"
+                  },
+                  {
+                    "offset": 1,
+                    "color": "#800000"
+                  }
+                ],
+                "angle": 3.050457999999992,
+                "wavelength": 2.3416489260454956,
+                "phase": 0,
+                "center": {
+                  "x": 0.4399583703335103,
+                  "y": 0.5186066301096753
+                }
+              },
+              "radial": {
+                "stops": [
+                  {
+                    "offset": 0,
+                    "color": "#7aa2f7"
+                  },
+                  {
+                    "offset": 1,
+                    "color": "#ffffff"
+                  }
+                ],
+                "center": {
+                  "x": 0.5,
+                  "y": 0.5
+                },
+                "r": 0.5
+              },
+              "material": {
+                "id": "crt"
+              }
+            },
+            "stroke": {
+              "type": "linearGradient",
+              "solid": "#000000",
+              "linear": {
+                "stops": [
+                  {
+                    "offset": 0,
+                    "color": "#000000"
+                  },
+                  {
+                    "offset": 1,
+                    "color": "#ffffff"
+                  }
+                ],
+                "angle": 0,
+                "wavelength": 1,
+                "phase": 0
+              },
+              "radial": {
+                "stops": [
+                  {
+                    "offset": 0,
+                    "color": "#000000"
+                  },
+                  {
+                    "offset": 1,
+                    "color": "#ffffff"
+                  }
+                ],
+                "center": {
+                  "x": 0.5,
+                  "y": 0.5
+                },
+                "r": 0.5
+              },
+              "material": {
+                "id": "crt"
+              }
+            },
+            "strokeWidth": 2,
+            "cornerRadius": 0,
+            "opacity": 1,
+            "shadow": {
+              "dx": 0,
+              "dy": 0,
+              "blur": 0,
+              "color": "#000000",
+              "opacity": 0
+            },
+            "bloom": {
+              "radius": 10,
+              "strength": 0
+            },
+            "blendMode": "normal",
+            "innerShadow": {
+              "dx": 0,
+              "dy": 0,
+              "blur": 0,
+              "color": "#000000",
+              "opacity": 0
+            },
+            "softEdges": 0,
+            "gaussianBlur": 0,
+            "icon": "octicon:tab-24",
+            "active": true,
+            "strokeScreenSpace": false,
+            "strokeOffset": 1,
+            "strokeJoin": "round"
+          },
+          "60ae5f57": {
+            "type": "plaintext",
+            "x": 283.72592813622134,
+            "y": 216.10292184866282,
+            "w": 153.1420109217774,
+            "h": 51.60462309348432,
+            "z": 8,
+            "rotation": 0,
+            "scale": 1,
+            "rotationAnchor": {
+              "x": "self.anchors.center.x",
+              "y": "self.anchors.center.y"
+            },
+            "text": ".dtab",
+            "font": "jetbrains-mono",
+            "size": 45.614872449415756,
+            "bold": false,
+            "fill": {
+              "type": "linearGradient",
+              "solid": "#000000",
+              "linear": {
+                "stops": [
+                  {
+                    "offset": 0,
+                    "color": "#000080"
+                  },
+                  {
+                    "offset": 0.14285714285714285,
+                    "color": "#0000ff"
+                  },
+                  {
+                    "offset": 0.2857142857142857,
+                    "color": "#00b0ff"
+                  },
+                  {
+                    "offset": 0.35493301380146675,
+                    "color": "#00d6d9"
+                  },
+                  {
+                    "offset": 0.42857142857142855,
+                    "color": "#00ffb0"
+                  },
+                  {
+                    "offset": 0.5714285714285714,
+                    "color": "#80ff00"
+                  },
+                  {
+                    "offset": 0.7142857142857143,
+                    "color": "#ffe000"
+                  },
+                  {
+                    "offset": 0.8571428571428571,
+                    "color": "#ff5000"
+                  },
+                  {
+                    "offset": 1,
+                    "color": "#800000"
+                  }
+                ],
+                "angle": 4.726047999999992,
+                "wavelength": 1.0450911669392167,
+                "phase": 0,
+                "center": {
+                  "x": 0.5100596884622647,
+                  "y": -0.7575659535527204
+                }
+              },
+              "radial": {
+                "stops": [
+                  {
+                    "offset": 0,
+                    "color": "#000000"
+                  },
+                  {
+                    "offset": 1,
+                    "color": "#ffffff"
+                  }
+                ],
+                "center": {
+                  "x": 0.5,
+                  "y": 0.5
+                },
+                "r": 0.5
+              },
+              "material": {
+                "id": "crt"
+              }
+            },
+            "align": "center",
+            "valign": "top",
+            "opacity": 1,
+            "shadow": {
+              "dx": 0,
+              "dy": 0,
+              "blur": 0,
+              "color": "#000000",
+              "opacity": 0
+            },
+            "bloom": {
+              "radius": 12.670797902615488,
+              "strength": 0
+            },
+            "blendMode": "normal",
+            "innerShadow": {
+              "dx": 0,
+              "dy": 0,
+              "blur": 0,
+              "color": "#000000",
+              "opacity": 0
+            },
+            "softEdges": 0,
+            "gaussianBlur": 0,
+            "active": true
+          },
+          "8b2c5217": {
+            "type": "group",
+            "x": -255.95170700515757,
+            "y": -106.6159775116285,
+            "w": 254.74151749303334,
+            "h": 154.97615795399437,
+            "z": 5,
+            "rotation": 0,
+            "scale": 4.164879984099825,
+            "rotationAnchor": {
+              "x": "self.anchors.center.x",
+              "y": "self.anchors.center.y"
+            },
+            "members": [
+              "f083ae5e",
+              "5eca2352",
+              "60ae5f57"
+            ],
+            "bind": {
+              "x": 232.13516056441736,
+              "y": 121.26419344341579,
+              "rotation": 0,
+              "scale": 1
+            },
+            "shadow": {
+              "dx": 0,
+              "dy": 0,
+              "blur": 102.56371519744627,
+              "color": "#000000",
+              "opacity": 1.76
+            },
+            "bloom": {
+              "radius": 41.02548607897851,
+              "strength": 0
+            },
+            "blendMode": "normal",
+            "innerShadow": {
+              "dx": 0,
+              "dy": 0,
+              "blur": 0,
+              "color": "#000000",
+              "opacity": 0
+            },
+            "softEdges": 0,
+            "gaussianBlur": 0,
+            "cropTop": 0,
+            "cropLeft": 0,
+            "cropRight": 0,
+            "cropBottom": 0,
+            "active": true
+          },
+          "2f32c8fc": {
+            "type": "demo_god_rays",
+            "x": -543.3864109874772,
+            "y": -399.10831904313284,
+            "w": 1898.3156114996655,
+            "h": 1197.2150644466055,
+            "z": 6,
+            "rotation": 0,
+            "scale": 1,
+            "rotationAnchor": {
+              "x": "self.anchors.center.x",
+              "y": "self.anchors.center.y"
+            },
+            "lightWorldX": 327.76460565764086,
+            "lightWorldY": 182.43709261773807,
+            "cornerRadius": 0,
+            "stroke": "rgba(255,255,255,0.18)",
+            "strokeWidth": 0,
+            "opacity": 1,
+            "shadow": {
+              "dx": 0,
+              "dy": 0,
+              "blur": 0,
+              "color": "#000000",
+              "opacity": 0
+            },
+            "bloom": {
+              "radius": 41.02548607897851,
+              "strength": 0
+            },
+            "blendMode": "screen",
+            "innerShadow": {
+              "dx": 0,
+              "dy": 0,
+              "blur": 0,
+              "color": "#000000",
+              "opacity": 0
+            },
+            "softEdges": 2038.9666581252318,
+            "gaussianBlur": 0,
+            "samples": 64,
+            "density": 0.9,
+            "decay": 0.975,
+            "weight": 0.1,
+            "exposure": 0.1,
+            "threshold": 0.62,
+            "maskSoftness": 0.18,
+            "maskStrength": 1,
+            "dither": 1,
+            "tint": "#ffffff",
+            "active": true
+          },
+          "1af63829": {
+            "type": "demo_god_rays",
+            "x": -545.8573581391248,
+            "y": -401.63513876553566,
+            "w": 1898.3156114996655,
+            "h": 1197.2150644466055,
+            "z": 7,
+            "rotation": 0,
+            "scale": 1,
+            "rotationAnchor": {
+              "x": "self.anchors.center.x",
+              "y": "self.anchors.center.y"
+            },
+            "lightWorldX": 301.89632559082247,
+            "lightWorldY": 196.7927724032506,
+            "cornerRadius": 0,
+            "stroke": "rgba(255,255,255,0.18)",
+            "strokeWidth": 0,
+            "opacity": 1,
+            "shadow": {
+              "dx": 0,
+              "dy": 0,
+              "blur": 0,
+              "color": "#000000",
+              "opacity": 0
+            },
+            "bloom": {
+              "radius": 41.02548607897851,
+              "strength": 0
+            },
+            "blendMode": "screen",
+            "innerShadow": {
+              "dx": 0,
+              "dy": 0,
+              "blur": 0,
+              "color": "#000000",
+              "opacity": 0
+            },
+            "softEdges": 2038.9666581252318,
+            "gaussianBlur": 0,
+            "samples": 64,
+            "density": 0.9,
+            "decay": 0.975,
+            "weight": 0.1,
+            "exposure": 0.1,
+            "threshold": 0.62,
+            "maskSoftness": 0.18,
+            "maskStrength": 1,
+            "dither": 1,
+            "tint": "#ffffff",
+            "active": true
+          },
+          "935c62a3": {
+            "type": "rect",
+            "x": -548.9897079561853,
+            "y": -396.25589486490276,
+            "w": 1903.5217718754932,
+            "h": 1189.505089158684,
+            "z": 1,
+            "rotation": 0,
+            "scale": 1,
+            "rotationAnchor": {
+              "x": "self.anchors.center.x",
+              "y": "self.anchors.center.y"
+            },
+            "fill": "#000000",
+            "stroke": "#000000",
+            "strokeWidth": 8.205097215795702,
+            "cornerRadius": 332.30643723972594,
+            "opacity": 1,
+            "shadow": {
+              "dx": 0,
+              "dy": 0,
+              "blur": 0,
+              "color": "#000000",
+              "opacity": 0
+            },
+            "bloom": {
+              "radius": 41.02548607897851,
+              "strength": 0
+            },
+            "blendMode": "normal",
+            "innerShadow": {
+              "dx": 0,
+              "dy": 0,
+              "blur": 0,
+              "color": "#000000",
+              "opacity": 0
+            },
+            "softEdges": 278.97330533705383,
+            "gaussianBlur": 0,
+            "active": true
+          }
+        }
+      }
+    },
+    {
+      "id": "83f8e113",
+      "name": "Slide 4",
+      "transition": {
+        "seconds": 0.5,
+        "curve": "smooth",
+        "sound": null,
+        "type": "tween"
+      },
+      "delta": {
+        "items": {
+          "1af63829": {
+            "x": -546.3103431368118,
+            "active": false
+          },
+          "2f32c8fc": {
+            "active": false
+          },
+          "935c62a3": {
+            "softEdges": 124.97300000000001,
+            "x": -501.27930423848557,
+            "y": -234.12901311326726,
+            "w": "@1979e191.w",
+            "h": "@1979e191.h",
+            "active": false
+          },
+          "1979e191": {
+            "x": -502.28545957017434,
+            "y": -234.79978333439308,
+            "w": 1501.700345012507,
+            "h": 935.4109680989752
+          },
+          "5eca2352": {
+            "x": 351.12588235269425,
+            "fill": {
+              "linear": {
+                "stops": [
+                  {
+                    "offset": 0,
+                    "color": "#00bcf2"
+                  },
+                  {
+                    "offset": 0.333333,
+                    "color": "#40e0d0"
+                  },
+                  {
+                    "offset": 0.666667,
+                    "color": "#7b68ee"
+                  },
+                  {
+                    "offset": 1,
+                    "color": "#ff69b4"
+                  }
+                ]
+              }
+            }
+          },
+          "f083ae5e": {
+            "fill": {
+              "linear": {
+                "stops": [
+                  {
+                    "offset": 0,
+                    "color": "#00bcf2"
+                  },
+                  {
+                    "offset": 0.333333,
+                    "color": "#40e0d0"
+                  },
+                  {
+                    "offset": 0.666667,
+                    "color": "#7b68ee"
+                  },
+                  {
+                    "offset": 1,
+                    "color": "#ff69b4"
+                  }
+                ]
+              }
+            }
+          },
+          "60ae5f57": {
+            "fill": {
+              "type": "solid",
+              "solid": "#ffffff"
+            }
+          },
+          "8b2c5217": {
+            "shadow": {
+              "opacity": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "6632767f",
+      "name": "Slide 2",
+      "transition": {
+        "seconds": 0.5,
+        "curve": "smooth",
+        "sound": null,
+        "type": "tween"
+      },
+      "delta": {
+        "items": {
+          "f083ae5e": {
+            "icon": "tabler:delta",
+            "x": 264.5094524678933
+          }
+        }
+      }
+    },
+    {
+      "id": "32d141af",
+      "name": "Slide 3",
+      "transition": {
+        "seconds": 0.5,
+        "curve": "smooth",
+        "sound": null,
+        "type": "tween"
+      },
+      "delta": {
+        "items": {
+          "1af63829": {
+            "x": 161.8652023358315,
+            "active": false
+          },
+          "2f32c8fc": {
+            "x": 161.84296188168634,
+            "y": 50.78184841919159,
+            "active": false
+          }
+        }
+      }
+    }
+  ]
+}
