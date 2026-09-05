@@ -1,5 +1,6 @@
 <!-- <p align="center"><img src="https://raw.githubusercontent.com/RyannDaGreat/dtab/main/assets/logo.jpg" alt="dtab" width="640"></p> -->
-<img width="6912" height="4188" alt="image" src="https://github.com/user-attachments/assets/9b85e6a5-1e1c-42bb-83d0-257553ea2c19" />
+<img width="6912" height="4188" alt="image" src="https://github.com/user-attachments/assets/db10af67-b7ba-4e42-a808-946c8cdcc2c7" />
+
 
 <p align="center"><sub>Logo made with <a href="https://github.com/RyannDaGreat/SvelteLib">PowerRP</a>. <a href="https://ryanndagreat.github.io/SvelteLib/?repo=RyannDaGreat/dtab">Open it in PowerRP</a> to edit it (source: <code>assets/doc.json</code>).</sub></p>
 
