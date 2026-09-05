@@ -88,6 +88,11 @@ async function main() {
                         manifest.contributes.languages[0].icon.dark, manifest.contributes.grammars[0].path])
         assert.ok(fs.existsSync(path.join(EXTENSION, file)), 'manifest points at missing file ' + file)
     assert.deepStrictEqual(manifest.contributes.languages[0].extensions, ['.dtab'])
+    assert.ok(fs.existsSync(path.join(EXTENSION, manifest.main)), 'manifest main is missing')
+    assert.ok(!('editor.renderWhitespace' in manifest.contributes.configurationDefaults['[dtab]']),
+        'renderWhitespace must not be pinned by configurationDefaults (it would defeat the user toggle)')
+    assert.strictEqual(manifest.contributes.commands[0].command, manifest.contributes.keybindings[0].command)
+    require('child_process').execFileSync('node', ['--check', path.join(EXTENSION, manifest.main)])   // syntax only: it needs the vscode module to run
     console.log('test_vscode.js: all checks passed')
 }
 
