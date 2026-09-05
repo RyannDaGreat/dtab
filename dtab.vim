@@ -86,10 +86,10 @@ function! s:DtabHighlight() abort
     highlight dtabObjectKey ctermfg=176 guifg=#d787d7   " purple
     highlight dtabLeafKey   ctermfg=81  guifg=#5fd7ff   " cyan
     highlight dtabLeafValue ctermfg=75  guifg=#5fafff   " blue
-    highlight dtabBlockKey  ctermfg=81  guifg=#5fd7ff   " cyan, like a leaf key
+    highlight dtabBlockKey  ctermfg=221 guifg=#ffd75f   " yellow: a $key is a different thing from a leaf key
+    highlight dtabBlockTag  ctermfg=173 guifg=#d7875f cterm=italic gui=italic   " orange italic: the language tag
     highlight dtabBlock     ctermfg=75  guifg=#5fafff   " blue, like a value
     highlight default link dtabComment     Comment
-    highlight default link dtabBlockTag    Comment
     highlight default link dtabShebang     dtabBlock
     highlight default link dtabComma       Delimiter
     highlight default link dtabTrailingTab Error

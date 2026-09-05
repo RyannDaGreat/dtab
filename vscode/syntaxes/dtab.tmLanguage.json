@@ -13,7 +13,7 @@
             "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (sql)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
-                    "name": "entity.name.tag.leaf-key.dtab",
+                    "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
                             "include": "#comma"
@@ -21,7 +21,7 @@
                     ]
                 },
                 "3": {
-                    "name": "comment.block-tag.dtab"
+                    "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
                 "4": {
                     "name": "string.unquoted.block.dtab"
@@ -40,7 +40,7 @@
             "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (python|py)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
-                    "name": "entity.name.tag.leaf-key.dtab",
+                    "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
                             "include": "#comma"
@@ -48,7 +48,7 @@
                     ]
                 },
                 "3": {
-                    "name": "comment.block-tag.dtab"
+                    "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
                 "4": {
                     "name": "string.unquoted.block.dtab"
@@ -67,7 +67,7 @@
             "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (javascript|js)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
-                    "name": "entity.name.tag.leaf-key.dtab",
+                    "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
                             "include": "#comma"
@@ -75,7 +75,7 @@
                     ]
                 },
                 "3": {
-                    "name": "comment.block-tag.dtab"
+                    "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
                 "4": {
                     "name": "string.unquoted.block.dtab"
@@ -94,7 +94,7 @@
             "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (typescript|ts)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
-                    "name": "entity.name.tag.leaf-key.dtab",
+                    "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
                             "include": "#comma"
@@ -102,7 +102,7 @@
                     ]
                 },
                 "3": {
-                    "name": "comment.block-tag.dtab"
+                    "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
                 "4": {
                     "name": "string.unquoted.block.dtab"
@@ -121,7 +121,7 @@
             "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (html)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
-                    "name": "entity.name.tag.leaf-key.dtab",
+                    "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
                             "include": "#comma"
@@ -129,7 +129,7 @@
                     ]
                 },
                 "3": {
-                    "name": "comment.block-tag.dtab"
+                    "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
                 "4": {
                     "name": "string.unquoted.block.dtab"
@@ -148,7 +148,7 @@
             "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (css)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
-                    "name": "entity.name.tag.leaf-key.dtab",
+                    "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
                             "include": "#comma"
@@ -156,7 +156,7 @@
                     ]
                 },
                 "3": {
-                    "name": "comment.block-tag.dtab"
+                    "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
                 "4": {
                     "name": "string.unquoted.block.dtab"
@@ -175,7 +175,7 @@
             "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (json)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
-                    "name": "entity.name.tag.leaf-key.dtab",
+                    "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
                             "include": "#comma"
@@ -183,7 +183,7 @@
                     ]
                 },
                 "3": {
-                    "name": "comment.block-tag.dtab"
+                    "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
                 "4": {
                     "name": "string.unquoted.block.dtab"
@@ -202,7 +202,7 @@
             "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (yaml|yml)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
-                    "name": "entity.name.tag.leaf-key.dtab",
+                    "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
                             "include": "#comma"
@@ -210,7 +210,7 @@
                     ]
                 },
                 "3": {
-                    "name": "comment.block-tag.dtab"
+                    "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
                 "4": {
                     "name": "string.unquoted.block.dtab"
@@ -229,7 +229,7 @@
             "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (markdown|md)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
-                    "name": "entity.name.tag.leaf-key.dtab",
+                    "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
                             "include": "#comma"
@@ -237,7 +237,7 @@
                     ]
                 },
                 "3": {
-                    "name": "comment.block-tag.dtab"
+                    "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
                 "4": {
                     "name": "string.unquoted.block.dtab"
@@ -256,7 +256,7 @@
             "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (bash|sh|shell|zsh)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
-                    "name": "entity.name.tag.leaf-key.dtab",
+                    "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
                             "include": "#comma"
@@ -264,7 +264,7 @@
                     ]
                 },
                 "3": {
-                    "name": "comment.block-tag.dtab"
+                    "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
                 "4": {
                     "name": "string.unquoted.block.dtab"
@@ -283,7 +283,7 @@
             "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (c)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
-                    "name": "entity.name.tag.leaf-key.dtab",
+                    "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
                             "include": "#comma"
@@ -291,7 +291,7 @@
                     ]
                 },
                 "3": {
-                    "name": "comment.block-tag.dtab"
+                    "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
                 "4": {
                     "name": "string.unquoted.block.dtab"
@@ -310,7 +310,7 @@
             "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (cpp)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
-                    "name": "entity.name.tag.leaf-key.dtab",
+                    "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
                             "include": "#comma"
@@ -318,7 +318,7 @@
                     ]
                 },
                 "3": {
-                    "name": "comment.block-tag.dtab"
+                    "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
                 "4": {
                     "name": "string.unquoted.block.dtab"
@@ -337,7 +337,7 @@
             "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (rust)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
-                    "name": "entity.name.tag.leaf-key.dtab",
+                    "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
                             "include": "#comma"
@@ -345,7 +345,7 @@
                     ]
                 },
                 "3": {
-                    "name": "comment.block-tag.dtab"
+                    "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
                 "4": {
                     "name": "string.unquoted.block.dtab"
@@ -364,7 +364,7 @@
             "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (go)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
-                    "name": "entity.name.tag.leaf-key.dtab",
+                    "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
                             "include": "#comma"
@@ -372,7 +372,7 @@
                     ]
                 },
                 "3": {
-                    "name": "comment.block-tag.dtab"
+                    "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
                 "4": {
                     "name": "string.unquoted.block.dtab"
@@ -391,7 +391,7 @@
             "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (java)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
-                    "name": "entity.name.tag.leaf-key.dtab",
+                    "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
                             "include": "#comma"
@@ -399,7 +399,7 @@
                     ]
                 },
                 "3": {
-                    "name": "comment.block-tag.dtab"
+                    "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
                 "4": {
                     "name": "string.unquoted.block.dtab"
@@ -418,7 +418,7 @@
             "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (swift)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
-                    "name": "entity.name.tag.leaf-key.dtab",
+                    "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
                             "include": "#comma"
@@ -426,7 +426,7 @@
                     ]
                 },
                 "3": {
-                    "name": "comment.block-tag.dtab"
+                    "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
                 "4": {
                     "name": "string.unquoted.block.dtab"
@@ -445,7 +445,7 @@
             "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (dtab)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
-                    "name": "entity.name.tag.leaf-key.dtab",
+                    "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
                             "include": "#comma"
@@ -453,7 +453,7 @@
                     ]
                 },
                 "3": {
-                    "name": "comment.block-tag.dtab"
+                    "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
                 "4": {
                     "name": "string.unquoted.block.dtab"
@@ -472,7 +472,7 @@
             "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*)(?: ([^\\t]*))?(\\t[^\\n]*)?$",
             "beginCaptures": {
                 "2": {
-                    "name": "entity.name.tag.leaf-key.dtab",
+                    "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
                             "include": "#comma"
@@ -480,7 +480,7 @@
                     ]
                 },
                 "3": {
-                    "name": "comment.block-tag.dtab"
+                    "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
                 "4": {
                     "name": "string.unquoted.block.dtab"

@@ -26,8 +26,9 @@ const SCOPE_FOR_VIM_GROUP = {
     V: 'string.unquoted.value',
     C: 'comment.line',
     X: 'invalid.illegal.key',
-    T: 'comment.block-tag',
+    T: 'block-tag',
     B: 'string.unquoted.block',
+    K2: 'entity.name.function.block-key',   // a $key: its own scope, same structural letter as a leaf key
 }
 
 /** Command (reads files). The dtab TextMate grammar, loaded through the same engine VS Code uses. */
@@ -62,7 +63,7 @@ function letters(line, tokens) {
         let letter = '?'
         if (scopes.includes('punctuation.separator.tab') || scopes.includes('punctuation.whitespace.indent')) letter = '.'
         else if (scopes.includes('punctuation.separator.comma')) letter = ','
-        else for (const [vim, scope] of Object.entries(SCOPE_FOR_VIM_GROUP)) if (scopes.includes(scope)) letter = vim
+        else for (const [vim, scope] of Object.entries(SCOPE_FOR_VIM_GROUP)) if (scopes.includes(scope)) letter = vim[0]
         out.push(letter.repeat(Buffer.byteLength(line.slice(token.startIndex, token.endIndex))))
     }
     return out.join('')

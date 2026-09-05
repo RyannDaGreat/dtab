@@ -117,7 +117,7 @@ def test_js_suite():
 
 def vim(*commands):
     """Query (runs vim headless). Runs the -c commands in order in a clean vim and returns nothing."""
-    arguments = ["vim", "-N", "-u", "NONE", "-i", "NONE", "-es"]
+    arguments = ["vim", "-N", "-u", "NONE", "-i", "NONE", "-n", "-es", "-c", "set shortmess+=A"]  # -n, +=A: no swap files, no ATTENTION prompt
     for command in commands:
         arguments += ["-c", command]
     subprocess.run(arguments + ["-c", "qa!"], check=True, cwd=ROOT)

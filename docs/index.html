@@ -19,6 +19,8 @@
         --key-leaf: #5fd7ff;
         --value: #3d8bff;
         --comment: #6a6a6a;
+        --block-key: #ffd75f;    /* a $key: yellow, distinct from a leaf key */
+        --block-tag: #d7875f;    /* the language tag after a $key: orange, italic */
         --font-mono: "PT Mono", "SF Mono", Menlo, Consolas, monospace;
         --font-size: 14px;
         --line-height: 1.45;
@@ -58,7 +60,8 @@
     .highlight .cm-dtab-value { color: var(--value); }
     .highlight .cm-dtab-comment { color: var(--comment); }
     .highlight .cm-dtab-bad-key { color: var(--error); text-decoration: underline wavy; }
-    .highlight .cm-dtab-block-tag { color: var(--comment); }
+    .highlight .cm-dtab-block-key { color: var(--block-key); }
+    .highlight .cm-dtab-block-tag { color: var(--block-tag); font-style: italic; }
     /* tokens of a language embedded in a $ block (CodeMirror's standard class names) */
     .highlight .cm-keyword { color: var(--key-object); }
     .highlight .cm-string, .highlight .cm-string-2 { color: var(--value); }
@@ -258,7 +261,7 @@ CodeMirror.defineMode('dtab', config => ({
             const mode = TAG_MODES[tag] ? CodeMirror.getMode(config, TAG_MODES[tag]) : null
             state.pending = {indent: lineIndent(stream.string), tag: tag || null, mode, state: mode ? CodeMirror.startState(mode) : null}
             state.tagPending = isLeaf
-            return entryClass(key.slice(1), true)
+            return entryClass(key.slice(1), true) === 'dtab-bad-key' ? 'dtab-bad-key' : 'dtab-block-key'
         }
         if (isLeaf) { stream.next(); state.inValue = !stream.eol() }
         return entryClass(key, isLeaf)
