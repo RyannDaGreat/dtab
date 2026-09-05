@@ -2,7 +2,7 @@
     "name": "dtab",
     "displayName": "dtab (Delta Tab)",
     "description": "Syntax highlighting, structural whitespace markers and a \u0394 file icon for .dtab files: config files made of tab-separated paths.",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "publisher": "RyannDaGreat",
     "license": "SEE LICENSE IN ../LICENSE",
     "icon": "icons/delta-128.png",
