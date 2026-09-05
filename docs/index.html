@@ -270,12 +270,37 @@ CodeMirror.defineMode('dtab', config => ({
 }))
 
 const output = document.getElementById('output')
+const BLOCK_INDENT = '    '   // what the Tab key inserts inside a $ block: code indents with spaces, tabs are dtab structure
+
+/**
+ * Query (reads editor state). Whether a line is inside a $ block: the previous line ended in or opened a
+ * block, and this line is blank or indented deeper than that block's $ line.
+ *
+ * @example insideBlock(cm, 2)   // true for line 2 of '$code python\n\tdef f():\n\t    return 1'
+ * @example insideBlock(cm, 0)   // false: the $ line itself is a dtab line
+ */
+function insideBlock(cm, lineNumber) {
+    if (lineNumber === 0) return false
+    const previous = cm.getStateAfter(lineNumber - 1)
+    const block = previous.block || previous.pending
+    if (!block) return false
+    const text = cm.getLine(lineNumber)
+    return !text.trim() || lineIndent(text) > block.indent
+}
+
+/** Command. Tab inserts a tab (dtab structure), except past the indent of a block line, where code wants spaces. */
+function insertTab(cm) {
+    const cursor = cm.getCursor()
+    const leadingTabs = lineIndent(cm.getLine(cursor.line))
+    cm.replaceSelection(insideBlock(cm, cursor.line) && cursor.ch >= leadingTabs ? BLOCK_INDENT : '\t')
+}
+
 const editor = CodeMirror.fromTextArea(document.getElementById('source'), {
     mode: 'dtab',
     indentWithTabs: true,
     tabSize: 4,
     lineWrapping: false,
-    extraKeys: {Tab: cm => cm.replaceSelection('\t')},               // Tab inserts a tab; tabs are the whole point
+    extraKeys: {Tab: insertTab},
 })
 
 /**

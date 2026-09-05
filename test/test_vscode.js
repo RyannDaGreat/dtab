@@ -121,7 +121,22 @@ async function main() {
     assert.deepStrictEqual(manifest.contributes.languages[0].extensions, ['.dtab'])
     assert.ok(!('editor.renderWhitespace' in manifest.contributes.configurationDefaults['[dtab]']),
         'renderWhitespace must not be set per language: it would defeat the built-in toggle')
-    assert.ok(!('main' in manifest), 'the extension is declarative only (no activation code)')
+    require('child_process').execFileSync('node', ['--check', path.join(EXTENSION, manifest.main)])   // syntax only: it needs the vscode module to run
+    assert.strictEqual(manifest.contributes.keybindings[0].command, manifest.contributes.commands[0].command)
+
+    // The block detector behind the Tab key is pure; load it with a stub in place of the vscode module.
+    const Module = require('module'); const realLoad = Module._load
+    Module._load = (request, ...rest) => request === 'vscode' ? {} : realLoad(request, ...rest)
+    const {insideBlock} = require(path.join(EXTENSION, manifest.main))
+    Module._load = realLoad
+    assert.strictEqual(insideBlock(['$code python', '\tdef f():', '\t    return 1'], 2), true)
+    assert.strictEqual(insideBlock(['$code python', '\tdef f():', 'after 1'], 2), false)
+    assert.strictEqual(insideBlock(['a', '\t$code', '\t\tx', '\t\t\tdeeper'], 3), true, 'nearest $ ancestor')
+    assert.strictEqual(insideBlock(['a', '\tb', '\t\tc 1'], 2), false, 'no $ ancestor')
+    assert.strictEqual(insideBlock(['$code', '\tx', ''], 2), true, 'blank line inside a block')
+    assert.strictEqual(insideBlock(['a', '\t$code', '\t\tx', '\tnext 1'], 3), false, 'shallower line ends the block')
+    assert.strictEqual(insideBlock(['config\tdb\t$init sql', '\t\tCREATE'], 1), true, '$ after other entries')
+    assert.strictEqual(insideBlock(['$code', '\tx'], 0), false, 'the $ line itself is not inside the block')
     console.log('test_vscode.js: all checks passed')
 }
 

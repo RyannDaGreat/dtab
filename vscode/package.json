@@ -55,6 +55,23 @@
                 "editor.tabSize": 4,
                 "editor.detectIndentation": false
             }
-        }
-    }
+        },
+        "commands": [
+            {
+                "command": "dtab.tab",
+                "title": "dtab: Tab (spaces inside a $ block, a tab elsewhere)"
+            }
+        ],
+        "keybindings": [
+            {
+                "command": "dtab.tab",
+                "key": "tab",
+                "when": "editorTextFocus && editorLangId == dtab && !editorReadonly && !suggestWidgetVisible && !inSnippetMode && !editorTabMovesFocus"
+            }
+        ]
+    },
+    "main": "./extension.js",
+    "activationEvents": [
+        "onLanguage:dtab"
+    ]
 }

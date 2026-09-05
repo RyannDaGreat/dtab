@@ -8,7 +8,7 @@
     "after": "1",
     "config": {
         "db": {
-            "init": "CREATE TABLE t (\n\tid\tINT\n);",
+            "init": "CREATE TABLE t (\n    id INT\n);",
             "port": "5432"
         }
     }

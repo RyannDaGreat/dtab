@@ -145,6 +145,20 @@ def test_vim_embedded_languages():
     assert groups == ["sqlStatement", "dtabBlockKey", "sqlStatement", "shStatement", "dtabLeafKey"], groups
 
 
+def test_vim_tab_key():
+    """In insert mode, Tab inside a $ block (past the line's tabs) inserts spaces; elsewhere a tab."""
+    with tempfile.TemporaryDirectory() as directory:
+        sample = Path(directory) / "tab.dtab"
+        sample.write_text("$code python\n\tdef f():\n\t\nafter 1\n")
+        out = Path(directory) / "lines.txt"
+        vim("syntax on", "source dtab.vim", "edit " + str(sample),
+            "call cursor(3, 2) | execute \"normal a\\<Tab>return 1\" | call cursor(3, 1) | execute \"normal i\\<Tab>\" | call cursor(4, 6) | execute \"normal i\\<Tab>\"",
+            "call writefile([getline(3), getline(4)], '%s')" % out)
+        lines = out.read_text().split("\n")
+    assert lines[0] == "\t\t    return 1", repr(lines[0])   # spaces past the block's tab; a tab at the line start
+    assert lines[1] == "after\t 1", repr(lines[1])          # a tab outside the block
+
+
 def test_vim_plugin_shim():
     with tempfile.TemporaryDirectory() as directory:
         out = Path(directory) / "filetype.txt"
@@ -169,7 +183,7 @@ def test_vscode_grammar():
 
 if __name__ == "__main__":
     for test in [test_doctests, test_readers_agree, test_round_trips, test_key_rule, test_js_suite,
-                 test_vim_highlighting, test_vim_embedded_languages, test_vim_plugin_shim, test_web_demo, test_vscode_grammar]:
+                 test_vim_highlighting, test_vim_embedded_languages, test_vim_tab_key, test_vim_plugin_shim, test_web_demo, test_vscode_grammar]:
         test()
         print("ok  " + test.__name__)
     print("All dtab tests passed")

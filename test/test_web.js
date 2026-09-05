@@ -102,6 +102,20 @@ async function main() {
         await setEditorText(page, ' a comment\ncamera\tposition\tx 0\ty 5\nbad.key 1\n')
         assert.strictEqual(await glyph(), '"→"', 'tabs back on should draw the arrows')
 
+        // 4a. Inside a $ block, past the line's indent, the Tab key inserts spaces (code indents with spaces);
+        //     at the start of a block line, and anywhere outside a block, it inserts a tab.
+        await setEditorText(page, '$code python\n\tdef f():\n\t\nafter 1')
+        const cm = () => page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror)
+        await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.focus(); c.setCursor({line: 2, ch: 1}) })
+        await page.keyboard.press('Tab'); await page.keyboard.type('return 1')
+        assert.strictEqual(await page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror.getLine(2)), '\t    return 1', 'Tab inside a block should insert spaces')
+        await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.setCursor({line: 2, ch: 0}) })
+        await page.keyboard.press('Tab')
+        assert.strictEqual(await page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror.getLine(2)), '\t\t    return 1', 'Tab at the start of a block line should insert a tab')
+        await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.setCursor({line: 3, ch: 5}) })
+        await page.keyboard.press('Tab')
+        assert.strictEqual(await page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror.getLine(3)), 'after\t 1', 'Tab outside a block should insert a tab')
+
         // 4. The Tab key inserts a tab character instead of leaving the editor.
         await setEditorText(page, 'a')
         await page.evaluate(() => { const cm = document.querySelector('.CodeMirror').CodeMirror; cm.focus(); cm.setCursor({line: 0, ch: 1}) })

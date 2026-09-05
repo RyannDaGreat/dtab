@@ -15,6 +15,7 @@ augroup dtab
     autocmd BufRead,BufNewFile *.dtab setfiletype dtab
     autocmd FileType dtab setlocal noexpandtab tabstop=4 shiftwidth=4 softtabstop=0 commentstring=\ %s
     autocmd FileType dtab setlocal iskeyword=@,48-57,_,192-255
+    autocmd FileType dtab inoremap <buffer> <expr> <Tab> <SID>Tab()
     autocmd Syntax dtab call s:DtabSyntax()
     autocmd ColorScheme * if &filetype ==# 'dtab' | call s:DtabHighlight() | endif
 augroup END
@@ -82,6 +83,18 @@ function! s:DtabEmbedded() abort
     endfor
     syntax cluster dtabShebangs contains=dtabShebang
     let b:current_syntax = 'dtab'
+endfunction
+
+" What the Tab key inserts inside a $ block: code indents with spaces; tabs are dtab structure.
+let s:block_indent = '    '
+
+function! s:Tab() abort
+    " Inside a $ block and past the line's own tabs, insert spaces; everywhere else a tab.
+    let l:col = col('.') - 1
+    let l:leading = len(matchstr(getline('.'), '^\t*'))
+    let l:groups = map(synstack(line('.'), max([l:col, 1])), 'synIDattr(v:val, "name")')
+    let l:in_block = index(l:groups, 'dtabBlock') >= 0 || index(l:groups, 'dtabShebang') >= 0
+    return l:in_block && l:col >= l:leading ? s:block_indent : "\<Tab>"
 endfunction
 
 function! s:DtabHighlight() abort

@@ -12,3 +12,6 @@ their own scope, so any color theme applies. The Tab key inserts a tab.
 To see the tabs that carry the structure without dotting every space inside a value, set
 `"editor.renderWhitespace": "boundary"` (it draws tabs and runs of spaces, not single spaces).
 VS Code's normal Toggle Render Whitespace command works as usual.
+
+Inside a `$` block the Tab key inserts four spaces, since code indents with spaces and tabs are dtab
+structure. Everywhere else it inserts a tab.
