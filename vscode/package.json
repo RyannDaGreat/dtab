@@ -29,7 +29,7 @@
                 "editor.insertSpaces": false,
                 "editor.tabSize": 4,
                 "editor.detectIndentation": false,
-                "editor.renderWhitespace": "all"
+                "editor.renderWhitespace": "boundary"
             }
         }
     }
