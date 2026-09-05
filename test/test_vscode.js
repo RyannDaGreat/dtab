@@ -88,23 +88,9 @@ async function main() {
                         manifest.contributes.languages[0].icon.dark, manifest.contributes.grammars[0].path])
         assert.ok(fs.existsSync(path.join(EXTENSION, file)), 'manifest points at missing file ' + file)
     assert.deepStrictEqual(manifest.contributes.languages[0].extensions, ['.dtab'])
-    assert.ok(fs.existsSync(path.join(EXTENSION, manifest.main)), 'manifest main is missing')
-    assert.strictEqual(manifest.contributes.configurationDefaults['[dtab]']['editor.renderWhitespace'], 'none',
-        "VS Code's own whitespace rendering must be off for dtab: the extension draws structural whitespace itself")
-    assert.strictEqual(manifest.contributes.commands[0].command, manifest.contributes.keybindings[0].command)
-
-    // The marker finder is pure, so it can be tested with a stub in place of the vscode module.
-    const Module = require('module'); const realLoad = Module._load
-    Module._load = (request, ...rest) => request === 'vscode'
-        ? {window: {createTextEditorDecorationType: () => ({})}, ThemeColor: class {}, Range: class {}}
-        : realLoad(request, ...rest)
-    const {markers} = require(path.join(EXTENSION, manifest.main))
-    Module._load = realLoad
-    assert.deepStrictEqual(markers('a\tb 1 2\t c'), {tabs: [1, 7], spaces: [3]}, 'only the key/value space, not spaces in the value or a comment')
-    assert.deepStrictEqual(markers('\t\tkey value'), {tabs: [0, 1], spaces: [5]})
-    assert.deepStrictEqual(markers('objects\tl1,l2 light'), {tabs: [7], spaces: [13]})
-    assert.deepStrictEqual(markers(' a comment with spaces'), {tabs: [], spaces: []})
-    assert.deepStrictEqual(markers('a\t\t\tb'), {tabs: [1, 2, 3], spaces: []})
+    assert.ok(!('editor.renderWhitespace' in manifest.contributes.configurationDefaults['[dtab]']),
+        'renderWhitespace must not be set per language: it would defeat the built-in toggle')
+    assert.ok(!('main' in manifest), 'the extension is declarative only (no activation code)')
     console.log('test_vscode.js: all checks passed')
 }
 

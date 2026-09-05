@@ -1,7 +1,7 @@
 {
     "name": "dtab",
     "displayName": "dtab (Delta Tab)",
-    "description": "Syntax highlighting, structural whitespace markers and a \u0394 file icon for .dtab files: config files made of tab-separated paths.",
+    "description": "Syntax highlighting and a \u0394 file icon for .dtab files: config files made of tab-separated paths.",
     "version": "0.1.1",
     "publisher": "RyannDaGreat",
     "license": "SEE LICENSE IN ../LICENSE",
@@ -53,27 +53,8 @@
             "[dtab]": {
                 "editor.insertSpaces": false,
                 "editor.tabSize": 4,
-                "editor.detectIndentation": false,
-                "editor.renderWhitespace": "none"
+                "editor.detectIndentation": false
             }
-        },
-        "commands": [
-            {
-                "command": "dtab.toggleRenderWhitespace",
-                "title": "dtab: Toggle Structural Whitespace (tabs and key/value spaces)"
-            }
-        ],
-        "keybindings": [
-            {
-                "command": "dtab.toggleRenderWhitespace",
-                "key": "ctrl+shift+alt+w",
-                "mac": "cmd+shift+alt+w",
-                "when": "editorLangId == dtab"
-            }
-        ]
-    },
-    "main": "./extension.js",
-    "activationEvents": [
-        "onLanguage:dtab"
-    ]
+        }
+    }
 }

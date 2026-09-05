@@ -7,4 +7,8 @@ and later lines are deltas on top of earlier ones. Format, parsers and a live de
 https://github.com/RyannDaGreat/dtab
 
 Object keys, leaf keys, values, comments (entries starting with a space) and invalid keys each get
-their own scope, so any color theme applies. Tabs are rendered visibly and the Tab key inserts a tab.
+their own scope, so any color theme applies. The Tab key inserts a tab.
+
+To see the tabs that carry the structure without dotting every space inside a value, set
+`"editor.renderWhitespace": "boundary"` (it draws tabs and runs of spaces, not single spaces).
+VS Code's normal Toggle Render Whitespace command works as usual.
