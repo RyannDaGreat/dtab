@@ -22,8 +22,8 @@ $empty
 after 1
 
  Nested: blocks work at any depth, and a tab inside a block line is kept
-config	db	$init
+config	db	$init sql
 		CREATE TABLE t (
-			id	INT
+		    id INT
 		);
 config	db	port 5432

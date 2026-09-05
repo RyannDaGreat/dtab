@@ -116,10 +116,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/rust/rust.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/go/go.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/swift/swift.min.js"></script>
-<script src="dtab.js"></script>
+<script src="../dtab.js"></script>
 <script>
-// On GitHub Pages the workflow puts dtab.js next to this page; in the repo it is one folder up.
-if (typeof dtab === 'undefined') document.write('<script src="../dtab.js"><\/script>')
+// The repo's own dtab.js when served from a checkout (tests, local use). On GitHub Pages only docs/ is served,
+// so that 404s and the same file is loaded from the repo through jsDelivr's GitHub mirror instead. The mirror
+// caches a branch for up to ~12 hours; after a push that changes dtab.js, refresh it with
+//   curl https://purge.jsdelivr.net/gh/RyannDaGreat/dtab@main/dtab.js
+if (typeof dtab === 'undefined') document.write('<script src="https://cdn.jsdelivr.net/gh/RyannDaGreat/dtab@main/dtab.js"><\/script>')
 </script>
 <script>
 'use strict'
