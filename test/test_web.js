@@ -73,6 +73,17 @@ async function main() {
         const error = await page.$eval('#output', element => element.textContent)
         assert.ok(error.includes('line 3') && error.includes('bad.key'), 'error not shown: ' + error)
 
+        // 2b. $ blocks: the tag picks an embedded language, a shebang picks one too, no tag means plain value text,
+        //     and the block ends at the first line that is not deeper. The JSON pane shows the joined value.
+        await setEditorText(page, '$query sql\n\tSELECT * FROM t\n$plain\n\tjust text\n$s\n\t#!/bin/bash\n\techo hi\nafter 1\n')
+        assert.deepStrictEqual((await lineTokens(page, 1)).map(t => t[0]), ['dtab-leaf-key', 'dtab-block-tag'])
+        assert.ok((await lineTokens(page, 2)).some(t => t[0] === 'keyword' && t[1] === 'SELECT'), 'sql keyword not highlighted in a $query sql block')
+        assert.deepStrictEqual(await lineTokens(page, 4), [['tab', '\t'], ['dtab-value', 'just text']])
+        assert.ok((await lineTokens(page, 7)).some(t => t[0] === 'builtin' && t[1] === 'echo'), 'shebang did not select shell highlighting')
+        assert.deepStrictEqual((await lineTokens(page, 8)).map(t => t[0]), ['dtab-leaf-key', 'dtab-value'])
+        assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)),
+            {query: 'SELECT * FROM t', plain: 'just text', s: '#!/bin/bash\necho hi', after: '1'})
+
         // 3. The toggles: unchecking removes the colors and the tab glyphs, and the choice survives a reload.
         const valueColor = () => page.evaluate(() => getComputedStyle(document.querySelector('.cm-dtab-value')).color)
         const glyph = () => page.evaluate(() => getComputedStyle(document.querySelector('.cm-tab'), '::before').content)

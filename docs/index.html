@@ -58,6 +58,14 @@
     .highlight .cm-dtab-value { color: var(--value); }
     .highlight .cm-dtab-comment { color: var(--comment); }
     .highlight .cm-dtab-bad-key { color: var(--error); text-decoration: underline wavy; }
+    .highlight .cm-dtab-block-tag { color: var(--comment); }
+    /* tokens of a language embedded in a $ block (CodeMirror's standard class names) */
+    .highlight .cm-keyword { color: var(--key-object); }
+    .highlight .cm-string, .highlight .cm-string-2 { color: var(--value); }
+    .highlight .cm-number, .highlight .cm-atom { color: var(--accent); }
+    .highlight .cm-comment { color: var(--comment); }
+    .highlight .cm-def, .highlight .cm-variable-2, .highlight .cm-tag, .highlight .cm-attribute, .highlight .cm-property { color: var(--key-leaf); }
+    .highlight .cm-builtin, .highlight .cm-meta { color: var(--accent); }
     .show-tabs .cm-tab { position: relative; }
     .show-tabs .cm-tab::before { content: "\2192"; position: absolute; left: 0; color: var(--tab-glyph); }   /* → drawn under each tab */
     pre .k { color: var(--key-object); }
@@ -91,10 +99,27 @@
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/deltatab/dtab.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/simple.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/shell/shell.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/toml/toml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/rust/rust.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/go/go.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/swift/swift.min.js"></script>
+<script src="../dtab.js"></script>
 <script>
-// If the CDN copy failed to load (offline), use the repo's own copy.
-if (typeof dtab === 'undefined') document.write('<script src="../dtab.js"><\/script>')
+// The repo's own dtab.js when served from the repo (tests, local checkouts); on GitHub Pages only docs/ is
+// served, so that 404s and the published npm copy is used instead. SEMANTIC BINDING: dtab-version (the CDN
+// copy must support every feature the example below uses; publish npm before pushing docs).
+if (typeof dtab === 'undefined') document.write('<script src="https://cdn.jsdelivr.net/npm/deltatab/dtab.js"><\/script>')
 </script>
 <script>
 'use strict'
@@ -127,6 +152,15 @@ const EXAMPLE = [
     '',
     ' Every value is a string. Cast the ones you need.',
     'debug\tenabled false\tlevel 2',
+    '',
+    ' $key is a multiline string. A word after it picks the highlighting; it is not part of the value.',
+    '$query sql',
+    '\tSELECT name, age',
+    '\tFROM users',
+    '\tWHERE age > 30',
+    '$setup',
+    '\t#!/bin/bash',
+    '\tpip install rp',
 ].join('\n')
 
 const KEY_NAME = /^[\p{XID_Start}_]\p{XID_Continue}*$/u   // same key rule as dtab.js (named differently: dtab.js already declares IDENTIFIER globally)
@@ -146,12 +180,69 @@ function entryClass(key, isLeaf) {
     return isLeaf ? 'dtab-leaf-key' : 'dtab-object-key'
 }
 
+// Language tag on a $ line -> CodeMirror mode. Missing tags: a shebang on the block's first line, else plain.
+const TAG_MODES = {
+    sql: 'text/x-sql', python: 'python', py: 'python', javascript: 'javascript', js: 'javascript',
+    typescript: 'text/typescript', ts: 'text/typescript', html: 'htmlmixed', css: 'css', json: 'application/json',
+    yaml: 'yaml', yml: 'yaml', toml: 'toml', markdown: 'markdown', md: 'markdown',
+    bash: 'shell', sh: 'shell', shell: 'shell', zsh: 'shell',
+    c: 'text/x-csrc', cpp: 'text/x-c++src', rust: 'rust', go: 'go', java: 'text/x-java', swift: 'swift', dtab: 'dtab',
+}
+
+/**
+ * Pure function. The language tag implied by a shebang line, or null.
+ *
+ * @example shebangTag('#!/bin/bash')            // 'bash'
+ * @example shebangTag('#!/usr/bin/env python3') // 'python'
+ * @example shebangTag('SELECT 1')               // null
+ */
+function shebangTag(line) {
+    if (!line.startsWith('#!')) return null
+    const match = line.match(/(bash|zsh|sh|python|node)\d*(?:\s|$)/)
+    return match ? ({sh: 'bash', zsh: 'bash', node: 'javascript'}[match[1]] || match[1]) : null
+}
+
+/** Pure function. Number of leading tabs of a line. @example lineIndent('\t\tx') // 2 */
+const lineIndent = line => line.length - line.replace(/^\t+/, '').length
+
 // A line is entries separated by tab runs. Each entry is a comment (starts with a space), a leaf
-// (key, one space, value) or an object key. State is only "the next run is a value", per line.
-CodeMirror.defineMode('dtab', () => ({
-    startState: () => ({inValue: false}),
+// (key, one space, value) or an object key. `$key [tag]` opens a block: every following line indented
+// deeper than the $ line is value text, handed to the tag's language mode if there is one.
+CodeMirror.defineMode('dtab', config => ({
+    // block: the $ block the coming lines belong to ({indent, tag, mode, state}); pending: one opened on the
+    // current line, which becomes `block` at the next line start. tagPending: the word after `$key` is next.
+    startState: () => ({inValue: false, block: null, pending: null, tagPending: false}),
+    copyState: s => ({
+        inValue: s.inValue, tagPending: s.tagPending,
+        block: s.block && {...s.block, state: s.block.mode ? CodeMirror.copyState(s.block.mode, s.block.state) : null},
+        pending: s.pending && {...s.pending, state: s.pending.mode ? CodeMirror.copyState(s.pending.mode, s.pending.state) : null},
+    }),
+    blankLine(state) { if (state.block && state.block.mode && state.block.mode.blankLine) state.block.mode.blankLine(state.block.state) },
     token(stream, state) {
-        if (stream.sol()) state.inValue = false
+        if (stream.sol()) {
+            state.inValue = false
+            state.tagPending = false
+            if (state.pending) { state.block = state.pending; state.pending = null }
+            if (state.block) {
+                const line = stream.string
+                if (line.trim() && lineIndent(line) <= state.block.indent) state.block = null   // block over
+                else if (line.trim() && !state.block.mode && !state.block.tag) {                 // first line: sniff a shebang
+                    const tag = shebangTag(line.trim())
+                    state.block.tag = tag || 'text'
+                    if (tag) { state.block.mode = CodeMirror.getMode(config, TAG_MODES[tag]); state.block.state = CodeMirror.startState(state.block.mode) }
+                }
+            }
+        }
+        if (state.block) {
+            if (stream.eatWhile('\t')) return 'tab'
+            if (state.block.mode) return state.block.mode.token(stream, state.block.state)
+            stream.skipToEnd(); return 'dtab-value'
+        }
+        if (state.tagPending) { state.tagPending = false; stream.skipTo('\t') || stream.skipToEnd(); return 'dtab-block-tag' }
+        if (state.pending) {                                            // rest of a $ line: the value's first lines
+            if (stream.eatWhile('\t')) return 'tab'
+            stream.skipTo('\t') || stream.skipToEnd(); return 'dtab-value'
+        }
         if (state.inValue) {
             state.inValue = false
             stream.skipTo('\t') || stream.skipToEnd()
@@ -163,6 +254,13 @@ CodeMirror.defineMode('dtab', () => ({
         while (!stream.eol() && stream.peek() !== '\t' && stream.peek() !== ' ') stream.next()
         const key = stream.string.slice(start, stream.pos)
         const isLeaf = stream.peek() === ' '
+        if (key.startsWith('$')) {                                     // $key [tag]: the block is the lines below
+            const tag = isLeaf ? stream.string.slice(stream.pos + 1).split('\t')[0].trim() : ''
+            const mode = TAG_MODES[tag] ? CodeMirror.getMode(config, TAG_MODES[tag]) : null
+            state.pending = {indent: lineIndent(stream.string), tag: tag || null, mode, state: mode ? CodeMirror.startState(mode) : null}
+            state.tagPending = isLeaf
+            return entryClass(key.slice(1), true)
+        }
         if (isLeaf) { stream.next(); state.inValue = !stream.eol() }
         return entryClass(key, isLeaf)
     },
