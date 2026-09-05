@@ -41,8 +41,10 @@ function! s:DtabSyntax() abort
     " $key [tag]: a multiline block. The region runs over every following line indented deeper than the $ line
     " (\z1 is the $ line's own tabs) or blank. Defined after the entry matches so it wins at the same column.
     " keepend: when the block ends, an embedded-language region inside it ends too.
-    syntax match  dtabBlockTag /\%(^\t*\$[^\t ]\+\)\@<= [^\t]*/ contained
-    syntax region dtabBlock matchgroup=dtabBlockKey start=/^\z(\t*\)\$[^\t ]\+/ end=/^\%(\z1\t\|\s*$\)\@!/ keepend contains=dtabBlockTag,dtabTrailingTab,@dtabShebangs
+    " The $ entry may come after other entries on its line (config	db	$init), so the line's tabs and the
+    " entries before the $ sit in a lookbehind: the region starts at the $ itself, and \z1 still holds the tabs.
+    syntax match  dtabBlockTag /\%(^\t*\%([^\t]*\t\+\)*\$[^\t ]\+\)\@<= [^\t]*/ contained
+    syntax region dtabBlock matchgroup=dtabBlockKey start=/\%(^\z(\t*\)\%([^\t]*\t\+\)*\)\@<=\$[^\t ]\+/ end=/^\%(\z1\t\|\s*$\)\@!/ keepend contains=dtabBlockTag,dtabTrailingTab,@dtabShebangs
     call s:DtabEmbedded()
     syntax sync fromstart
     call s:DtabHighlight()
@@ -71,7 +73,7 @@ function! s:DtabEmbedded() abort
             let l:included[l:syntax] = 1
         endif
         execute 'syntax region dtabBlock matchgroup=dtabBlockKey'
-            \ . ' start=/^\z(\t*\)\$[^\t ]\+\ze ' . l:tag . '\%(\t\|$\)/'
+            \ . ' start=/\%(^\z(\t*\)\%([^\t]*\t\+\)*\)\@<=\$[^\t ]\+\ze ' . l:tag . '\%(\t\|$\)/'
             \ . ' end=/^\%(\z1\t\|\s*$\)\@!/ keepend contains=dtabBlockTag,dtabTrailingTab,@dtabLang_' . l:syntax
     endfor
     for [l:word, l:tag] in items(s:dtab_shebangs)

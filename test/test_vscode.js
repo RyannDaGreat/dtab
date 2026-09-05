@@ -105,6 +105,8 @@ async function main() {
     const sqlLine = grammar.tokenizeLine('\tSELECT * FROM t', grammar.tokenizeLine('$query sql', textmate.INITIAL).ruleStack)
     const inLanguage = (line, name, suffix) => line.tokens.some(tok => tok.scopes.includes('meta.embedded.block.' + name) && tok.scopes.some(s => s.endsWith(suffix) && !s.startsWith('meta.')))
     assert.ok(inLanguage(sqlLine, 'sql', '.sql'), 'sql block not handed to the sql grammar')
+    const midLine = grammar.tokenizeLine('\t\tCREATE TABLE t', grammar.tokenizeLine('config\tdb\t$init sql', textmate.INITIAL).ruleStack)
+    assert.ok(inLanguage(midLine, 'sql', '.sql'), 'a $ block after other entries on its line was not handed to sql')
     stack = textmate.INITIAL
     for (const line of ['$s', '\t#!/bin/bash']) stack = grammar.tokenizeLine(line, stack).ruleStack
     const shLine = grammar.tokenizeLine('\techo hi', stack)

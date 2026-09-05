@@ -10,9 +10,17 @@
         },
         {
             "comment": "$key sql: the block is highlighted as sql",
-            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (sql)(?=\\t|$)(\\t[^\\n]*)?",
+            "begin": "^(\\t*)((?:[^\\t\\n]*\\t+)*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (sql)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
                     "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
@@ -20,10 +28,10 @@
                         }
                     ]
                 },
-                "3": {
+                "4": {
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
-                "4": {
+                "5": {
                     "name": "string.unquoted.block.dtab"
                 }
             },
@@ -37,9 +45,17 @@
         },
         {
             "comment": "$key python: the block is highlighted as python",
-            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (python|py)(?=\\t|$)(\\t[^\\n]*)?",
+            "begin": "^(\\t*)((?:[^\\t\\n]*\\t+)*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (python|py)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
                     "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
@@ -47,10 +63,10 @@
                         }
                     ]
                 },
-                "3": {
+                "4": {
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
-                "4": {
+                "5": {
                     "name": "string.unquoted.block.dtab"
                 }
             },
@@ -64,9 +80,17 @@
         },
         {
             "comment": "$key javascript: the block is highlighted as javascript",
-            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (javascript|js)(?=\\t|$)(\\t[^\\n]*)?",
+            "begin": "^(\\t*)((?:[^\\t\\n]*\\t+)*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (javascript|js)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
                     "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
@@ -74,10 +98,10 @@
                         }
                     ]
                 },
-                "3": {
+                "4": {
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
-                "4": {
+                "5": {
                     "name": "string.unquoted.block.dtab"
                 }
             },
@@ -91,9 +115,17 @@
         },
         {
             "comment": "$key typescript: the block is highlighted as typescript",
-            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (typescript|ts)(?=\\t|$)(\\t[^\\n]*)?",
+            "begin": "^(\\t*)((?:[^\\t\\n]*\\t+)*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (typescript|ts)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
                     "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
@@ -101,10 +133,10 @@
                         }
                     ]
                 },
-                "3": {
+                "4": {
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
-                "4": {
+                "5": {
                     "name": "string.unquoted.block.dtab"
                 }
             },
@@ -118,9 +150,17 @@
         },
         {
             "comment": "$key html: the block is highlighted as html",
-            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (html)(?=\\t|$)(\\t[^\\n]*)?",
+            "begin": "^(\\t*)((?:[^\\t\\n]*\\t+)*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (html)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
                     "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
@@ -128,10 +168,10 @@
                         }
                     ]
                 },
-                "3": {
+                "4": {
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
-                "4": {
+                "5": {
                     "name": "string.unquoted.block.dtab"
                 }
             },
@@ -145,9 +185,17 @@
         },
         {
             "comment": "$key css: the block is highlighted as css",
-            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (css)(?=\\t|$)(\\t[^\\n]*)?",
+            "begin": "^(\\t*)((?:[^\\t\\n]*\\t+)*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (css)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
                     "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
@@ -155,10 +203,10 @@
                         }
                     ]
                 },
-                "3": {
+                "4": {
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
-                "4": {
+                "5": {
                     "name": "string.unquoted.block.dtab"
                 }
             },
@@ -172,9 +220,17 @@
         },
         {
             "comment": "$key json: the block is highlighted as json",
-            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (json)(?=\\t|$)(\\t[^\\n]*)?",
+            "begin": "^(\\t*)((?:[^\\t\\n]*\\t+)*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (json)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
                     "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
@@ -182,10 +238,10 @@
                         }
                     ]
                 },
-                "3": {
+                "4": {
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
-                "4": {
+                "5": {
                     "name": "string.unquoted.block.dtab"
                 }
             },
@@ -199,9 +255,17 @@
         },
         {
             "comment": "$key yaml: the block is highlighted as yaml",
-            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (yaml|yml)(?=\\t|$)(\\t[^\\n]*)?",
+            "begin": "^(\\t*)((?:[^\\t\\n]*\\t+)*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (yaml|yml)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
                     "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
@@ -209,10 +273,10 @@
                         }
                     ]
                 },
-                "3": {
+                "4": {
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
-                "4": {
+                "5": {
                     "name": "string.unquoted.block.dtab"
                 }
             },
@@ -226,9 +290,17 @@
         },
         {
             "comment": "$key markdown: the block is highlighted as markdown",
-            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (markdown|md)(?=\\t|$)(\\t[^\\n]*)?",
+            "begin": "^(\\t*)((?:[^\\t\\n]*\\t+)*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (markdown|md)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
                     "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
@@ -236,10 +308,10 @@
                         }
                     ]
                 },
-                "3": {
+                "4": {
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
-                "4": {
+                "5": {
                     "name": "string.unquoted.block.dtab"
                 }
             },
@@ -253,9 +325,17 @@
         },
         {
             "comment": "$key shellscript: the block is highlighted as shellscript",
-            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (bash|sh|shell|zsh)(?=\\t|$)(\\t[^\\n]*)?",
+            "begin": "^(\\t*)((?:[^\\t\\n]*\\t+)*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (bash|sh|shell|zsh)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
                     "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
@@ -263,10 +343,10 @@
                         }
                     ]
                 },
-                "3": {
+                "4": {
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
-                "4": {
+                "5": {
                     "name": "string.unquoted.block.dtab"
                 }
             },
@@ -280,9 +360,17 @@
         },
         {
             "comment": "$key c: the block is highlighted as c",
-            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (c)(?=\\t|$)(\\t[^\\n]*)?",
+            "begin": "^(\\t*)((?:[^\\t\\n]*\\t+)*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (c)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
                     "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
@@ -290,10 +378,10 @@
                         }
                     ]
                 },
-                "3": {
+                "4": {
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
-                "4": {
+                "5": {
                     "name": "string.unquoted.block.dtab"
                 }
             },
@@ -307,9 +395,17 @@
         },
         {
             "comment": "$key cpp: the block is highlighted as cpp",
-            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (cpp)(?=\\t|$)(\\t[^\\n]*)?",
+            "begin": "^(\\t*)((?:[^\\t\\n]*\\t+)*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (cpp)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
                     "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
@@ -317,10 +413,10 @@
                         }
                     ]
                 },
-                "3": {
+                "4": {
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
-                "4": {
+                "5": {
                     "name": "string.unquoted.block.dtab"
                 }
             },
@@ -334,9 +430,17 @@
         },
         {
             "comment": "$key rust: the block is highlighted as rust",
-            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (rust)(?=\\t|$)(\\t[^\\n]*)?",
+            "begin": "^(\\t*)((?:[^\\t\\n]*\\t+)*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (rust)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
                     "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
@@ -344,10 +448,10 @@
                         }
                     ]
                 },
-                "3": {
+                "4": {
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
-                "4": {
+                "5": {
                     "name": "string.unquoted.block.dtab"
                 }
             },
@@ -361,9 +465,17 @@
         },
         {
             "comment": "$key go: the block is highlighted as go",
-            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (go)(?=\\t|$)(\\t[^\\n]*)?",
+            "begin": "^(\\t*)((?:[^\\t\\n]*\\t+)*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (go)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
                     "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
@@ -371,10 +483,10 @@
                         }
                     ]
                 },
-                "3": {
+                "4": {
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
-                "4": {
+                "5": {
                     "name": "string.unquoted.block.dtab"
                 }
             },
@@ -388,9 +500,17 @@
         },
         {
             "comment": "$key java: the block is highlighted as java",
-            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (java)(?=\\t|$)(\\t[^\\n]*)?",
+            "begin": "^(\\t*)((?:[^\\t\\n]*\\t+)*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (java)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
                     "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
@@ -398,10 +518,10 @@
                         }
                     ]
                 },
-                "3": {
+                "4": {
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
-                "4": {
+                "5": {
                     "name": "string.unquoted.block.dtab"
                 }
             },
@@ -415,9 +535,17 @@
         },
         {
             "comment": "$key swift: the block is highlighted as swift",
-            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (swift)(?=\\t|$)(\\t[^\\n]*)?",
+            "begin": "^(\\t*)((?:[^\\t\\n]*\\t+)*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (swift)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
                     "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
@@ -425,10 +553,10 @@
                         }
                     ]
                 },
-                "3": {
+                "4": {
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
-                "4": {
+                "5": {
                     "name": "string.unquoted.block.dtab"
                 }
             },
@@ -442,9 +570,17 @@
         },
         {
             "comment": "$key dtab: the block is highlighted as dtab",
-            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (dtab)(?=\\t|$)(\\t[^\\n]*)?",
+            "begin": "^(\\t*)((?:[^\\t\\n]*\\t+)*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (dtab)(?=\\t|$)(\\t[^\\n]*)?",
             "beginCaptures": {
                 "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
                     "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
@@ -452,10 +588,10 @@
                         }
                     ]
                 },
-                "3": {
+                "4": {
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
-                "4": {
+                "5": {
                     "name": "string.unquoted.block.dtab"
                 }
             },
@@ -469,9 +605,17 @@
         },
         {
             "comment": "$key with no language tag: plain block text, unless its first line is a shebang",
-            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*)(?: ([^\\t]*))?(\\t[^\\n]*)?$",
+            "begin": "^(\\t*)((?:[^\\t\\n]*\\t+)*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*)(?: ([^\\t]*))?(\\t[^\\n]*)?$",
             "beginCaptures": {
                 "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
                     "name": "entity.name.function.block-key.dtab",
                     "patterns": [
                         {
@@ -479,10 +623,10 @@
                         }
                     ]
                 },
-                "3": {
+                "4": {
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 },
-                "4": {
+                "5": {
                     "name": "string.unquoted.block.dtab"
                 }
             },

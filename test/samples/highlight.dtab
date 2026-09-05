@@ -16,3 +16,5 @@ $note
 		deeper line
 $query sql	
 $wide	line one	line two
+config	db	$init
+		CREATE TABLE t

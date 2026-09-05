@@ -133,6 +133,18 @@ def test_vim_highlighting():
     assert got == expected, "vim highlighting differs:\nexpected:\n%s\ngot:\n%s" % (expected, got)
 
 
+def test_vim_embedded_languages():
+    """A tagged $ block (at line start or after other entries) and a shebang block get the language's own groups."""
+    with tempfile.TemporaryDirectory() as directory:
+        sample = Path(directory) / "embedded.dtab"
+        sample.write_text("$query sql\n\tSELECT name FROM t\nconfig\tdb\t$init sql\n\t\tCREATE TABLE t\n$s\n\t#!/bin/bash\n\techo hi\nafter 1\n")
+        out = Path(directory) / "groups.txt"
+        vim("syntax on", "source dtab.vim", "edit " + str(sample),
+            "call writefile([synIDattr(synID(2,2,1),'name'), synIDattr(synID(3,12,1),'name'), synIDattr(synID(4,3,1),'name'), synIDattr(synID(7,2,1),'name'), synIDattr(synID(8,1,1),'name')], '%s')" % out)
+        groups = out.read_text().split()
+    assert groups == ["sqlStatement", "dtabBlockKey", "sqlStatement", "shStatement", "dtabLeafKey"], groups
+
+
 def test_vim_plugin_shim():
     with tempfile.TemporaryDirectory() as directory:
         out = Path(directory) / "filetype.txt"
@@ -157,7 +169,7 @@ def test_vscode_grammar():
 
 if __name__ == "__main__":
     for test in [test_doctests, test_readers_agree, test_round_trips, test_key_rule, test_js_suite,
-                 test_vim_highlighting, test_vim_plugin_shim, test_web_demo, test_vscode_grammar]:
+                 test_vim_highlighting, test_vim_embedded_languages, test_vim_plugin_shim, test_web_demo, test_vscode_grammar]:
         test()
         print("ok  " + test.__name__)
     print("All dtab tests passed")
