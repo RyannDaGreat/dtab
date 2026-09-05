@@ -1,42 +1,76 @@
-// dtab extension entry point. Two jobs, both about whitespace rendering:
-//   1. On first use, seed the user's own setting for .dtab files: render tabs (and runs of spaces),
-//      but not single spaces inside values. It is written to the user's settings, not pinned by the
-//      extension, so it stays a default the user can change.
-//   2. Provide a toggle that flips that language-scoped value, because VS Code's built-in
-//      "Toggle Render Whitespace" only flips the global one, which a language-scoped value overrides.
+// dtab extension entry point: STRUCTURAL whitespace rendering.
+//
+// VS Code's own renderWhitespace setting is per editor and dots every space, including the ones
+// inside a value like `name Demo scene`. dtab has exactly two kinds of whitespace that carry meaning,
+// tabs and the single space between a key and its value, so this draws markers on those and nothing
+// else, using editor decorations. VS Code's own rendering is turned off for dtab files so the two
+// never overlap, and a command toggles the markers (bound where the built-in toggle would be).
 'use strict'
 const vscode = require('vscode')
 
-const LANGUAGE_SCOPE = '[dtab]'
-const RENDER_WHITESPACE = 'editor.renderWhitespace'
-const DEFAULT_RENDER_WHITESPACE = 'boundary'   // tabs and multi-space runs shown, single spaces not
+const LANGUAGE = 'dtab'
+const TOGGLE_COMMAND = 'dtab.toggleRenderWhitespace'
+const STATE_KEY = 'dtab.renderWhitespace'   // remembered across sessions; on by default
+const TAB_GLYPH = '→'                  // →
+const SPACE_GLYPH = '·'                // ·
 
-/** Query. The user's language-scoped editor settings for dtab, as stored in their settings.json ({} if none). */
-function userLanguageSettings() {
-    return vscode.workspace.getConfiguration().inspect(LANGUAGE_SCOPE)?.globalValue ?? {}
+const marker = glyph => vscode.window.createTextEditorDecorationType({
+    before: {contentText: glyph, color: new vscode.ThemeColor('editorWhitespace.foreground'), width: '0', margin: '0'},
+})
+const tabMarker = marker(TAB_GLYPH)
+const spaceMarker = marker(SPACE_GLYPH)
+
+/**
+ * Pure function. Character offsets of the structural whitespace in one dtab line: every tab, and the
+ * first space of each entry that has one (the key/value separator). Spaces inside a value, and the
+ * leading space of a comment, are not structural.
+ *
+ * @param {string} line
+ * @returns {{tabs: number[], spaces: number[]}}
+ * @example markers('a\tb 1 2\t c')   // {tabs: [1, 7], spaces: [3]}
+ * @example markers('\t\tkey value')  // {tabs: [0, 1], spaces: [5]}
+ */
+function markers(line) {
+    const tabs = [], spaces = []
+    let entryStart = 0
+    for (let i = 0; i <= line.length; i++) {
+        if (i === line.length || line[i] === '\t') {
+            const entry = line.slice(entryStart, i)
+            const space = entry.indexOf(' ')
+            if (space > 0) spaces.push(entryStart + space)   // > 0: a leading space is a comment, not a separator
+            if (i < line.length) tabs.push(i)
+            entryStart = i + 1
+        }
+    }
+    return {tabs, spaces}
 }
 
-/** Command. Writes one key into the user's `[dtab]` settings block, keeping the others. */
-async function setLanguageSetting(key, value) {
-    const merged = {...userLanguageSettings(), [key]: value}
-    await vscode.workspace.getConfiguration().update(LANGUAGE_SCOPE, merged, vscode.ConfigurationTarget.Global)
-}
-
-/** Command. Seeds the whitespace default once; a user who has set anything keeps it. */
-async function seedDefault() {
-    if (RENDER_WHITESPACE in userLanguageSettings()) return
-    await setLanguageSetting(RENDER_WHITESPACE, DEFAULT_RENDER_WHITESPACE)
-}
-
-/** Command. Flips the dtab whitespace rendering between the default and none. */
-async function toggleRenderWhitespace() {
-    const current = userLanguageSettings()[RENDER_WHITESPACE] ?? DEFAULT_RENDER_WHITESPACE
-    await setLanguageSetting(RENDER_WHITESPACE, current === 'none' ? DEFAULT_RENDER_WHITESPACE : 'none')
+/** Command. Draws or clears the markers on one editor. */
+function decorate(editor, on) {
+    if (!editor || editor.document.languageId !== LANGUAGE) return
+    const tabRanges = [], spaceRanges = []
+    if (on) {
+        for (let n = 0; n < editor.document.lineCount; n++) {
+            const {tabs, spaces} = markers(editor.document.lineAt(n).text)
+            for (const c of tabs) tabRanges.push(new vscode.Range(n, c, n, c + 1))
+            for (const c of spaces) spaceRanges.push(new vscode.Range(n, c, n, c + 1))
+        }
+    }
+    editor.setDecorations(tabMarker, tabRanges)
+    editor.setDecorations(spaceMarker, spaceRanges)
 }
 
 function activate(context) {
-    context.subscriptions.push(vscode.commands.registerCommand('dtab.toggleRenderWhitespace', toggleRenderWhitespace))
-    seedDefault()
+    const isOn = () => context.globalState.get(STATE_KEY, true)
+    const refreshAll = () => vscode.window.visibleTextEditors.forEach(e => decorate(e, isOn()))
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand(TOGGLE_COMMAND, async () => { await context.globalState.update(STATE_KEY, !isOn()); refreshAll() }),
+        vscode.window.onDidChangeVisibleTextEditors(refreshAll),
+        vscode.workspace.onDidChangeTextDocument(event =>
+            vscode.window.visibleTextEditors.filter(e => e.document === event.document).forEach(e => decorate(e, isOn()))),
+    )
+    refreshAll()
 }
 
-module.exports = {activate}
+module.exports = {activate, markers}
