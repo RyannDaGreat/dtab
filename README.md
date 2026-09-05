@@ -1,4 +1,5 @@
 <p align="center"><img src="https://raw.githubusercontent.com/RyannDaGreat/dtab/main/assets/logo.jpg" alt="dtab" width="640"></p>
+<p align="center"><sub>Logo made with <a href="https://github.com/RyannDaGreat/SvelteLib">PowerRP</a>. <a href="https://ryanndagreat.github.io/SvelteLib/?repo=RyannDaGreat/dtab">Open it in PowerRP</a> to edit it (source: <code>assets/doc.json</code>).</sub></p>
 
 # dtab
 
