@@ -11,7 +11,8 @@ Checks:
   3. dtab.py and dtab.js agree with each other on every sample; the deviating samples match their goldens
      in test/expected/, which were diffed against the original when written. The differences are exactly:
      blank lines are ignored, an object can overwrite a leaf, comma keys respect line order (in game_config
-     that is one leaf, deltas.initial.l1.intensity, where the original ignored the later `l1	intensity 1`).
+     that is one leaf, deltas.initial.l1.intensity, where the original ignored the later `l1	intensity 1`),
+     and `$` multiline blocks, which the original did not have.
   4. parse(stringify(parse(text))) == parse(text) for every sample.
   5. The key rule: bad keys are rejected with a line number in parse and in stringify, and Python's
      str.isidentifier and the JS Unicode regex agree on a set of probes.
@@ -38,7 +39,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 HIGHLIGHT_SAMPLE = ROOT / "test" / "samples" / "highlight.dtab"
 SAMPLES = sorted(path for path in (ROOT / "test" / "samples").glob("*.dtab") if path != HIGHLIGHT_SAMPLE)
-DEVIATING = {"deviations.dtab", "game_config.dtab"}
+DEVIATING = {"deviations.dtab", "game_config.dtab", "multiline.dtab"}  # multiline: $ blocks did not exist in the original
 IDENTIFIER_PROBES = ["café", "变量", "x²", "_x", "0x", "from", "items", "a-b", "ok_1", "ª", "Ⅻ", "℘", "ℕ", "𝔸", "a.b", "é1", "1é"]
 
 sys.path.insert(0, str(ROOT))
@@ -96,8 +97,10 @@ def test_key_rule():
     ]:
         raises_value_error(lambda: dtab.parse(text), *fragments)
     assert dtab.parse("items 1\nfrom 2\n_private 3\ncafé 4") == {"items": "1", "from": "2", "_private": "3", "café": "4"}
-    for tree in [{"a b": "1"}, {"a,b": "1"}, {0: "1"}, {"": "1"}, {"a": "x\ty"}, {"a": "x\ny"}]:
+    for tree in [{"a b": "1"}, {"a,b": "1"}, {0: "1"}, {"": "1"}]:
         raises_value_error(lambda: dtab.stringify(tree), "dtab")
+    for value in ["x\ny", "x\ty", "a\n\n\tb\n  c", "#!/bin/bash\necho hi", ""]:
+        assert dtab.parse(dtab.stringify({"a": value})) == {"a": value}, "multiline round trip failed for %r" % value
     python_verdicts = [probe.isidentifier() for probe in IDENTIFIER_PROBES]
     js_verdicts = json.loads(run(
         "node", "-e",

@@ -48,9 +48,36 @@ dtab.parse(open("scene.dtab").read())
 - Writing a key again replaces it. Writing into an object merges.
 - `a,b` writes the same value under `a` and under `b`.
 - An entry that starts with a space is a comment.
+- `$key` starts a multiline string. See below.
 
 Every value is a string. Cast the ones you need. Keys are identifiers (letters, digits, underscores),
 so attribute access like `config.deltas.l1` works with EasyDict and friends.
+
+## Multiline strings
+
+`$key` makes the lines indented under it the value, with their common indentation removed. Blank
+lines inside are kept, trailing ones dropped.
+
+```
+$query sql
+	SELECT name, age
+	FROM users
+	WHERE age > 30
+```
+
+The word after the key is optional. It tells editors which language to highlight and is not part of
+the value. Unknown tags are plain text, never an error.
+
+| Tag | Also |
+|---|---|
+| `sql` | |
+| `python` | `py` |
+| `javascript` | `js` |
+| `typescript` | `ts` |
+| `html`, `css`, `json`, `yaml`, `toml`, `markdown` | `yml`, `md` |
+| `bash` | `sh`, `shell`, `zsh` |
+| `c`, `cpp`, `rust`, `go`, `java`, `swift` | |
+| `dtab` | |
 
 ## Install
 

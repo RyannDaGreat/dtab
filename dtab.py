@@ -6,6 +6,9 @@ and later lines are deltas on top of earlier ones.
     deltas	l1	position	x 1	y .5     ->  {"deltas": {"l1": {"position": {"x": "1", "y": ".5"}}}}
     	z -2                              ->  continues the path of the line above
     	 this entry starts with a space, so it is a comment
+    $query sql                            ->  {"query": "SELECT *\nFROM users"}: a multiline value, tagged sql for editors
+    	SELECT *
+    	FROM users
 
 Rules:
   - Tabs indent, and separate the steps of a path (several in a row count as one, for alignment).
@@ -15,6 +18,9 @@ Rules:
   - Writing a key again replaces it; writing into an object merges. Last line wins.
   - `a,b` writes the same value under a and under b.
   - An entry starting with a space is a comment. A trailing tab is an empty key that swallows the lines under it.
+  - `$key` is a multiline leaf: its value is the entries after it on its line plus every line indented
+    under it, one line each, with their common indentation removed. A word after the key on the `$` line
+    (`$query sql`) is a language tag for editors and is not part of the value.
   - Keys are identifiers (str.isidentifier), so trees are EasyDict-friendly. Every value is a string.
 
 Single pass, one stack, O(total characters).
@@ -26,6 +32,7 @@ import re
 __version__ = "0.1.0"  # SEMANTIC BINDING: dtab-version (also package.json "version")
 
 KEY_SEPARATOR = ","  # a,b writes the same value under each key
+BLOCK_PREFIX = "$"  # $key: a leaf whose value is the lines under it ($ as in string)
 KEY_RULE = "keys must be identifiers (letters, digits, underscores, not starting with a digit)"
 _TAB_RUN = re.compile(r"\t+")  # Several tabs in a row are one separator, so columns can be aligned
 
@@ -46,25 +53,41 @@ def parse(text):
         {'objects': {'l1': 'light', 'l2': 'light'}, 'deltas': {'l1': {'position': {'x': '1', 'y': '.5', 'z': '-2'}}}}
         >>> parse('a\\tb 1\\n\\t comment\\na\\tb 2')
         {'a': {'b': '2'}}
+        >>> parse('$query sql\\n\\tSELECT *\\n\\n\\t\\tFROM users\\n\\nnext 1')
+        {'query': 'SELECT *\\n\\n\\tFROM users', 'next': '1'}
+        >>> parse('$cmd\\tpip install rp\\tpython train.py')
+        {'cmd': 'pip install rp\\npython train.py'}
         >>> parse('a\\tb 1\\nc.d\\te 2')
         Traceback (most recent call last):
         ValueError: dtab line 2: invalid key 'c.d': keys must be identifiers (letters, digits, underscores, not starting with a digit)
     """
     root = {}
     stack = [(-1, [root])]  # (indent, nodes that deeper lines nest into)
+    block = None  # while inside a $ block: (indent of the $ line, nodes, names, first lines, raw deeper lines)
     for line_number, line in enumerate(text.split("\n"), 1):
+        indent = len(line) - len(line.lstrip("\t"))
+        if block is not None:
+            if not line.strip() or indent > block[0]:
+                block[4].append(line)
+                continue
+            _finish_block(block)
+            block = None
         if not line.strip():
             continue
-        indent = len(line) - len(line.lstrip("\t"))
         while stack[-1][0] >= indent:
             stack.pop()
         nodes = stack[-1][1]
-        for entry in _TAB_RUN.split(line[indent:]):
+        entries = _TAB_RUN.split(line[indent:])
+        for position, entry in enumerate(entries):
             key, space, value = entry.partition(" ")
             if not key:
                 if not space:
                     nodes = [{}]  # Empty key (trailing tab): everything under it is discarded
                 continue
+            if key.startswith(BLOCK_PREFIX):
+                names = _key_names(key[len(BLOCK_PREFIX):], line_number, allow_commas=True)
+                block = (indent, nodes, names, entries[position + 1:], [])  # rest of the $ line, then deeper lines (raw)
+                break
             names = _key_names(key, line_number, allow_commas=True)
             if space:
                 for node in nodes:
@@ -73,14 +96,16 @@ def parse(text):
             else:
                 nodes = [_child(node, name) for node in nodes for name in names]
         stack.append((indent, nodes))
+    if block is not None:
+        _finish_block(block)
     return root
 
 
 def stringify(tree):
     """
     Pure function. Writes nested dicts as dtab, one key per line, tab-indented. Leaves are written
-    with str(). Raises ValueError on a key that breaks KEY_RULE or a leaf containing a tab or newline,
-    which dtab cannot represent. parse(stringify(tree)) == tree when every leaf is a str.
+    with str(); a leaf containing a newline or a tab is written as a $ block. Raises ValueError on a key
+    that breaks KEY_RULE. parse(stringify(tree)) == tree when every leaf is a str without trailing newlines.
 
     Args:
         tree (dict): Nested dicts
@@ -91,6 +116,8 @@ def stringify(tree):
     Examples:
         >>> stringify({'objects': {'l1': 'light'}, 'deltas': {'l1': {'x': 1, 'name': 'a b'}}}).split('\\n')
         ['objects', '\\tl1 light', 'deltas', '\\tl1', '\\t\\tx 1', '\\t\\tname a b']
+        >>> stringify({'query': 'SELECT *\\nFROM t'}).split('\\n')
+        ['$query', '\\tSELECT *', '\\tFROM t']
     """
     lines = []
     _stringify_into(tree, 0, lines)
@@ -132,6 +159,31 @@ def _child(node, name):
     return child
 
 
+def _finish_block(block):
+    """
+    Command (mutates the block's nodes). Joins a $ block into its value: the first lines from the $ line
+    itself, then the deeper lines with their common indentation removed (so relative indentation inside
+    code survives), trailing blank lines dropped. Written under every name the $ key stands for.
+
+    Examples:
+        >>> nodes = [{}]; _finish_block((0, nodes, ['q'], [], ['\\t\\tSELECT *', '', '\\t\\t\\tFROM t', '', ''])); nodes
+        [{'q': 'SELECT *\\n\\n\\tFROM t'}]
+        >>> nodes = [{}]; _finish_block((0, nodes, ['c'], ['pip install rp'], ['\\techo done'])); nodes
+        [{'c': 'pip install rp\\necho done'}]
+    """
+    _, nodes, names, head, deep = block
+    while deep and not deep[-1].strip():
+        deep.pop()
+    common = min((len(line) - len(line.lstrip("\t")) for line in deep if line.strip()), default=0)
+    lines = head + [line[common:] if line.strip() else "" for line in deep]
+    while lines and not lines[-1].strip():
+        lines.pop()
+    value = "\n".join(lines)
+    for node in nodes:
+        for name in names:
+            node[name] = value
+
+
 def _stringify_into(node, depth, lines):
     """Command (appends to lines). One dtab line per key of node, indented by depth tabs."""
     for key, value in node.items():
@@ -142,9 +194,11 @@ def _stringify_into(node, depth, lines):
             _stringify_into(value, depth + 1, lines)
         else:
             value = str(value)
-            if "\t" in value or "\n" in value:
-                raise ValueError("dtab: value of %r contains a tab or newline, which dtab cannot represent: %r" % (key, value))
-            lines.append(indent + key + " " + value)
+            if "\n" in value or "\t" in value:  # a $ block holds any text; a one-line value cannot hold a tab
+                lines.append(indent + BLOCK_PREFIX + key)
+                lines.extend(indent + "\t" + part for part in value.split("\n"))
+            else:
+                lines.append(indent + key + " " + value)
 
 
 def _cli(path):

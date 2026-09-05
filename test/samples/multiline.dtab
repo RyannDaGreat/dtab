@@ -1,0 +1,29 @@
+ Multiline values: $key, then the lines under it (one indent level removed). Blank lines inside are kept.
+$query sql
+	SELECT name, age
+	FROM users
+
+	WHERE age > 30
+		AND name LIKE 'a%'
+
+
+ Wide form: the rest of the line is the value, one line per entry
+$cmd	pip install rp	python train.py --epochs 10
+
+ A tag is optional, and a shebang inside the block is just text
+$script
+	#!/bin/bash
+	echo "hello world"
+
+ Comma keys, and an empty block
+$a,b
+	shared
+$empty
+after 1
+
+ Nested: blocks work at any depth, and a tab inside a block line is kept
+config	db	$init
+		CREATE TABLE t (
+			id	INT
+		);
+config	db	port 5432

@@ -1,0 +1,15 @@
+{
+    "query": "SELECT name, age\nFROM users\n\nWHERE age > 30\n\tAND name LIKE 'a%'",
+    "cmd": "pip install rp\npython train.py --epochs 10",
+    "script": "#!/bin/bash\necho \"hello world\"",
+    "a": "shared",
+    "b": "shared",
+    "empty": "",
+    "after": "1",
+    "config": {
+        "db": {
+            "init": "CREATE TABLE t (\n\tid\tINT\n);",
+            "port": "5432"
+        }
+    }
+}

@@ -16,6 +16,11 @@ function testDocumentedExamples() {
         {objects: {l1: 'light', l2: 'light'}, deltas: {l1: {position: {x: '1', y: '.5', z: '-2'}}}})
     assert.deepStrictEqual(dtab.parse('a\tb 1\n\t comment\na\tb 2'), {a: {b: '2'}})
     assert.deepStrictEqual(dtab.parse('a\t\t\tb 1'), {a: {b: '1'}})
+    assert.deepStrictEqual(dtab.parse('$query sql\n\tSELECT *\n\n\t\tFROM users\n\nnext 1'), {query: 'SELECT *\n\n\tFROM users', next: '1'})
+    assert.deepStrictEqual(dtab.parse('$cmd\tpip install rp\tpython train.py'), {cmd: 'pip install rp\npython train.py'})
+    assert.strictEqual(dtab.stringify({query: 'SELECT *\nFROM t'}), '$query\n\tSELECT *\n\tFROM t')
+    for (const value of ['x\ny', 'x\ty', 'a\n\n\tb\n  c', '#!/bin/bash\necho hi', ''])
+        assert.deepStrictEqual(dtab.parse(dtab.stringify({a: value})), {a: value}, 'multiline round trip: ' + JSON.stringify(value))
     assert.strictEqual(
         dtab.stringify({objects: {l1: 'light'}, deltas: {l1: {x: 1, name: 'a b'}}}),
         'objects\n\tl1 light\ndeltas\n\tl1\n\t\tx 1\n\t\tname a b')
@@ -32,7 +37,7 @@ function testKeyRule() {
     ])
         assert.throws(() => dtab.parse(text), error => error.message.includes(fragment), text)
     assert.deepStrictEqual(dtab.parse('items 1\nfrom 2\n_private 3\ncafé 4'), {items: '1', from: '2', _private: '3', café: '4'})
-    for (const tree of [{'a b': '1'}, {'a,b': '1'}, {0: '1'}, {'': '1'}, {a: 'x\ty'}, {a: 'x\ny'}])
+    for (const tree of [{'a b': '1'}, {'a,b': '1'}, {0: '1'}, {'': '1'}])
         assert.throws(() => dtab.stringify(tree), /dtab/)
 }
 
