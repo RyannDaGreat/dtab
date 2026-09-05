@@ -1,8 +1,8 @@
 {
     "name": "dtab",
     "displayName": "dtab (Delta Tab)",
-    "description": "Syntax highlighting and a \u0394 file icon for .dtab files: config files made of tab-separated paths.",
-    "version": "0.1.1",
+    "description": "Syntax highlighting and a Δ file icon for .dtab files: config files made of tab-separated paths.",
+    "version": "0.2.0",
     "publisher": "RyannDaGreat",
     "license": "SEE LICENSE IN ../LICENSE",
     "icon": "icons/delta-128.png",

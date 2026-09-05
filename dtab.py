@@ -29,7 +29,7 @@ Single pass, one stack, O(total characters).
 import json
 import re
 
-__version__ = "0.1.0"  # SEMANTIC BINDING: dtab-version (also package.json "version")
+__version__ = "0.2.0"  # SEMANTIC BINDING: dtab-version (also package.json "version")
 
 KEY_SEPARATOR = ","  # a,b writes the same value under each key
 BLOCK_PREFIX = "$"  # $key: a leaf whose value is the lines under it ($ as in string)

@@ -2,9 +2,10 @@
 " Installed as a plugin (plugin/dtab.vim sources this file), or paste this whole block into your vimrc
 " after `syntax on`.
 "
-
-" and characters a key may not contain (keys are identifiers: letters, digits, underscores, not
-" starting with a digit).
+" Object keys purple, leaf keys cyan, leaf values blue, comments (entries starting with a space) as
+" Comment. Errors: trailing tabs (an empty key that silently swallows the following indented lines) and
+" characters a key may not contain (keys are identifiers). `$key [tag]` multiline blocks are colored as
+" values, or by the tagged language's own syntax file (sql, python, bash, ...), or by a shebang.
 "
 " A dtab line is tab-indented, with entries separated by tabs:
 "     deltas	l1,l2	position	x 1	y .5	 inline comment

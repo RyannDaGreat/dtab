@@ -1,6 +1,6 @@
 {
     "name": "deltatab",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Delta Tab: config files made of tab-separated paths. One line is one path into a tree.",
     "main": "dtab.js",
     "bin": {
