@@ -3,7 +3,7 @@
     "displayName": "dtab (Delta Tab)",
     "description": "Syntax highlighting and a Δ file icon for .dtab files: config files made of tab-separated paths.",
     "version": "0.1.0",
-    "publisher": "OneOverZero",
+    "publisher": "RyannDaGreat",
     "license": "SEE LICENSE IN ../LICENSE",
     "icon": "icons/delta-128.png",
     "repository": {"type": "git", "url": "https://github.com/RyannDaGreat/dtab.git", "directory": "vscode"},
