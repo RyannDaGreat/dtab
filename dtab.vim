@@ -103,7 +103,7 @@ function! s:DtabHighlight() abort
     highlight dtabLeafValue ctermfg=75  guifg=#5fafff   " blue
     highlight dtabBlockKey  ctermfg=221 guifg=#ffd75f   " yellow: a $key is a different thing from a leaf key
     highlight dtabBlockTag  ctermfg=173 guifg=#d7875f cterm=italic gui=italic   " orange italic: the language tag
-    highlight dtabBlock     ctermfg=75  guifg=#5fafff   " blue, like a value
+    highlight dtabBlock     ctermfg=110 guifg=#87afd7 cterm=italic gui=italic   " lighter blue italic: multiline text, not a one-line value
     highlight default link dtabComment     Comment
     highlight default link dtabShebang     dtabBlock
     highlight default link dtabComma       Delimiter

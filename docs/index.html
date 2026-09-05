@@ -21,6 +21,7 @@
         --comment: #6a6a6a;
         --block-key: #ffd75f;    /* a $key: yellow, distinct from a leaf key */
         --block-tag: #d7875f;    /* the language tag after a $key: orange, italic */
+        --block-text: #87afd7;   /* plain multiline text: lighter blue, italic; not a one-line value */
         --font-mono: "PT Mono", "SF Mono", Menlo, Consolas, monospace;
         --font-size: 14px;
         --line-height: 1.45;
@@ -62,6 +63,7 @@
     .highlight .cm-dtab-bad-key { color: var(--error); text-decoration: underline wavy; }
     .highlight .cm-dtab-block-key { color: var(--block-key); }
     .highlight .cm-dtab-block-tag { color: var(--block-tag); font-style: italic; }
+    .highlight .cm-dtab-block-text { color: var(--block-text); font-style: italic; }
     /* tokens of a language embedded in a $ block (CodeMirror's standard class names) */
     .highlight .cm-keyword { color: var(--key-object); }
     .highlight .cm-string, .highlight .cm-string-2 { color: var(--value); }
@@ -239,12 +241,12 @@ CodeMirror.defineMode('dtab', config => ({
         if (state.block) {
             if (stream.eatWhile('\t')) return 'tab'
             if (state.block.mode) return state.block.mode.token(stream, state.block.state)
-            stream.skipToEnd(); return 'dtab-value'
+            stream.skipToEnd(); return 'dtab-block-text'
         }
         if (state.tagPending) { state.tagPending = false; stream.skipTo('\t') || stream.skipToEnd(); return 'dtab-block-tag' }
         if (state.pending) {                                            // rest of a $ line: the value's first lines
             if (stream.eatWhile('\t')) return 'tab'
-            stream.skipTo('\t') || stream.skipToEnd(); return 'dtab-value'
+            stream.skipTo('\t') || stream.skipToEnd(); return 'dtab-block-text'
         }
         if (state.inValue) {
             state.inValue = false

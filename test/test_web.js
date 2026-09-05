@@ -80,7 +80,8 @@ async function main() {
         const italic = await page.evaluate(() => getComputedStyle(document.querySelector('.cm-dtab-block-tag')).fontStyle)
         assert.strictEqual(italic, 'italic', 'the language tag should be italic')
         assert.ok((await lineTokens(page, 2)).some(t => t[0] === 'keyword' && t[1] === 'SELECT'), 'sql keyword not highlighted in a $query sql block')
-        assert.deepStrictEqual(await lineTokens(page, 4), [['tab', '\t'], ['dtab-value', 'just text']])
+        assert.deepStrictEqual(await lineTokens(page, 4), [['tab', '\t'], ['dtab-block-text', 'just text']])
+        assert.strictEqual(await page.evaluate(() => getComputedStyle(document.querySelector('.cm-dtab-block-text')).fontStyle), 'italic', 'plain block text should be italic')
         assert.ok((await lineTokens(page, 7)).some(t => t[0] === 'builtin' && t[1] === 'echo'), 'shebang did not select shell highlighting')
         assert.deepStrictEqual((await lineTokens(page, 8)).map(t => t[0]), ['dtab-leaf-key', 'dtab-value'])
         assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)),
