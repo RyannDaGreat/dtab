@@ -74,7 +74,7 @@ the value. Unknown tags are plain text, never an error.
 | `python` | `py` |
 | `javascript` | `js` |
 | `typescript` | `ts` |
-| `html`, `css`, `json`, `yaml`, `toml`, `markdown` | `yml`, `md` |
+| `html`, `css`, `json`, `yaml`, `markdown` | `yml`, `md` |
 | `bash` | `sh`, `shell`, `zsh` |
 | `c`, `cpp`, `rust`, `go`, `java`, `swift` | |
 | `dtab` | |

@@ -2,18 +2,557 @@
     "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
     "name": "dtab",
     "scopeName": "source.dtab",
-    "comment": "Same tokens as dtab.vim: an entry between tabs is a comment (leading space), a leaf (key value) or an object key. Keys must be identifiers.",
+    "comment": "Same tokens as dtab.vim: an entry between tabs is a comment (leading space), a leaf (key value) or an object key. Keys must be identifiers. `$key [tag]` opens a multiline block: every following line indented deeper than the $ line (bound with a backreference to its tabs) is value text, highlighted as the tag's language, or as the language named by a shebang on the block's first line.",
     "patterns": [
         {
             "comment": "A whitespace-only line",
             "match": "^\\s*$"
         },
         {
+            "comment": "$key sql: the block is highlighted as sql",
+            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (sql)(?=\\t|$)(\\t[^\\n]*)?",
+            "beginCaptures": {
+                "2": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "comment.block-tag.dtab"
+                },
+                "4": {
+                    "name": "string.unquoted.block.dtab"
+                }
+            },
+            "while": "^(?:\\1\\t|\\s*$)",
+            "contentName": "meta.embedded.block.sql",
+            "patterns": [
+                {
+                    "include": "source.sql"
+                }
+            ]
+        },
+        {
+            "comment": "$key python: the block is highlighted as python",
+            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (python|py)(?=\\t|$)(\\t[^\\n]*)?",
+            "beginCaptures": {
+                "2": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "comment.block-tag.dtab"
+                },
+                "4": {
+                    "name": "string.unquoted.block.dtab"
+                }
+            },
+            "while": "^(?:\\1\\t|\\s*$)",
+            "contentName": "meta.embedded.block.python",
+            "patterns": [
+                {
+                    "include": "source.python"
+                }
+            ]
+        },
+        {
+            "comment": "$key javascript: the block is highlighted as javascript",
+            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (javascript|js)(?=\\t|$)(\\t[^\\n]*)?",
+            "beginCaptures": {
+                "2": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "comment.block-tag.dtab"
+                },
+                "4": {
+                    "name": "string.unquoted.block.dtab"
+                }
+            },
+            "while": "^(?:\\1\\t|\\s*$)",
+            "contentName": "meta.embedded.block.javascript",
+            "patterns": [
+                {
+                    "include": "source.js"
+                }
+            ]
+        },
+        {
+            "comment": "$key typescript: the block is highlighted as typescript",
+            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (typescript|ts)(?=\\t|$)(\\t[^\\n]*)?",
+            "beginCaptures": {
+                "2": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "comment.block-tag.dtab"
+                },
+                "4": {
+                    "name": "string.unquoted.block.dtab"
+                }
+            },
+            "while": "^(?:\\1\\t|\\s*$)",
+            "contentName": "meta.embedded.block.typescript",
+            "patterns": [
+                {
+                    "include": "source.ts"
+                }
+            ]
+        },
+        {
+            "comment": "$key html: the block is highlighted as html",
+            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (html)(?=\\t|$)(\\t[^\\n]*)?",
+            "beginCaptures": {
+                "2": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "comment.block-tag.dtab"
+                },
+                "4": {
+                    "name": "string.unquoted.block.dtab"
+                }
+            },
+            "while": "^(?:\\1\\t|\\s*$)",
+            "contentName": "meta.embedded.block.html",
+            "patterns": [
+                {
+                    "include": "text.html.basic"
+                }
+            ]
+        },
+        {
+            "comment": "$key css: the block is highlighted as css",
+            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (css)(?=\\t|$)(\\t[^\\n]*)?",
+            "beginCaptures": {
+                "2": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "comment.block-tag.dtab"
+                },
+                "4": {
+                    "name": "string.unquoted.block.dtab"
+                }
+            },
+            "while": "^(?:\\1\\t|\\s*$)",
+            "contentName": "meta.embedded.block.css",
+            "patterns": [
+                {
+                    "include": "source.css"
+                }
+            ]
+        },
+        {
+            "comment": "$key json: the block is highlighted as json",
+            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (json)(?=\\t|$)(\\t[^\\n]*)?",
+            "beginCaptures": {
+                "2": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "comment.block-tag.dtab"
+                },
+                "4": {
+                    "name": "string.unquoted.block.dtab"
+                }
+            },
+            "while": "^(?:\\1\\t|\\s*$)",
+            "contentName": "meta.embedded.block.json",
+            "patterns": [
+                {
+                    "include": "source.json"
+                }
+            ]
+        },
+        {
+            "comment": "$key yaml: the block is highlighted as yaml",
+            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (yaml|yml)(?=\\t|$)(\\t[^\\n]*)?",
+            "beginCaptures": {
+                "2": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "comment.block-tag.dtab"
+                },
+                "4": {
+                    "name": "string.unquoted.block.dtab"
+                }
+            },
+            "while": "^(?:\\1\\t|\\s*$)",
+            "contentName": "meta.embedded.block.yaml",
+            "patterns": [
+                {
+                    "include": "source.yaml"
+                }
+            ]
+        },
+        {
+            "comment": "$key markdown: the block is highlighted as markdown",
+            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (markdown|md)(?=\\t|$)(\\t[^\\n]*)?",
+            "beginCaptures": {
+                "2": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "comment.block-tag.dtab"
+                },
+                "4": {
+                    "name": "string.unquoted.block.dtab"
+                }
+            },
+            "while": "^(?:\\1\\t|\\s*$)",
+            "contentName": "meta.embedded.block.markdown",
+            "patterns": [
+                {
+                    "include": "text.html.markdown"
+                }
+            ]
+        },
+        {
+            "comment": "$key shellscript: the block is highlighted as shellscript",
+            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (bash|sh|shell|zsh)(?=\\t|$)(\\t[^\\n]*)?",
+            "beginCaptures": {
+                "2": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "comment.block-tag.dtab"
+                },
+                "4": {
+                    "name": "string.unquoted.block.dtab"
+                }
+            },
+            "while": "^(?:\\1\\t|\\s*$)",
+            "contentName": "meta.embedded.block.shellscript",
+            "patterns": [
+                {
+                    "include": "source.shell"
+                }
+            ]
+        },
+        {
+            "comment": "$key c: the block is highlighted as c",
+            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (c)(?=\\t|$)(\\t[^\\n]*)?",
+            "beginCaptures": {
+                "2": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "comment.block-tag.dtab"
+                },
+                "4": {
+                    "name": "string.unquoted.block.dtab"
+                }
+            },
+            "while": "^(?:\\1\\t|\\s*$)",
+            "contentName": "meta.embedded.block.c",
+            "patterns": [
+                {
+                    "include": "source.c"
+                }
+            ]
+        },
+        {
+            "comment": "$key cpp: the block is highlighted as cpp",
+            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (cpp)(?=\\t|$)(\\t[^\\n]*)?",
+            "beginCaptures": {
+                "2": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "comment.block-tag.dtab"
+                },
+                "4": {
+                    "name": "string.unquoted.block.dtab"
+                }
+            },
+            "while": "^(?:\\1\\t|\\s*$)",
+            "contentName": "meta.embedded.block.cpp",
+            "patterns": [
+                {
+                    "include": "source.cpp"
+                }
+            ]
+        },
+        {
+            "comment": "$key rust: the block is highlighted as rust",
+            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (rust)(?=\\t|$)(\\t[^\\n]*)?",
+            "beginCaptures": {
+                "2": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "comment.block-tag.dtab"
+                },
+                "4": {
+                    "name": "string.unquoted.block.dtab"
+                }
+            },
+            "while": "^(?:\\1\\t|\\s*$)",
+            "contentName": "meta.embedded.block.rust",
+            "patterns": [
+                {
+                    "include": "source.rust"
+                }
+            ]
+        },
+        {
+            "comment": "$key go: the block is highlighted as go",
+            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (go)(?=\\t|$)(\\t[^\\n]*)?",
+            "beginCaptures": {
+                "2": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "comment.block-tag.dtab"
+                },
+                "4": {
+                    "name": "string.unquoted.block.dtab"
+                }
+            },
+            "while": "^(?:\\1\\t|\\s*$)",
+            "contentName": "meta.embedded.block.go",
+            "patterns": [
+                {
+                    "include": "source.go"
+                }
+            ]
+        },
+        {
+            "comment": "$key java: the block is highlighted as java",
+            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (java)(?=\\t|$)(\\t[^\\n]*)?",
+            "beginCaptures": {
+                "2": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "comment.block-tag.dtab"
+                },
+                "4": {
+                    "name": "string.unquoted.block.dtab"
+                }
+            },
+            "while": "^(?:\\1\\t|\\s*$)",
+            "contentName": "meta.embedded.block.java",
+            "patterns": [
+                {
+                    "include": "source.java"
+                }
+            ]
+        },
+        {
+            "comment": "$key swift: the block is highlighted as swift",
+            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (swift)(?=\\t|$)(\\t[^\\n]*)?",
+            "beginCaptures": {
+                "2": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "comment.block-tag.dtab"
+                },
+                "4": {
+                    "name": "string.unquoted.block.dtab"
+                }
+            },
+            "while": "^(?:\\1\\t|\\s*$)",
+            "contentName": "meta.embedded.block.swift",
+            "patterns": [
+                {
+                    "include": "source.swift"
+                }
+            ]
+        },
+        {
+            "comment": "$key dtab: the block is highlighted as dtab",
+            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) (dtab)(?=\\t|$)(\\t[^\\n]*)?",
+            "beginCaptures": {
+                "2": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "comment.block-tag.dtab"
+                },
+                "4": {
+                    "name": "string.unquoted.block.dtab"
+                }
+            },
+            "while": "^(?:\\1\\t|\\s*$)",
+            "contentName": "meta.embedded.block.dtab",
+            "patterns": [
+                {
+                    "include": "source.dtab"
+                }
+            ]
+        },
+        {
+            "comment": "$key with no language tag: plain block text, unless its first line is a shebang",
+            "begin": "^(\\t*)\\$([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*)(?: ([^\\t]*))?(\\t[^\\n]*)?$",
+            "beginCaptures": {
+                "2": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "comment.block-tag.dtab"
+                },
+                "4": {
+                    "name": "string.unquoted.block.dtab"
+                }
+            },
+            "while": "^(?:\\1\\t|\\s*$)",
+            "contentName": "string.unquoted.block.dtab",
+            "patterns": [
+                {
+                    "comment": "A shebang on the block's first line picks shellscript for the rest of the block (lasts until the enclosing block ends)",
+                    "begin": "(?<![^\\t])(#!.*\\b(?:bash|zsh|sh)\\b.*)$",
+                    "beginCaptures": {
+                        "1": {
+                            "name": "comment.line.number-sign.shebang.shellscript"
+                        }
+                    },
+                    "while": "\\G",
+                    "contentName": "meta.embedded.block.shellscript",
+                    "patterns": [
+                        {
+                            "include": "source.shell"
+                        }
+                    ]
+                },
+                {
+                    "comment": "A shebang on the block's first line picks python for the rest of the block (lasts until the enclosing block ends)",
+                    "begin": "(?<![^\\t])(#!.*\\b(?:python\\d*)\\b.*)$",
+                    "beginCaptures": {
+                        "1": {
+                            "name": "comment.line.number-sign.shebang.python"
+                        }
+                    },
+                    "while": "\\G",
+                    "contentName": "meta.embedded.block.python",
+                    "patterns": [
+                        {
+                            "include": "source.python"
+                        }
+                    ]
+                },
+                {
+                    "comment": "A shebang on the block's first line picks javascript for the rest of the block (lasts until the enclosing block ends)",
+                    "begin": "(?<![^\\t])(#!.*\\b(?:node)\\b.*)$",
+                    "beginCaptures": {
+                        "1": {
+                            "name": "comment.line.number-sign.shebang.javascript"
+                        }
+                    },
+                    "while": "\\G",
+                    "contentName": "meta.embedded.block.javascript",
+                    "patterns": [
+                        {
+                            "include": "source.js"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "comment": "Leading tabs (indent), then the entries of the line",
             "begin": "^(\\t*)",
-            "beginCaptures": {"1": {"name": "punctuation.whitespace.indent.dtab"}},
+            "beginCaptures": {
+                "1": {
+                    "name": "punctuation.whitespace.indent.dtab"
+                }
+            },
             "end": "$",
-            "patterns": [{"include": "#entry"}]
+            "patterns": [
+                {
+                    "include": "#entry"
+                }
+            ]
         }
     ],
     "repository": {
@@ -33,22 +572,39 @@
                     "comment": "Leaf: identifier key(s), one space, value up to the next tab",
                     "match": "([\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*) ([^\\t]*)",
                     "captures": {
-                        "1": {"name": "entity.name.tag.leaf-key.dtab", "patterns": [{"include": "#comma"}]},
-                        "2": {"name": "string.unquoted.value.dtab"}
+                        "1": {
+                            "name": "entity.name.tag.leaf-key.dtab",
+                            "patterns": [
+                                {
+                                    "include": "#comma"
+                                }
+                            ]
+                        },
+                        "2": {
+                            "name": "string.unquoted.value.dtab"
+                        }
                     }
                 },
                 {
                     "comment": "Object key: identifier key(s) with no space",
                     "match": "[\\p{L}_][\\p{L}\\p{N}_]*(?:,[\\p{L}_][\\p{L}\\p{N}_]*)*(?=\\t|$)",
                     "name": "entity.name.type.object-key.dtab",
-                    "patterns": [{"include": "#comma"}]
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
                 },
                 {
                     "comment": "Anything else before a space: a bad key, with its value",
                     "match": "([^\\t ]+) ([^\\t]*)",
                     "captures": {
-                        "1": {"name": "invalid.illegal.key.dtab"},
-                        "2": {"name": "string.unquoted.value.dtab"}
+                        "1": {
+                            "name": "invalid.illegal.key.dtab"
+                        },
+                        "2": {
+                            "name": "string.unquoted.value.dtab"
+                        }
                     }
                 },
                 {

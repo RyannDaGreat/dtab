@@ -10,3 +10,9 @@ _private 1
 café 1
 ~scope
 	@ first
+$note
+	plain block text
+
+		deeper line
+$query sql	
+$wide	line one	line two

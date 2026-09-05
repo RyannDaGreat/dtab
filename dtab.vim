@@ -2,8 +2,7 @@
 " Installed as a plugin (plugin/dtab.vim sources this file), or paste this whole block into your vimrc
 " after `syntax on`.
 "
-" Object keys purple, leaf keys cyan, leaf values blue, comments (entries starting with a space) as
-" Comment. Errors: trailing tabs (an empty key that silently swallows the following indented lines)
+
 " and characters a key may not contain (keys are identifiers: letters, digits, underscores, not
 " starting with a digit).
 "
@@ -37,7 +36,48 @@ function! s:DtabSyntax() abort
     " or a key starting with a digit
     syntax match dtabBadKey      /\%(\k\|,\)\@!./                             contained
     syntax match dtabBadKey      /\%(^\|[\t,]\)\@<=\d/                        contained
+
+    " $key [tag]: a multiline block. The region runs over every following line indented deeper than the $ line
+    " (\z1 is the $ line's own tabs) or blank. Defined after the entry matches so it wins at the same column.
+    " keepend: when the block ends, an embedded-language region inside it ends too.
+    syntax match  dtabBlockTag /\%(^\t*\$[^\t ]\+\)\@<= [^\t]*/ contained
+    syntax region dtabBlock matchgroup=dtabBlockKey start=/^\z(\t*\)\$[^\t ]\+/ end=/^\%(\z1\t\|\s*$\)\@!/ keepend contains=dtabBlockTag,dtabTrailingTab,@dtabShebangs
+    call s:DtabEmbedded()
+    syntax sync fromstart
     call s:DtabHighlight()
+    let b:current_syntax = 'dtab'
+endfunction
+
+" Languages a $ block can be tagged with (the README's table), and the vim syntax file for each.
+let s:dtab_languages = {
+    \ 'sql': 'sql', 'python': 'python', 'py': 'python', 'javascript': 'javascript', 'js': 'javascript',
+    \ 'typescript': 'typescript', 'ts': 'typescript', 'html': 'html', 'css': 'css', 'json': 'json',
+    \ 'yaml': 'yaml', 'yml': 'yaml', 'markdown': 'markdown', 'md': 'markdown',
+    \ 'bash': 'sh', 'sh': 'sh', 'shell': 'sh', 'zsh': 'zsh',
+    \ 'c': 'c', 'cpp': 'cpp', 'rust': 'rust', 'go': 'go', 'java': 'java', 'swift': 'swift',
+    \ }
+" Interpreters a shebang can name, and the tag each one means
+let s:dtab_shebangs = {'bash': 'bash', 'zsh': 'zsh', 'sh': 'sh', 'python': 'python', 'node': 'javascript'}
+
+function! s:DtabEmbedded() abort
+    " One region per tag: `$key TAG` then the block, colored by that language's own syntax file.
+    " One region per shebang, nested in a plain block, from the shebang line to the block's end.
+    let l:included = {}
+    for [l:tag, l:syntax] in items(s:dtab_languages)
+        if !has_key(l:included, l:syntax)
+            unlet! b:current_syntax
+            execute 'silent! syntax include @dtabLang_' . l:syntax . ' syntax/' . l:syntax . '.vim'
+            let l:included[l:syntax] = 1
+        endif
+        execute 'syntax region dtabBlock matchgroup=dtabBlockKey'
+            \ . ' start=/^\z(\t*\)\$[^\t ]\+\ze ' . l:tag . '\%(\t\|$\)/'
+            \ . ' end=/^\%(\z1\t\|\s*$\)\@!/ keepend contains=dtabBlockTag,dtabTrailingTab,@dtabLang_' . l:syntax
+    endfor
+    for [l:word, l:tag] in items(s:dtab_shebangs)
+        execute 'syntax region dtabShebang start=/^\t\+#!.*\<' . l:word . '\d*\>/'
+            \ . ' end=/^\%(\t\|\s*$\)\@!/ contained contains=@dtabLang_' . s:dtab_languages[l:tag]
+    endfor
+    syntax cluster dtabShebangs contains=dtabShebang
     let b:current_syntax = 'dtab'
 endfunction
 
@@ -45,7 +85,11 @@ function! s:DtabHighlight() abort
     highlight dtabObjectKey ctermfg=176 guifg=#d787d7   " purple
     highlight dtabLeafKey   ctermfg=81  guifg=#5fd7ff   " cyan
     highlight dtabLeafValue ctermfg=75  guifg=#5fafff   " blue
+    highlight dtabBlockKey  ctermfg=81  guifg=#5fd7ff   " cyan, like a leaf key
+    highlight dtabBlock     ctermfg=75  guifg=#5fafff   " blue, like a value
     highlight default link dtabComment     Comment
+    highlight default link dtabBlockTag    Comment
+    highlight default link dtabShebang     dtabBlock
     highlight default link dtabComma       Delimiter
     highlight default link dtabTrailingTab Error
     highlight default link dtabBadKey      Error

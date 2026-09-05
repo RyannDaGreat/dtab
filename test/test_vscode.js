@@ -12,6 +12,12 @@ const oniguruma = require('vscode-oniguruma')
 const ROOT = path.join(__dirname, '..')
 const EXTENSION = path.join(ROOT, 'vscode')
 const GRAMMAR = path.join(EXTENSION, 'syntaxes', 'dtab.tmLanguage.json')
+// The embedded languages come from VS Code's own bundled grammars, which is also where they come from at runtime.
+const VSCODE_EXTENSIONS = '/Applications/Visual Studio Code.app/Contents/Resources/app/extensions'
+const BUNDLED_GRAMMARS = {
+    'source.sql': path.join(VSCODE_EXTENSIONS, 'sql/syntaxes/sql.tmLanguage.json'),
+    'source.shell': path.join(VSCODE_EXTENSIONS, 'shellscript/syntaxes/shell-unix-bash.tmLanguage.json'),
+}
 
 // vim group letter (test/expected/highlight.txt) -> the TextMate scope fragment that must cover the same text
 const SCOPE_FOR_VIM_GROUP = {
@@ -20,6 +26,8 @@ const SCOPE_FOR_VIM_GROUP = {
     V: 'string.unquoted.value',
     C: 'comment.line',
     X: 'invalid.illegal.key',
+    T: 'comment.block-tag',
+    B: 'string.unquoted.block',
 }
 
 /** Command (reads files). The dtab TextMate grammar, loaded through the same engine VS Code uses. */
@@ -31,20 +39,23 @@ async function loadGrammar() {
     }))
     const registry = new textmate.Registry({
         onigLib,
-        loadGrammar: scope => scope === 'source.dtab' ? textmate.parseRawGrammar(fs.readFileSync(GRAMMAR, 'utf8'), GRAMMAR) : null,
+        loadGrammar: scope => {
+            if (scope === 'source.dtab') return textmate.parseRawGrammar(fs.readFileSync(GRAMMAR, 'utf8'), GRAMMAR)
+            const file = BUNDLED_GRAMMARS[scope]
+            return file && fs.existsSync(file) ? textmate.parseRawGrammar(fs.readFileSync(file, 'utf8'), file) : null
+        },
     })
     return registry.loadGrammar('source.dtab')
 }
 
 /**
- * Pure function. For one line, the innermost dtab scope covering each UTF-8 BYTE, as a string of
- * vim-style letters ('?' where no expected scope applies). Per byte, not per character, because the
+ * Pure function. For one tokenized line, the innermost dtab scope covering each UTF-8 BYTE, as a string
+ * of vim-style letters ('?' where no expected scope applies). Per byte, not per character, because the
  * vim expected map is per byte (vim's synID takes byte columns), so 'é' is two letters in both.
  *
- * @example letters(grammar, 'a\tb 1')  // 'O.KKV'
+ * @example letters('a\tb 1', grammar.tokenizeLine('a\tb 1', textmate.INITIAL).tokens)  // 'O.KKV'
  */
-function letters(grammar, line) {
-    const {tokens} = grammar.tokenizeLine(line, textmate.INITIAL)
+function letters(line, tokens) {
     const out = []
     for (const token of tokens) {
         const scopes = token.scopes.join(' ')
@@ -61,12 +72,15 @@ async function main() {
     const grammar = await loadGrammar()
     const sample = fs.readFileSync(path.join(ROOT, 'test', 'samples', 'highlight.dtab'), 'utf8').split('\n')
     const expected = fs.readFileSync(path.join(ROOT, 'test', 'expected', 'highlight.txt'), 'utf8').split('\n')
+    let stack = textmate.INITIAL   // carried across lines, as VS Code does, so multi-line $ blocks work
     for (let i = 0; i < expected.length; i++) {
+        const result = grammar.tokenizeLine(sample[i] ?? '', stack)
+        stack = result.ruleStack
         if (!sample[i]) continue
         // Differences that are fine: vim paints only the offending character of a bad key red, the grammar
         // paints the whole key (so X is accepted wherever vim has a key letter in an entry that contains an X);
         // the space after a leaf key is K in vim and uncaptured here; a trailing tab is E in vim, '.' here.
-        const got = letters(grammar, sample[i])
+        const got = letters(sample[i], result.tokens)
         const want = expected[i].replace(/E/g, '.')
         const bytes = Buffer.from(sample[i])   // both maps are per byte
         const entryHasBadKey = c => {
@@ -79,9 +93,23 @@ async function main() {
                 || (want[c] === ' ' && got[c] === '?')
                 || (bytes[c] === 0x20 && want[c] === 'K')
                 || (got[c] === 'X' && 'OK'.includes(want[c]) && entryHasBadKey(c))
+                || (want[c] === 'K' && bytes[c] === 0x24 && got[c] === '?')   // the $ of a block key: vim colors it, the grammar leaves it
+                || (want[c] === 'T' && bytes[c] === 0x20 && got[c] === '?')   // the space before a block tag: vim's tag match includes it
+                || (bytes[c] === 0x09 && (got[c] === '?' || got[c] === 'B'))  // tabs in and around a block: region vs capture boundaries
             assert.ok(ok, 'line ' + (i + 1) + ' col ' + (c + 1) + ': vim says ' + JSON.stringify(want[c]) + ', grammar says ' + JSON.stringify(got[c]) + '\n  ' + JSON.stringify(sample[i]) + '\n  want ' + want + '\n  got  ' + got)
         }
     }
+
+    // Embedded languages: a tagged block hands its lines to that language's grammar; a shebang does the same.
+    const sqlLine = grammar.tokenizeLine('\tSELECT * FROM t', grammar.tokenizeLine('$query sql', textmate.INITIAL).ruleStack)
+    const inLanguage = (line, name, suffix) => line.tokens.some(tok => tok.scopes.includes('meta.embedded.block.' + name) && tok.scopes.some(s => s.endsWith(suffix) && !s.startsWith('meta.')))
+    assert.ok(inLanguage(sqlLine, 'sql', '.sql'), 'sql block not handed to the sql grammar')
+    stack = textmate.INITIAL
+    for (const line of ['$s', '\t#!/bin/bash']) stack = grammar.tokenizeLine(line, stack).ruleStack
+    const shLine = grammar.tokenizeLine('\techo hi', stack)
+    assert.ok(shLine.tokens.some(tok => tok.scopes.includes('meta.embedded.block.shellscript')), 'shebang block not handed to the shell grammar')
+    const after = grammar.tokenizeLine('after 1', shLine.ruleStack)
+    assert.ok(after.tokens.some(tok => tok.scopes.includes('entity.name.tag.leaf-key.dtab')), 'block did not end at a shallower line')
 
     const manifest = JSON.parse(fs.readFileSync(path.join(EXTENSION, 'package.json'), 'utf8'))
     for (const file of [manifest.icon, manifest.contributes.languages[0].configuration, manifest.contributes.languages[0].icon.light,
