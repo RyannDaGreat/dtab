@@ -159,6 +159,22 @@ def test_vim_tab_key():
     assert lines[1] == "after\t 1", repr(lines[1])          # a tab outside the block
 
 
+def test_vim_shift_keys():
+    """>> and << (and visual > <) shift block lines by four spaces, other lines by a tab."""
+    with tempfile.TemporaryDirectory() as directory:
+        sample = Path(directory) / "shift.dtab"
+        sample.write_text("before 1\n$code python\n\tdef f():\n\t    return 1\n")
+        out = Path(directory) / "lines.txt"
+        vim("syntax on", "source dtab.vim", "edit " + str(sample),
+            "execute '1normal >>' | execute '1normal <<' | execute '3normal >>' | execute '4normal <<' | execute '2normal Vjj>'",
+            "call writefile(getline(1, '$'), '%s')" % out)
+        lines = out.read_text().split("\n")
+    assert lines[0] == "before 1", repr(lines[0])                 # >> gave it a tab, << took it away
+    assert lines[1] == "\t$code python", repr(lines[1])         # visual > over the $ line and its block: tabs for all
+    assert lines[2] == "\t\t    def f():", repr(lines[2])       # >> inside the block: spaces; then the block's tab
+    assert lines[3] == "\t\treturn 1", repr(lines[3])           # << inside the block removed the spaces
+
+
 def test_vim_plugin_shim():
     with tempfile.TemporaryDirectory() as directory:
         out = Path(directory) / "filetype.txt"
@@ -183,7 +199,7 @@ def test_vscode_grammar():
 
 if __name__ == "__main__":
     for test in [test_doctests, test_readers_agree, test_round_trips, test_key_rule, test_js_suite,
-                 test_vim_highlighting, test_vim_embedded_languages, test_vim_tab_key, test_vim_plugin_shim, test_web_demo, test_vscode_grammar]:
+                 test_vim_highlighting, test_vim_embedded_languages, test_vim_tab_key, test_vim_shift_keys, test_vim_plugin_shim, test_web_demo, test_vscode_grammar]:
         test()
         print("ok  " + test.__name__)
     print("All dtab tests passed")

@@ -16,6 +16,13 @@ augroup dtab
     autocmd FileType dtab setlocal noexpandtab tabstop=4 shiftwidth=4 softtabstop=0 commentstring=\ %s
     autocmd FileType dtab setlocal iskeyword=@,48-57,_,192-255
     autocmd FileType dtab inoremap <buffer> <expr> <Tab> <SID>Tab()
+    " >> << (with counts), the > < operators, and visual > <: spaces inside a $ block, a tab elsewhere
+    autocmd FileType dtab nnoremap <buffer> >> :<C-U>call <SID>ShiftLines(line('.'), line('.') + v:count1 - 1, 1)<CR>
+    autocmd FileType dtab nnoremap <buffer> << :<C-U>call <SID>ShiftLines(line('.'), line('.') + v:count1 - 1, -1)<CR>
+    autocmd FileType dtab nnoremap <buffer> > :set operatorfunc=<SID>IndentOperator<CR>g@
+    autocmd FileType dtab nnoremap <buffer> < :set operatorfunc=<SID>OutdentOperator<CR>g@
+    autocmd FileType dtab xnoremap <buffer> > :<C-U>call <SID>ShiftLines(line("'<"), line("'>"), 1)<CR>
+    autocmd FileType dtab xnoremap <buffer> < :<C-U>call <SID>ShiftLines(line("'<"), line("'>"), -1)<CR>
     autocmd Syntax dtab call s:DtabSyntax()
     autocmd ColorScheme * if &filetype ==# 'dtab' | call s:DtabHighlight() | endif
 augroup END
@@ -88,13 +95,55 @@ endfunction
 " What the Tab key inserts inside a $ block: code indents with spaces; tabs are dtab structure.
 let s:block_indent = '    '
 
+function! s:InBlock(lnum, col) abort
+    " Whether (lnum, col) is inside a $ block's text: the syntax there is a block region, and the line is
+    " not the $ line itself (that line is dtab structure, even though the region starts on it).
+    if getline(a:lnum) =~ '^\t*\%([^\t]*\t\+\)*\$[^\t ]'
+        return 0
+    endif
+    let l:groups = map(synstack(a:lnum, max([a:col, 1])), 'synIDattr(v:val, "name")')
+    return index(l:groups, 'dtabBlock') >= 0 || index(l:groups, 'dtabShebang') >= 0
+endfunction
+
 function! s:Tab() abort
     " Inside a $ block and past the line's own tabs, insert spaces; everywhere else a tab.
     let l:col = col('.') - 1
     let l:leading = len(matchstr(getline('.'), '^\t*'))
-    let l:groups = map(synstack(line('.'), max([l:col, 1])), 'synIDattr(v:val, "name")')
-    let l:in_block = index(l:groups, 'dtabBlock') >= 0 || index(l:groups, 'dtabShebang') >= 0
-    return l:in_block && l:col >= l:leading ? s:block_indent : "\<Tab>"
+    return s:InBlock(line('.'), l:col) && l:col >= l:leading ? s:block_indent : "\<Tab>"
+endfunction
+
+function! s:ShiftLines(first, last, direction) abort
+    " A range entirely inside a $ block is code: add or remove one level of spaces after each line's tabs.
+    " A range touching structure (a $ line, or any line outside a block) is dtab: add or remove one tab
+    " on every line, so a block moves with its $ line. Not vim's own >> and <<, which rewrite the whole
+    " indent and would turn a block's spaces into tabs. Blank lines are untouched.
+    let l:code = 1
+    for l:lnum in range(a:first, a:last)
+        if getline(l:lnum) =~ '\S' && !s:InBlock(l:lnum, match(getline(l:lnum), '\S') + 1)
+            let l:code = 0
+        endif
+    endfor
+    for l:lnum in range(a:first, a:last)
+        let l:line = getline(l:lnum)
+        if l:line !~ '\S'
+            continue
+        elseif l:code
+            let l:tabs = matchstr(l:line, '^\t*')
+            let l:rest = l:line[len(l:tabs):]
+            let l:rest = a:direction > 0 ? s:block_indent . l:rest : substitute(l:rest, '^ \{1,' . len(s:block_indent) . '}', '', '')
+            call setline(l:lnum, l:tabs . l:rest)
+        else
+            call setline(l:lnum, a:direction > 0 ? "\t" . l:line : substitute(l:line, '^\t', '', ''))
+        endif
+    endfor
+endfunction
+
+function! s:IndentOperator(type) abort
+    call s:ShiftLines(line("'["), line("']"), 1)
+endfunction
+
+function! s:OutdentOperator(type) abort
+    call s:ShiftLines(line("'["), line("']"), -1)
 endfunction
 
 function! s:DtabHighlight() abort

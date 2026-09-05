@@ -117,6 +117,20 @@ async function main() {
         await page.keyboard.press('Tab')
         assert.strictEqual(await page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror.getLine(3)), 'after\t 1', 'Tab outside a block should insert a tab')
 
+        // 4b. Shift-Tab outdents; Tab with a multi-line selection indents; each line by its own rule.
+        const value = () => page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror.getValue().split('\n'))
+        const select = (a, b) => page.evaluate((a, b) => { const c = document.querySelector('.CodeMirror').CodeMirror; c.focus(); c.setSelection({line: a, ch: 0}, {line: b, ch: 0}) }, a, b)
+        const shiftTab = async () => { await page.keyboard.down('Shift'); await page.keyboard.press('Tab'); await page.keyboard.up('Shift') }
+        await setEditorText(page, 'before 1\n$code python\n\tdef f():\n\t    return 1')
+        await select(2, 3); await page.keyboard.press('Tab')
+        assert.deepStrictEqual(await value(), ['before 1', '$code python', '\t    def f():', '\t        return 1'], 'a selection inside the block shifts by spaces')
+        await shiftTab()
+        assert.deepStrictEqual(await value(), ['before 1', '$code python', '\tdef f():', '\t    return 1'], 'Shift-Tab takes the spaces back')
+        await select(1, 3); await page.keyboard.press('Tab')
+        assert.deepStrictEqual(await value(), ['before 1', '\t$code python', '\t\tdef f():', '\t\t    return 1'], 'a selection touching the $ line shifts everything by tabs')
+        await shiftTab()
+        assert.deepStrictEqual(await value(), ['before 1', '$code python', '\tdef f():', '\t    return 1'], 'and Shift-Tab undoes it')
+
         // 4. The Tab key inserts a tab character instead of leaving the editor.
         await setEditorText(page, 'a')
         await page.evaluate(() => { const cm = document.querySelector('.CodeMirror').CodeMirror; cm.focus(); cm.setCursor({line: 0, ch: 1}) })

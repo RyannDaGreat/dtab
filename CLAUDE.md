@@ -12,4 +12,6 @@ Bump the version in `dtab.py` (`__version__`), `package.json`, and `vscode/packa
 4. **Vim**: nothing; plugin managers pull from GitHub.
 5. If `dtab.js` changed, refresh the demo's copy: `curl https://purge.jsdelivr.net/gh/RyannDaGreat/dtab@main/dtab.js`.
 
+Colors live in three places and change together: `dtab.vim`, `docs/index.html` (`:root` vars), `vscode/package.json` (`tokenColorCustomizations`).
+
 Never write tokens into this repo.

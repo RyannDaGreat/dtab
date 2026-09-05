@@ -290,11 +290,45 @@ function insideBlock(cm, lineNumber) {
     return !text.trim() || lineIndent(text) > block.indent
 }
 
-/** Command. Tab inserts a tab (dtab structure), except past the indent of a block line, where code wants spaces. */
+/**
+ * Pure function. One line shifted by one indentation level: spaces inside a block, a tab outside it.
+ * Blank lines are left alone; outdenting removes what is there, up to one level.
+ *
+ * @example shiftLine('\tdef f():', true, 1)     // '\t    def f():'
+ * @example shiftLine('\t    return', true, -1)  // '\treturn'
+ * @example shiftLine('a\tb 1', false, 1)        // '\ta\tb 1'
+ */
+function shiftLine(line, inBlock, direction) {
+    if (!line.trim()) return line
+    if (!inBlock) return direction > 0 ? '\t' + line : line.replace(/^\t/, '')
+    const tabs = lineIndent(line)
+    const rest = line.slice(tabs)
+    if (direction > 0) return line.slice(0, tabs) + BLOCK_INDENT + rest
+    return line.slice(0, tabs) + rest.replace(new RegExp('^ {1,' + BLOCK_INDENT.length + '}'), '')
+}
+
+/**
+ * Command. Shifts every line the selection touches. A selection entirely inside a $ block is code and
+ * shifts by spaces; one touching structure (a $ line, or any line outside a block) shifts by tabs, so a
+ * block moves with its $ line.
+ */
+function shiftSelection(cm, direction) {
+    const from = cm.getCursor('from').line, to = cm.getCursor('to').line
+    let code = true
+    for (let n = from; n <= to; n++) if (cm.getLine(n).trim() && !insideBlock(cm, n)) code = false
+    cm.operation(() => {
+        for (let n = from; n <= to; n++) {
+            const line = cm.getLine(n), shifted = shiftLine(line, code, direction)
+            if (shifted !== line) cm.replaceRange(shifted, {line: n, ch: 0}, {line: n, ch: line.length})
+        }
+    })
+}
+
+/** Command. Tab: a selection indents its lines; a caret inside a block, past the line's tabs, gets spaces; else a tab. */
 function insertTab(cm) {
+    if (cm.somethingSelected()) return shiftSelection(cm, 1)
     const cursor = cm.getCursor()
-    const leadingTabs = lineIndent(cm.getLine(cursor.line))
-    cm.replaceSelection(insideBlock(cm, cursor.line) && cursor.ch >= leadingTabs ? BLOCK_INDENT : '\t')
+    cm.replaceSelection(insideBlock(cm, cursor.line) && cursor.ch >= lineIndent(cm.getLine(cursor.line)) ? BLOCK_INDENT : '\t')
 }
 
 const editor = CodeMirror.fromTextArea(document.getElementById('source'), {
@@ -302,7 +336,11 @@ const editor = CodeMirror.fromTextArea(document.getElementById('source'), {
     indentWithTabs: true,
     tabSize: 4,
     lineWrapping: false,
-    extraKeys: {Tab: insertTab},
+    extraKeys: {
+        Tab: insertTab, 'Shift-Tab': cm => shiftSelection(cm, -1),
+        'Cmd-]': cm => shiftSelection(cm, 1), 'Cmd-[': cm => shiftSelection(cm, -1),
+        'Ctrl-]': cm => shiftSelection(cm, 1), 'Ctrl-[': cm => shiftSelection(cm, -1),
+    },
 })
 
 /**

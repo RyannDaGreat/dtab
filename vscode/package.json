@@ -54,12 +54,81 @@
                 "editor.insertSpaces": false,
                 "editor.tabSize": 4,
                 "editor.detectIndentation": false
+            },
+            "editor.tokenColorCustomizations": {
+                "textMateRules": [
+                    {
+                        "scope": "entity.name.type.object-key.dtab",
+                        "settings": {
+                            "foreground": "#d787d7"
+                        }
+                    },
+                    {
+                        "scope": "entity.name.tag.leaf-key.dtab",
+                        "settings": {
+                            "foreground": "#5fd7ff"
+                        }
+                    },
+                    {
+                        "scope": "string.unquoted.value.dtab",
+                        "settings": {
+                            "foreground": "#5fafff"
+                        }
+                    },
+                    {
+                        "scope": "entity.name.function.block-key.dtab",
+                        "settings": {
+                            "foreground": "#ffd75f"
+                        }
+                    },
+                    {
+                        "scope": "entity.other.attribute-name.block-tag.dtab",
+                        "settings": {
+                            "foreground": "#d7875f",
+                            "fontStyle": "italic"
+                        }
+                    },
+                    {
+                        "scope": "string.unquoted.block.dtab",
+                        "settings": {
+                            "foreground": "#87afd7",
+                            "fontStyle": "italic"
+                        }
+                    },
+                    {
+                        "scope": "invalid.illegal.key.dtab",
+                        "settings": {
+                            "foreground": "#ff6b6b",
+                            "fontStyle": "underline"
+                        }
+                    },
+                    {
+                        "scope": "comment.line.dtab",
+                        "settings": {
+                            "foreground": "#6a6a6a"
+                        }
+                    },
+                    {
+                        "scope": "punctuation.separator.comma.dtab",
+                        "settings": {
+                            "foreground": "#8a8a8a"
+                        }
+                    }
+                ]
             }
         },
         "commands": [
             {
                 "command": "dtab.tab",
                 "title": "dtab: Tab (spaces inside a $ block, a tab elsewhere)"
+            },
+            {
+                "command": "dtab.indent",
+                "title": "dtab: Indent lines (4 spaces inside a $ block, a tab elsewhere)"
+            },
+            {
+                "command": "dtab.outdent",
+                "title": "dtab: Outdent lines (4 spaces inside a $ block, a tab elsewhere)"
             }
         ],
         "keybindings": [
@@ -67,6 +136,23 @@
                 "command": "dtab.tab",
                 "key": "tab",
                 "when": "editorTextFocus && editorLangId == dtab && !editorReadonly && !suggestWidgetVisible && !inSnippetMode && !editorTabMovesFocus"
+            },
+            {
+                "command": "dtab.outdent",
+                "key": "shift+tab",
+                "when": "editorTextFocus && editorLangId == dtab && !editorReadonly"
+            },
+            {
+                "command": "dtab.indent",
+                "key": "ctrl+]",
+                "mac": "cmd+]",
+                "when": "editorTextFocus && editorLangId == dtab && !editorReadonly"
+            },
+            {
+                "command": "dtab.outdent",
+                "key": "ctrl+[",
+                "mac": "cmd+[",
+                "when": "editorTextFocus && editorLangId == dtab && !editorReadonly"
             }
         ]
     },

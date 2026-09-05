@@ -128,7 +128,6 @@ async function main() {
     const Module = require('module'); const realLoad = Module._load
     Module._load = (request, ...rest) => request === 'vscode' ? {} : realLoad(request, ...rest)
     const {insideBlock} = require(path.join(EXTENSION, manifest.main))
-    Module._load = realLoad
     assert.strictEqual(insideBlock(['$code python', '\tdef f():', '\t    return 1'], 2), true)
     assert.strictEqual(insideBlock(['$code python', '\tdef f():', 'after 1'], 2), false)
     assert.strictEqual(insideBlock(['a', '\t$code', '\t\tx', '\t\t\tdeeper'], 3), true, 'nearest $ ancestor')
@@ -137,6 +136,17 @@ async function main() {
     assert.strictEqual(insideBlock(['a', '\t$code', '\t\tx', '\tnext 1'], 3), false, 'shallower line ends the block')
     assert.strictEqual(insideBlock(['config\tdb\t$init sql', '\t\tCREATE'], 1), true, '$ after other entries')
     assert.strictEqual(insideBlock(['$code', '\tx'], 0), false, 'the $ line itself is not inside the block')
+    const {shiftLine} = require(path.join(EXTENSION, manifest.main))
+    assert.strictEqual(shiftLine('\tdef f():', true, 1), '\t    def f():')
+    assert.strictEqual(shiftLine('\t    return', true, -1), '\treturn')
+    assert.strictEqual(shiftLine('\t  x', true, -1), '\tx', 'outdent removes what is there, up to one level')
+    assert.strictEqual(shiftLine('\treturn', true, -1), '\treturn', 'no spaces to remove: the structural tab stays')
+    assert.strictEqual(shiftLine('a\tb 1', false, 1), '\ta\tb 1')
+    assert.strictEqual(shiftLine('\ta', false, -1), 'a')
+    assert.strictEqual(shiftLine('', true, 1), '', 'blank lines are left alone')
+    assert.ok(manifest.contributes.keybindings.some(k => k.mac === 'cmd+]' && k.command === 'dtab.indent'))
+    assert.ok(manifest.contributes.keybindings.some(k => k.key === 'shift+tab' && k.command === 'dtab.outdent'))
+    Module._load = realLoad
     console.log('test_vscode.js: all checks passed')
 }
 
