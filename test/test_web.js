@@ -86,6 +86,10 @@ async function main() {
         assert.deepStrictEqual((await lineTokens(page, 8)).map(t => t[0]), ['dtab-leaf-key', 'dtab-value'])
         assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)),
             {query: 'SELECT * FROM t', plain: 'just text', s: '#!/bin/bash\necho hi', after: '1'})
+        // The wide form: text after the tag on the $ line is the value's first line, so it is highlighted as the language too.
+        await setEditorText(page, '$command bash\techo hi\t$plain\ttext\nafter 1\n')
+        assert.ok((await lineTokens(page, 1)).some(t => t[0] === 'builtin' && t[1] === 'echo'), 'the rest of a tagged $ line was not handed to the language')
+        assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), {command: 'echo hi\n$plain\ntext', after: '1'})
 
         // 3. The toggles: unchecking removes the colors and the tab glyphs, and the choice survives a reload.
         const valueColor = () => page.evaluate(() => getComputedStyle(document.querySelector('.cm-dtab-value')).color)

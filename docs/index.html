@@ -210,43 +210,43 @@ function shebangTag(line) {
 /** Pure function. Number of leading tabs of a line. @example lineIndent('\t\tx') // 2 */
 const lineIndent = line => line.length - line.replace(/^\t+/, '').length
 
+/**
+ * Near-pure function (looks up a CodeMirror mode). The state of a $ block whose text is highlighted as
+ * `tag`'s language: plain text when the tag is null or not in TAG_MODES.
+ *
+ * @example blockState(config, 0, 'sql')   // {indent: 0, tag: 'sql', mode: <the sql mode>, state: <its start state>}
+ * @example blockState(config, 1, null)    // {indent: 1, tag: null, mode: null, state: null}
+ */
+function blockState(config, indent, tag) {
+    const mode = tag && TAG_MODES[tag] ? CodeMirror.getMode(config, TAG_MODES[tag]) : null
+    return {indent, tag, mode, state: mode ? CodeMirror.startState(mode) : null}
+}
+
 // A line is entries separated by tab runs. Each entry is a comment (starts with a space), a leaf
-// (key, one space, value) or an object key. `$key [tag]` opens a block: every following line indented
-// deeper than the $ line is value text, handed to the tag's language mode if there is one.
+// (key, one space, value) or an object key. `$key [tag]` opens a block: the rest of that line and every
+// following line indented deeper than the $ line is value text, handed to the tag's language mode if there is one.
 CodeMirror.defineMode('dtab', config => ({
-    // block: the $ block the coming lines belong to ({indent, tag, mode, state}); pending: one opened on the
-    // current line, which becomes `block` at the next line start. tagPending: the word after `$key` is next.
-    startState: () => ({inValue: false, block: null, pending: null, tagPending: false}),
+    // block: the $ block the text from here on belongs to (a blockState), from its $ key onward.
+    // tagPending: the word after `$key` is next.
+    startState: () => ({inValue: false, block: null, tagPending: false}),
     copyState: s => ({
         inValue: s.inValue, tagPending: s.tagPending,
         block: s.block && {...s.block, state: s.block.mode ? CodeMirror.copyState(s.block.mode, s.block.state) : null},
-        pending: s.pending && {...s.pending, state: s.pending.mode ? CodeMirror.copyState(s.pending.mode, s.pending.state) : null},
     }),
     blankLine(state) { if (state.block && state.block.mode && state.block.mode.blankLine) state.block.mode.blankLine(state.block.state) },
     token(stream, state) {
         if (stream.sol()) {
             state.inValue = false
             state.tagPending = false
-            if (state.pending) { state.block = state.pending; state.pending = null }
-            if (state.block) {
-                const line = stream.string
-                if (line.trim() && lineIndent(line) <= state.block.indent) state.block = null   // block over
-                else if (line.trim() && !state.block.mode && !state.block.tag) {                 // first line: sniff a shebang
-                    const tag = shebangTag(line.trim())
-                    state.block.tag = tag || 'text'
-                    if (tag) { state.block.mode = CodeMirror.getMode(config, TAG_MODES[tag]); state.block.state = CodeMirror.startState(state.block.mode) }
-                }
-            }
-        }
-        if (state.block) {
-            if (stream.eatWhile('\t')) return 'tab'
-            if (state.block.mode) return state.block.mode.token(stream, state.block.state)
-            stream.skipToEnd(); return 'dtab-block-text'
+            if (state.block && stream.string.trim() && lineIndent(stream.string) <= state.block.indent) state.block = null   // block over
         }
         if (state.tagPending) { state.tagPending = false; stream.skipTo('\t') || stream.skipToEnd(); return 'dtab-block-tag' }
-        if (state.pending) {                                            // rest of a $ line: the value's first lines
+        if (state.block) {
             if (stream.eatWhile('\t')) return 'tab'
-            stream.skipTo('\t') || stream.skipToEnd(); return 'dtab-block-text'
+            if (!state.block.tag && stream.string.slice(stream.pos).trim())   // an untagged block's first text: a shebang picks its language
+                state.block = blockState(config, state.block.indent, shebangTag(stream.string.slice(stream.pos).trim()) || 'text')
+            if (state.block.mode) return state.block.mode.token(stream, state.block.state)
+            stream.skipToEnd(); return 'dtab-block-text'
         }
         if (state.inValue) {
             state.inValue = false
@@ -259,10 +259,9 @@ CodeMirror.defineMode('dtab', config => ({
         while (!stream.eol() && stream.peek() !== '\t' && stream.peek() !== ' ') stream.next()
         const key = stream.string.slice(start, stream.pos)
         const isLeaf = stream.peek() === ' '
-        if (key.startsWith('$')) {                                     // $key [tag]: the block is the lines below
+        if (key.startsWith('$')) {                                     // $key [tag]: the block is the rest of this line and the lines below
             const tag = isLeaf ? stream.string.slice(stream.pos + 1).split('\t')[0].trim() : ''
-            const mode = TAG_MODES[tag] ? CodeMirror.getMode(config, TAG_MODES[tag]) : null
-            state.pending = {indent: lineIndent(stream.string), tag: tag || null, mode, state: mode ? CodeMirror.startState(mode) : null}
+            state.block = blockState(config, lineIndent(stream.string), tag || null)
             state.tagPending = isLeaf
             return entryClass(key.slice(1), true) === 'dtab-bad-key' ? 'dtab-bad-key' : 'dtab-block-key'
         }
@@ -275,16 +274,15 @@ const output = document.getElementById('output')
 const BLOCK_INDENT = '    '   // what the Tab key inserts inside a $ block: code indents with spaces, tabs are dtab structure
 
 /**
- * Query (reads editor state). Whether a line is inside a $ block: the previous line ended in or opened a
- * block, and this line is blank or indented deeper than that block's $ line.
+ * Query (reads editor state). Whether a line is inside a $ block: the previous line ended in a block (the
+ * $ line itself does), and this line is blank or indented deeper than that block's $ line.
  *
  * @example insideBlock(cm, 2)   // true for line 2 of '$code python\n\tdef f():\n\t    return 1'
  * @example insideBlock(cm, 0)   // false: the $ line itself is a dtab line
  */
 function insideBlock(cm, lineNumber) {
     if (lineNumber === 0) return false
-    const previous = cm.getStateAfter(lineNumber - 1)
-    const block = previous.block || previous.pending
+    const block = cm.getStateAfter(lineNumber - 1).block
     if (!block) return false
     const text = cm.getLine(lineNumber)
     return !text.trim() || lineIndent(text) > block.indent

@@ -113,6 +113,11 @@ async function main() {
     assert.ok(shLine.tokens.some(tok => tok.scopes.includes('meta.embedded.block.shellscript')), 'shebang block not handed to the shell grammar')
     const after = grammar.tokenizeLine('after 1', shLine.ruleStack)
     assert.ok(after.tokens.some(tok => tok.scopes.includes('entity.name.tag.leaf-key.dtab')), 'block did not end at a shallower line')
+    // The wide form: text after the tag on the $ line is the value's first line, so it is the language's too.
+    const wide = grammar.tokenizeLine('$command bash\tbash /path/to/$BATCH --some', textmate.INITIAL)
+    assert.ok(inLanguage(wide, 'shellscript', '.shell'), 'the rest of a tagged $ line was not handed to the language')
+    const wideShebang = grammar.tokenizeLine('\techo more', grammar.tokenizeLine('$s\t#!/bin/bash\techo hi', textmate.INITIAL).ruleStack)
+    assert.ok(wideShebang.tokens.some(tok => tok.scopes.includes('meta.embedded.block.shellscript')), 'a shebang on the $ line did not pick the language')
 
     const manifest = JSON.parse(fs.readFileSync(path.join(EXTENSION, 'package.json'), 'utf8'))
     for (const file of [manifest.icon, manifest.contributes.languages[0].configuration, manifest.contributes.languages[0].icon.light,
