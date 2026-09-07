@@ -1,6 +1,6 @@
 # dtab
 
-Test everything: `python test/test_dtab.py` (needs node, vim; puppeteer and vscode-textmate via `npm install --no-save`).
+Test everything: `python test/test_dtab.py` (needs node, vim, and `npm install --no-save puppeteer vscode-textmate vscode-oniguruma @vscode/test-electron` in one go, since each `--no-save` install removes the others; without them the web, grammar and live VS Code checks are skipped).
 
 ## Release
 
@@ -15,5 +15,7 @@ Bump the version in `dtab.py` (`__version__`), `package.json`, and `vscode/packa
 Colors live in three places and change together: `dtab.vim`, `docs/index.html` (`:root` vars), `vscode/package.json` (`tokenColorCustomizations`).
 
 Key punctuation (`_.-`, the characters allowed in keys besides letters and digits) lives in four places and changes together: `dtab.py`, `dtab.js`, `dtab.vim`, `vscode/make_grammar.py` (then run it to regenerate the grammar).
+
+`vscode/dtab.js` is a symlink to the root `dtab.js` (the extension's JSON preview parses with it); the VSIX packager copies it in.
 
 Never write tokens into this repo.

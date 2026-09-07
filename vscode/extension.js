@@ -1,11 +1,14 @@
-// dtab extension entry point. One job: indentation inside $ blocks. Code indents with spaces while tabs
+// dtab extension entry point. Two jobs. Indentation inside $ blocks: code indents with spaces while tabs
 // are dtab structure (and the parser strips a tab of block indentation), so inside a block Tab inserts
-// spaces, and indent/outdent (Cmd+] Cmd+[ Shift+Tab, selections too) shift by spaces. Elsewhere all of
-// them work with tabs, like a plain dtab file wants.
+// spaces, and indent/outdent (Cmd+] Cmd+[ Shift+Tab, selections too) shift by spaces; elsewhere all of
+// them work with tabs, like a plain dtab file wants. And a live JSON preview of the file beside it, like
+// Markdown's, refreshed on every edit.
 'use strict'
 const vscode = require('vscode')
+const dtab = require('./dtab.js')   // the repo's parser; vscode/dtab.js is a symlink to it
 
 const BLOCK_INDENT = '    '   // one level of code indentation inside a $ block
+const PREVIEW_SCHEME = 'dtab-preview'   // uri scheme of the read-only JSON documents the preview shows
 
 /** Pure function. Number of leading tabs of a line. @example indentOf('\t\tx') // 2 */
 const indentOf = line => line.length - line.replace(/^\t+/, '').length
@@ -100,12 +103,52 @@ async function tab() {
     return vscode.commands.executeCommand('tab')
 }
 
+/**
+ * Pure function. What the preview shows for dtab text: the tree as JSON, or, while the text is mid-edit
+ * and does not parse, the parser's message with its line number.
+ *
+ * @param {string} text - dtab source
+ * @returns {string}
+ * @example previewText('a\tb 1')   // '{\n    "a": {\n        "b": "1"\n    }\n}'
+ * @example previewText('a/b 1')    // 'dtab line 1: invalid key "a/b": keys may contain only letters, digits and _ . -'
+ */
+function previewText(text) {
+    try {
+        return JSON.stringify(dtab.parse(text), null, 4)
+    } catch (error) {
+        if (!error.message.startsWith('dtab')) throw error   // only the parser's own verdict belongs in the preview
+        return error.message
+    }
+}
+
+/** Pure function. The preview document's uri for a dtab document: its path plus .json, with the source uri in the query. */
+const previewUri = document => vscode.Uri.from({scheme: PREVIEW_SCHEME, path: document.uri.path + '.json', query: document.uri.toString()})
+
+/** Query (reads open documents). A preview document's text: its source document parsed, or '' once the source is closed. */
+function previewContent(uri) {
+    const source = vscode.workspace.textDocuments.find(document => document.uri.toString() === uri.query)
+    return source ? previewText(source.getText()) : ''
+}
+
+/** Command. Opens the active dtab file's JSON preview beside it (or reveals it), keeping focus in the file. */
+async function openPreview() {
+    const editor = vscode.window.activeTextEditor
+    if (!editor) return
+    const document = await vscode.workspace.openTextDocument(previewUri(editor.document))
+    await vscode.languages.setTextDocumentLanguage(document, 'json')
+    await vscode.window.showTextDocument(document, {viewColumn: vscode.ViewColumn.Beside, preserveFocus: true, preview: false})
+}
+
 function activate(context) {
+    const previewChanged = new vscode.EventEmitter()   // fired with a preview uri: VS Code then asks previewContent again
     context.subscriptions.push(
         vscode.commands.registerCommand('dtab.tab', tab),
         vscode.commands.registerCommand('dtab.indent', () => shiftSelection(1)),
         vscode.commands.registerCommand('dtab.outdent', () => shiftSelection(-1)),
+        vscode.commands.registerCommand('dtab.preview', openPreview),
+        vscode.workspace.registerTextDocumentContentProvider(PREVIEW_SCHEME, {onDidChange: previewChanged.event, provideTextDocumentContent: previewContent}),
+        vscode.workspace.onDidChangeTextDocument(event => { if (event.document.languageId === 'dtab') previewChanged.fire(previewUri(event.document)) }),
     )
 }
 
-module.exports = {activate, insideBlock, shiftLine}
+module.exports = {activate, insideBlock, shiftLine, previewText}

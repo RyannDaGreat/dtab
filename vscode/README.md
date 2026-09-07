@@ -1,6 +1,6 @@
 # dtab for VS Code
 
-Syntax highlighting and a Δ file icon for `.dtab` files.
+Syntax highlighting, a live JSON preview and a Δ file icon for `.dtab` files.
 
 dtab (Delta Tab) is a config format made of tab-separated paths: one line is one path into a tree,
 and later lines are deltas on top of earlier ones. Format, parsers and a live demo:
@@ -15,3 +15,6 @@ VS Code's normal Toggle Render Whitespace command works as usual.
 
 Inside a `$` block the Tab key inserts four spaces, since code indents with spaces and tabs are dtab
 structure. Everywhere else it inserts a tab.
+
+The preview button in the editor title bar (or Cmd+K V / Ctrl+K V) opens the file's tree as JSON beside
+it, updated as you type. While the file does not parse, it shows the parser's message with the line number.

@@ -23,6 +23,9 @@ augroup dtab
     autocmd FileType dtab nnoremap <buffer> < :set operatorfunc=<SID>OutdentOperator<CR>g@
     autocmd FileType dtab xnoremap <buffer> > :<C-U>call <SID>ShiftLines(line("'<"), line("'>"), 1)<CR>
     autocmd FileType dtab xnoremap <buffer> < :<C-U>call <SID>ShiftLines(line("'<"), line("'>"), -1)<CR>
+    " :DtabPreview toggles a split showing the tree as JSON, which follows every edit
+    autocmd FileType dtab command! -buffer -bar DtabPreview call <SID>TogglePreview()
+    autocmd FileType dtab autocmd TextChanged,TextChangedI <buffer> call <SID>RenderPreview()
     autocmd Syntax dtab call s:DtabSyntax()
     autocmd ColorScheme * if &filetype ==# 'dtab' | call s:DtabHighlight() | endif
 augroup END
@@ -145,6 +148,46 @@ endfunction
 
 function! s:OutdentOperator(type) abort
     call s:ShiftLines(line("'["), line("']"), -1)
+endfunction
+
+" The JSON preview parses with the plugin's own dtab.py (next to this file) through vim's python3.
+let s:plugin_root = expand('<sfile>:p:h')
+
+function! s:TogglePreview() abort
+    " Opens a split to the right showing this buffer's tree as JSON, or closes it if it is open.
+    if !has('python3')
+        echoerr 'dtab: :DtabPreview needs vim with +python3'
+        return
+    endif
+    if exists('b:dtab_preview') && bufwinnr(b:dtab_preview) > 0
+        execute bufwinnr(b:dtab_preview) . 'close'
+        return
+    endif
+    rightbelow vertical new
+    setlocal buftype=nofile bufhidden=wipe noswapfile nobuflisted filetype=json
+    let l:preview = bufnr('%')
+    wincmd p
+    let b:dtab_preview = l:preview
+    call s:RenderPreview()
+endfunction
+
+function! s:RenderPreview() abort
+    " Fills the preview window, if this buffer has one open, with the tree as JSON, or with the parser's
+    " message (line number included) while the text does not parse.
+    if !exists('b:dtab_preview') || bufwinnr(b:dtab_preview) < 0
+        return
+    endif
+python3 << EOF
+import json, sys, vim
+if vim.eval('s:plugin_root') not in sys.path:
+    sys.path.insert(0, vim.eval('s:plugin_root'))
+import dtab
+try:
+    preview = json.dumps(dtab.parse('\n'.join(vim.current.buffer[:])), indent=4, ensure_ascii=False)
+except ValueError as error:   # a key mid-edit: the parser's message stands in for the tree
+    preview = str(error)
+vim.buffers[int(vim.eval('b:dtab_preview'))][:] = preview.split('\n')
+EOF
 endfunction
 
 function! s:DtabHighlight() abort

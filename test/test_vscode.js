@@ -151,6 +151,14 @@ async function main() {
     assert.strictEqual(shiftLine('', true, 1), '', 'blank lines are left alone')
     assert.ok(manifest.contributes.keybindings.some(k => k.mac === 'cmd+]' && k.command === 'dtab.indent'))
     assert.ok(manifest.contributes.keybindings.some(k => k.key === 'shift+tab' && k.command === 'dtab.outdent'))
+    // The JSON preview: the parser's tree, or its message while the text does not parse. It uses the repo's own parser.
+    const {previewText} = require(path.join(EXTENSION, manifest.main))
+    assert.strictEqual(previewText('a\tb 1\n$q sql\n\tSELECT 1'), JSON.stringify({a: {b: '1'}, q: 'SELECT 1'}, null, 4))
+    assert.ok(previewText('a/b 1').startsWith('dtab line 1: invalid key'), 'the preview should show the parser error')
+    assert.strictEqual(fs.realpathSync(path.join(EXTENSION, 'dtab.js')), fs.realpathSync(path.join(ROOT, 'dtab.js')), 'vscode/dtab.js must be the repo parser')
+    assert.ok(manifest.contributes.commands.some(c => c.command === 'dtab.preview'))
+    assert.ok(manifest.contributes.menus['editor/title'].some(m => m.command === 'dtab.preview'), 'no preview button in the editor title bar')
+    assert.ok(manifest.contributes.keybindings.some(k => k.mac === 'cmd+k v' && k.command === 'dtab.preview'))
     Module._load = realLoad
     console.log('test_vscode.js: all checks passed')
 }

@@ -1,7 +1,7 @@
 {
     "name": "dtab",
     "displayName": "dtab (Delta Tab)",
-    "description": "Syntax highlighting and a Δ file icon for .dtab files: config files made of tab-separated paths.",
+    "description": "Syntax highlighting, a live JSON preview and a Δ file icon for .dtab files: config files made of tab-separated paths.",
     "version": "0.3.0",
     "publisher": "RyannDaGreat",
     "license": "SEE LICENSE IN ../LICENSE",
@@ -129,6 +129,11 @@
             {
                 "command": "dtab.outdent",
                 "title": "dtab: Outdent lines (4 spaces inside a $ block, a tab elsewhere)"
+            },
+            {
+                "command": "dtab.preview",
+                "title": "dtab: Open JSON Preview to the Side",
+                "icon": "$(open-preview)"
             }
         ],
         "keybindings": [
@@ -153,8 +158,23 @@
                 "key": "ctrl+[",
                 "mac": "cmd+[",
                 "when": "editorTextFocus && editorLangId == dtab && !editorReadonly"
+            },
+            {
+                "command": "dtab.preview",
+                "key": "ctrl+k v",
+                "mac": "cmd+k v",
+                "when": "editorLangId == dtab && !notebookEditorFocused"
             }
-        ]
+        ],
+        "menus": {
+            "editor/title": [
+                {
+                    "command": "dtab.preview",
+                    "when": "editorLangId == dtab",
+                    "group": "navigation"
+                }
+            ]
+        }
     },
     "main": "./extension.js",
     "activationEvents": [
