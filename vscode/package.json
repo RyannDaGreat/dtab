@@ -133,7 +133,10 @@
             {
                 "command": "dtab.preview",
                 "title": "dtab: Open JSON Preview to the Side",
-                "icon": "$(open-preview)"
+                "icon": {
+                    "light": "./icons/delta-light.svg",
+                    "dark": "./icons/delta-dark.svg"
+                }
             }
         ],
         "keybindings": [

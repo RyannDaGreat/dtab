@@ -120,8 +120,9 @@ async function main() {
     assert.ok(wideShebang.tokens.some(tok => tok.scopes.includes('meta.embedded.block.shellscript')), 'a shebang on the $ line did not pick the language')
 
     const manifest = JSON.parse(fs.readFileSync(path.join(EXTENSION, 'package.json'), 'utf8'))
+    const previewCommand = manifest.contributes.commands.find(c => c.command === 'dtab.preview')
     for (const file of [manifest.icon, manifest.contributes.languages[0].configuration, manifest.contributes.languages[0].icon.light,
-                        manifest.contributes.languages[0].icon.dark, manifest.contributes.grammars[0].path])
+                        manifest.contributes.languages[0].icon.dark, manifest.contributes.grammars[0].path, previewCommand.icon.light, previewCommand.icon.dark])
         assert.ok(fs.existsSync(path.join(EXTENSION, file)), 'manifest points at missing file ' + file)
     assert.deepStrictEqual(manifest.contributes.languages[0].extensions, ['.dtab'])
     assert.ok(!('editor.renderWhitespace' in manifest.contributes.configurationDefaults['[dtab]']),
