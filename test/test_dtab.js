@@ -28,16 +28,17 @@ function testDocumentedExamples() {
 
 function testKeyRule() {
     for (const [text, fragment] of [
-        ['a\tcheckpoint.initial 1', 'line 1: invalid key "checkpoint.initial"'],
-        ['ok 1\n\t2nd 2', 'line 2: invalid key "2nd"'],
-        ['a-b 1', 'invalid key "a-b"'],
+        ['a\tc/d 1', 'line 1: invalid key "c/d"'],
+        ['ok 1\n\tk:v 2', 'line 2: invalid key "k:v"'],
         ['~scope\n\tx 1', 'invalid key "~scope"'],
         ['log\t@ e', 'invalid key "@"'],
-        ['a,b.c\tx 1', 'invalid key "a,b.c"'],
+        ['a,b#c\tx 1', 'invalid key "a,b#c"'],
+        ['"quoted" 1', 'invalid key "\\"quoted\\""'],
     ])
         assert.throws(() => dtab.parse(text), error => error.message.includes(fragment), text)
-    assert.deepStrictEqual(dtab.parse('items 1\nfrom 2\n_private 3\ncafé 4'), {items: '1', from: '2', _private: '3', café: '4'})
-    for (const tree of [{'a b': '1'}, {'a,b': '1'}, {0: '1'}, {'': '1'}])
+    assert.deepStrictEqual(dtab.parse('123aa 1\nfile.json 2\nfile-thing.json 3\n123.json-yaml 4\nitems 5\n_p 6\ncafé 7\n-x 8'),
+        {'123aa': '1', 'file.json': '2', 'file-thing.json': '3', '123.json-yaml': '4', items: '5', _p: '6', café: '7', '-x': '8'})
+    for (const tree of [{'a b': '1'}, {'a,b': '1'}, {'a/b': '1'}, {'': '1'}])
         assert.throws(() => dtab.stringify(tree), /dtab/)
 }
 

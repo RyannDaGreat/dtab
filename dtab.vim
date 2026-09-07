@@ -4,7 +4,7 @@
 "
 " Object keys purple, leaf keys cyan, leaf values blue, comments (entries starting with a space) as
 " Comment. Errors: trailing tabs (an empty key that silently swallows the following indented lines) and
-" characters a key may not contain (keys are identifiers). `$key [tag]` multiline blocks are colored as
+" characters a key may not contain (letters, digits, _ . - only). `$key [tag]` multiline blocks are colored as
 " values, or by the tagged language's own syntax file (sql, python, bash, ...), or by a shebang.
 "
 " A dtab line is tab-indented, with entries separated by tabs:
@@ -41,10 +41,9 @@ function! s:DtabSyntax() abort
     syntax match dtabComment     /\%(^\t*\|\t\)\zs [^\t]*/
     syntax match dtabComma       /,/                                          contained
     syntax match dtabTrailingTab /\t\+$/
-    " A character that is neither a keyword character (letters incl. multibyte, digits, _) nor a comma,
-    " or a key starting with a digit
-    syntax match dtabBadKey      /\%(\k\|,\)\@!./                             contained
-    syntax match dtabBadKey      /\%(^\|[\t,]\)\@<=\d/                        contained
+    " A character outside the key bag: keyword characters (letters incl. multibyte, digits, _) and
+    " s:key_punctuation, plus the , that separates keys
+    execute 'syntax match dtabBadKey /\%(\k\|[,' . escape(s:key_punctuation, ']^-\') . ']\)\@!./ contained'
 
     " $key [tag]: a multiline block. The region runs over every following line indented deeper than the $ line
     " (\z1 is the $ line's own tabs) or blank. Defined after the entry matches so it wins at the same column.
@@ -94,6 +93,8 @@ endfunction
 
 " What the Tab key inserts inside a $ block: code indents with spaces; tabs are dtab structure.
 let s:block_indent = '    '
+" Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
+let s:key_punctuation = '_.-'
 
 function! s:InBlock(lnum, col) abort
     " Whether (lnum, col) is inside a $ block's text: the syntax there is a block region, and the line is

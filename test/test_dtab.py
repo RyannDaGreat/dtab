@@ -14,8 +14,8 @@ Checks:
      that is one leaf, deltas.initial.l1.intensity, where the original ignored the later `l1	intensity 1`),
      and `$` multiline blocks, which the original did not have.
   4. parse(stringify(parse(text))) == parse(text) for every sample.
-  5. The key rule: bad keys are rejected with a line number in parse and in stringify, and Python's
-     str.isidentifier and the JS Unicode regex agree on a set of probes.
+  5. The key rule (letters, digits, _ . -): bad keys are rejected with a line number in parse and in
+     stringify, and the Python and JS character classes agree on a set of Unicode probes.
   6. node test/test_dtab.js.
   7. Vim: the syntax groups over test/samples/highlight.dtab match test/expected/highlight.txt byte by byte
      (that sample deliberately contains invalid keys, so it is not parsed), and plugin/dtab.vim sets the
@@ -40,7 +40,7 @@ ROOT = Path(__file__).resolve().parent.parent
 HIGHLIGHT_SAMPLE = ROOT / "test" / "samples" / "highlight.dtab"
 SAMPLES = sorted(path for path in (ROOT / "test" / "samples").glob("*.dtab") if path != HIGHLIGHT_SAMPLE)
 DEVIATING = {"deviations.dtab", "game_config.dtab", "multiline.dtab"}  # multiline: $ blocks did not exist in the original
-IDENTIFIER_PROBES = ["café", "变量", "x²", "_x", "0x", "from", "items", "a-b", "ok_1", "ª", "Ⅻ", "℘", "ℕ", "𝔸", "a.b", "é1", "1é"]
+IDENTIFIER_PROBES = ["café", "变量", "x²", "_x", "0x", "a-b", "ok_1", "ª", "Ⅻ", "℘", "ℕ", "𝔸", "a.b", "é1", "1é", "a/b", "a:b", "ä-ö.ü", "١٢٣", "a~b"]   # the key rule, py vs js
 
 sys.path.insert(0, str(ROOT))
 import dtab  # noqa: E402
@@ -88,20 +88,28 @@ def test_round_trips():
 
 def test_key_rule():
     for text, fragments in [
-        ("a\tcheckpoint.initial 1", ["line 1", "'checkpoint.initial'"]),
-        ("ok 1\n\t2nd 2", ["line 2", "'2nd'"]),
-        ("a-b 1", ["'a-b'"]),
+        ("a\tc/d 1", ["line 1", "'c/d'"]),
+        ("ok 1\n\tk:v 2", ["line 2", "'k:v'"]),
         ("~scope\n\tx 1", ["'~scope'"]),
         ("log\t@ e", ["'@'"]),
-        ("a,b.c\tx 1", ["'a,b.c'"]),
+        ("a,b#c\tx 1", ["'a,b#c'"]),
+        ("\"quoted\" 1", ["'\"quoted\"'"]),
     ]:
         raises_value_error(lambda: dtab.parse(text), *fragments)
-    assert dtab.parse("items 1\nfrom 2\n_private 3\ncafé 4") == {"items": "1", "from": "2", "_private": "3", "café": "4"}
-    for tree in [{"a b": "1"}, {"a,b": "1"}, {0: "1"}, {"": "1"}]:
+    assert dtab.parse("123aa 1\nfile.json 2\nfile-thing.json 3\n123.json-yaml 4\nitems 5\n_p 6\ncafé 7\n-x 8") == {
+        "123aa": "1", "file.json": "2", "file-thing.json": "3", "123.json-yaml": "4", "items": "5", "_p": "6", "café": "7", "-x": "8"}
+    for tree in [{"a b": "1"}, {"a,b": "1"}, {"a/b": "1"}, {"": "1"}]:
         raises_value_error(lambda: dtab.stringify(tree), "dtab")
+    assert dtab.parse(dtab.stringify({0: "a", "file.json": "b"})) == {"0": "a", "file.json": "b"}   # int keys are written as text
     for value in ["x\ny", "x\ty", "a\n\n\tb\n  c", "#!/bin/bash\necho hi", ""]:
         assert dtab.parse(dtab.stringify({"a": value})) == {"a": value}, "multiline round trip failed for %r" % value
-    python_verdicts = [probe.isidentifier() for probe in IDENTIFIER_PROBES]
+    def accepted(probe):
+        try:
+            dtab.parse(probe + " 1")
+            return True
+        except ValueError:
+            return False
+    python_verdicts = [accepted(probe) for probe in IDENTIFIER_PROBES]
     js_verdicts = json.loads(run(
         "node", "-e",
         "const d = require('./dtab.js'); console.log(JSON.stringify(%s.map(p => { try { d.parse(p + ' 1'); return true } catch { return false } })))"
@@ -191,6 +199,13 @@ def test_web_demo():
 
 
 def test_vscode_grammar():
+    # The committed grammar and language configuration are what vscode/make_grammar.py generates.
+    with tempfile.TemporaryDirectory() as directory:
+        sys.path.insert(0, str(ROOT / "vscode"))
+        import make_grammar  # noqa: E402
+        for written in make_grammar.write(directory):
+            committed = ROOT / "vscode" / Path(written).relative_to(directory)
+            assert Path(written).read_text() == committed.read_text(), "%s is stale: run python vscode/make_grammar.py" % committed
     if not (ROOT / "node_modules" / "vscode-textmate").is_dir():
         print("    (skipped: vscode-textmate not installed)")
         return

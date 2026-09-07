@@ -28,7 +28,7 @@ dtab.parse(open("scene.dtab").read())
 
 - Less to look at. No braces, quotes, or commas between values. A file with its tabs aligned reads like pseudocode, and is easy to write by hand, even on paper.
 - Simple. Six rules, one pass, about 70 lines per implementation.
-- Everything is addressable. There are no lists, so every value has a dotted path: `config.deltas.l1.position.x` works with EasyDict in Python and plain property access in JavaScript.
+- Everything is addressable. There are no lists, so every value has a path: `config.deltas.l1.position.x` with EasyDict in Python or plain property access in JavaScript, brackets for keys like `file.json`.
 - You choose the shape. Lines stack, and `c,d` writes one value under several keys, so the same tree can be written wide, deep, or on one line, trading horizontal space for vertical. These are the same file:
 
   ```
@@ -55,8 +55,9 @@ dtab.parse(open("scene.dtab").read())
 - An entry that starts with a space is a comment.
 - `$key` starts a multiline string. See below.
 
-Every value is a string. Cast the ones you need. Keys are identifiers (letters, digits, underscores),
-so attribute access like `config.deltas.l1` works with EasyDict and friends.
+Every value is a string. Cast the ones you need. A key is any run of letters, digits, `_`, `.` and `-`,
+so `file.json`, `2026-09-07` and `0` are keys. Keys that happen to be identifiers work as attributes
+(`config.deltas.l1` with EasyDict and friends); the rest are reached with brackets (`config["file.json"]`).
 
 ## Multiline strings
 

@@ -22,7 +22,8 @@
  *   - `$key` is a multiline leaf: its value is the entries after it on its line plus every line indented
  *     under it, one line each, with their common indentation removed. A word after the key on the `$` line
  *     (`$query sql`) is a language tag for editors and is not part of the value.
- *   - Keys are identifiers (Python's str.isidentifier rule), so trees are EasyDict-friendly. Every value is a string.
+ *   - Keys are one or more letters, digits, or KEY_PUNCTUATION (`_.-`), so `file.json` and `123aa` are keys. Keys that
+ *     are also identifiers work as attributes (config.deltas.l1). Every value is a string.
  *
  * Single pass, one stack, O(total characters). Same algorithm and API as dtab.py.
  * Works as a browser <script> (defines window.dtab) and in node (module.exports, and `dtab FILE` on the command line).
@@ -31,9 +32,10 @@
 
 const KEY_SEPARATOR = ','  // a,b writes the same value under each key
 const BLOCK_PREFIX = '$'   // $key: a leaf whose value is the lines under it ($ as in string)
-const KEY_RULE = 'keys must be identifiers (letters, digits, underscores, not starting with a digit)'
+const KEY_PUNCTUATION = '_.-'   // Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
+const KEY_RULE = 'keys may contain only letters, digits and ' + [...KEY_PUNCTUATION].join(' ')
 const TAB_RUN = /\t+/  // Several tabs in a row are one separator, so columns can be aligned
-const IDENTIFIER = /^[\p{XID_Start}_]\p{XID_Continue}*$/u  // the same Unicode classes Python's str.isidentifier uses
+const KEY = new RegExp('^[\\p{L}\\p{N}' + KEY_PUNCTUATION.replace(/[\]\\^-]/g, '\\$&') + ']+$', 'u')  // letters, digits (as Python's \w) and the punctuation; the rest is reserved for syntax
 
 /**
  * Pure function. Parses dtab text into nested plain objects of strings. Throws, with the line number,
@@ -47,7 +49,8 @@ const IDENTIFIER = /^[\p{XID_Start}_]\p{XID_Continue}*$/u  // the same Unicode c
  * @example parse('a\tb 1\n\t comment\na\tb 2')   // {a: {b: '2'}}
  * @example parse('$query sql\n\tSELECT *\n\n\t\tFROM users\n\nnext 1')   // {query: 'SELECT *\n\n\tFROM users', next: '1'}
  * @example parse('$cmd\tpip install rp\tpython train.py')                  // {cmd: 'pip install rp\npython train.py'}
- * @example parse('a\tb 1\nc.d\te 2')              // throws: dtab line 2: invalid key "c.d": keys must be identifiers ...
+ * @example parse('a\tb 1\nfile.json\tsize 2\n123aa 3')   // {a: {b: '1'}, 'file.json': {size: '2'}, '123aa': '3'}
+ * @example parse('a\tb 1\nc/d\te 2')              // throws: dtab line 2: invalid key "c/d": keys may contain only letters, digits and _ . -
  */
 function parse(text) {
     const root = {}
@@ -137,8 +140,8 @@ function stringify(tree) {
 }
 
 /**
- * Pure function (throws). The identifiers a key stands for: `a,b` is two while parsing, and a
- * stringify key must be a single bare identifier.
+ * Pure function (throws). The names a key stands for: `a,b` is two while parsing, and a stringify key
+ * must be a single name.
  *
  * @param {string} key
  * @param {number|null} lineNumber - For the error message; null outside parsing
@@ -146,13 +149,13 @@ function stringify(tree) {
  * @returns {string[]}
  *
  * @example keyNames('l1,l2', 1, true)           // ['l1', 'l2']
- * @example keyNames('table_bottom', null, false) // ['table_bottom']
- * @example keyNames('a,b', null, false)          // throws: dtab: invalid key "a,b": keys must be identifiers ...
+ * @example keyNames('file-thing.json', null, false) // ['file-thing.json']
+ * @example keyNames('a,b', null, false)          // throws: dtab: invalid key "a,b": keys may contain only letters, digits and _ . -
  */
 function keyNames(key, lineNumber, allowCommas) {
     const names = allowCommas ? key.split(KEY_SEPARATOR) : [key]
     for (const name of names) {
-        if (!IDENTIFIER.test(name)) {
+        if (!KEY.test(name)) {
             const where = lineNumber ? ' line ' + lineNumber : ''
             throw new Error('dtab' + where + ': invalid key ' + JSON.stringify(key) + ': ' + KEY_RULE)
         }
@@ -201,7 +204,7 @@ function stringifyInto(node, depth, lines) {
     }
 }
 
-const dtab = {parse, stringify, KEY_SEPARATOR, BLOCK_PREFIX, KEY_RULE}
+const dtab = {parse, stringify, KEY_SEPARATOR, BLOCK_PREFIX, KEY_PUNCTUATION, KEY, KEY_RULE}
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = dtab

@@ -168,17 +168,17 @@ const EXAMPLE = [
     '\tpip install rp',
 ].join('\n')
 
-const KEY_NAME = /^[\p{XID_Start}_]\p{XID_Continue}*$/u   // same key rule as dtab.js (named differently: dtab.js already declares IDENTIFIER globally)
+const KEY_NAME = dtab.KEY   // the parser's own key rule
 
 /**
  * Pure function. The CodeMirror token class for one dtab entry (the text between tabs).
- * A key part that is not an identifier is flagged; commas between identifiers are fine.
+ * A key part with a character outside the bag (letters, digits, _ . -) is flagged; commas between parts are fine.
  *
  * @param {string} key - the entry's key (text before its first space, or the whole entry)
  * @param {boolean} isLeaf - whether the entry has a space (key value)
  * @returns {string}
  * @example entryClass('l1,l2', true)   // 'dtab-leaf-key'
- * @example entryClass('a.b', false)    // 'dtab-bad-key'
+ * @example entryClass('a/b', false)    // 'dtab-bad-key'
  */
 function entryClass(key, isLeaf) {
     if (!key.split(',').every(name => KEY_NAME.test(name))) return 'dtab-bad-key'

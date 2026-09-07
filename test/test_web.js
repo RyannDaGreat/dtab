@@ -61,17 +61,17 @@ async function main() {
         assert.strictEqual(JSON.parse(shown).lights.fill.castShadow, 'true', 'comma key should fan out')
 
         // 2. Highlighting: object keys, leaf keys, values, comments, tabs, and a bad key each get their class.
-        await setEditorText(page, ' a comment\ncamera\tposition\tx 0\ty 5\nbad.key 1\n')
+        await setEditorText(page, ' a comment\ncamera\tposition\tx 0\ty 5\nbad/key 1\n')
         assert.deepStrictEqual(await lineTokens(page, 1), [['dtab-comment', ' a comment']])
         assert.deepStrictEqual(await lineTokens(page, 2), [
             ['dtab-object-key', 'camera'], ['tab', '\t'], ['dtab-object-key', 'position'], ['tab', '\t'],
             ['dtab-leaf-key', 'x '], ['dtab-value', '0'], ['tab', '\t'], ['dtab-leaf-key', 'y '], ['dtab-value', '5'],
         ])
-        assert.deepStrictEqual(await lineTokens(page, 3), [['dtab-bad-key', 'bad.key '], ['dtab-value', '1']])
+        assert.deepStrictEqual(await lineTokens(page, 3), [['dtab-bad-key', 'bad/key '], ['dtab-value', '1']])
         const tabGlyph = await page.evaluate(() => getComputedStyle(document.querySelector('.cm-tab'), '::before').content)
         assert.strictEqual(tabGlyph, '"→"', 'tabs should be drawn as an arrow')
         const error = await page.$eval('#output', element => element.textContent)
-        assert.ok(error.includes('line 3') && error.includes('bad.key'), 'error not shown: ' + error)
+        assert.ok(error.includes('line 3') && error.includes('bad/key'), 'error not shown: ' + error)
 
         // 2b. $ blocks: the tag picks an embedded language, a shebang picks one too, no tag means plain value text,
         //     and the block ends at the first line that is not deeper. The JSON pane shows the joined value.
@@ -100,7 +100,7 @@ async function main() {
         assert.strictEqual(await page.$eval('#toggle-highlight', e => e.checked), false, 'toggle state should persist')
         await page.click('#toggle-highlight')
         await page.click('#toggle-tabs')
-        await setEditorText(page, ' a comment\ncamera\tposition\tx 0\ty 5\nbad.key 1\n')
+        await setEditorText(page, ' a comment\ncamera\tposition\tx 0\ty 5\nbad/key 1\n')
         assert.strictEqual(await glyph(), '"→"', 'tabs back on should draw the arrows')
 
         // 4a. Inside a $ block, past the line's indent, the Tab key inserts spaces (code indents with spaces);

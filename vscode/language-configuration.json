@@ -1,9 +1,13 @@
 {
-    "comments": {"lineComment": " "},
+    "comments": {
+        "lineComment": " "
+    },
     "indentationRules": {
         "increaseIndentPattern": "^\\t*[^\\t ]+$",
         "decreaseIndentPattern": "^$"
     },
-    "folding": {"offSide": true},
-    "wordPattern": "[\\p{L}_][\\p{L}\\p{N}_]*"
+    "folding": {
+        "offSide": true
+    },
+    "wordPattern": "[\\p{L}\\p{N}_\\.\\-]+"
 }

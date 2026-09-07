@@ -14,4 +14,6 @@ Bump the version in `dtab.py` (`__version__`), `package.json`, and `vscode/packa
 
 Colors live in three places and change together: `dtab.vim`, `docs/index.html` (`:root` vars), `vscode/package.json` (`tokenColorCustomizations`).
 
+Key punctuation (`_.-`, the characters allowed in keys besides letters and digits) lives in four places and changes together: `dtab.py`, `dtab.js`, `dtab.vim`, `vscode/make_grammar.py` (then run it to regenerate the grammar).
+
 Never write tokens into this repo.

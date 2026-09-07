@@ -21,7 +21,8 @@ Rules:
   - `$key` is a multiline leaf: its value is the entries after it on its line plus every line indented
     under it, one line each, with their common indentation removed. A word after the key on the `$` line
     (`$query sql`) is a language tag for editors and is not part of the value.
-  - Keys are identifiers (str.isidentifier), so trees are EasyDict-friendly. Every value is a string.
+  - Keys are one or more letters, digits, or KEY_PUNCTUATION (`_.-`), so `file.json` and `123aa` are keys. Keys that
+    are also Python identifiers work as attributes (config.deltas.l1). Every value is a string.
 
 Single pass, one stack, O(total characters).
 """
@@ -29,12 +30,14 @@ Single pass, one stack, O(total characters).
 import json
 import re
 
-__version__ = "0.2.0"  # SEMANTIC BINDING: dtab-version (also package.json "version")
+__version__ = "0.3.0"  # SEMANTIC BINDING: dtab-version (also package.json "version")
 
 KEY_SEPARATOR = ","  # a,b writes the same value under each key
 BLOCK_PREFIX = "$"  # $key: a leaf whose value is the lines under it ($ as in string)
-KEY_RULE = "keys must be identifiers (letters, digits, underscores, not starting with a digit)"
+KEY_PUNCTUATION = "_.-"  # Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
+KEY_RULE = "keys may contain only letters, digits and " + " ".join(KEY_PUNCTUATION)
 _TAB_RUN = re.compile(r"\t+")  # Several tabs in a row are one separator, so columns can be aligned
+_KEY = re.compile(r"[\w" + re.escape(KEY_PUNCTUATION) + "]+")  # \w: letters, digits, _ (Unicode); the rest is reserved for syntax
 
 
 def parse(text):
@@ -57,9 +60,11 @@ def parse(text):
         {'query': 'SELECT *\\n\\n\\tFROM users', 'next': '1'}
         >>> parse('$cmd\\tpip install rp\\tpython train.py')
         {'cmd': 'pip install rp\\npython train.py'}
-        >>> parse('a\\tb 1\\nc.d\\te 2')
+        >>> parse('a\\tb 1\\nfile.json\\tsize 2\\n123aa 3')
+        {'a': {'b': '1'}, 'file.json': {'size': '2'}, '123aa': '3'}
+        >>> parse('a\\tb 1\\nc/d\\te 2')
         Traceback (most recent call last):
-        ValueError: dtab line 2: invalid key 'c.d': keys must be identifiers (letters, digits, underscores, not starting with a digit)
+        ValueError: dtab line 2: invalid key 'c/d': keys may contain only letters, digits and _ . -
     """
     root = {}
     stack = [(-1, [root])]  # (indent, nodes that deeper lines nest into)
@@ -126,19 +131,19 @@ def stringify(tree):
 
 def _key_names(key, line_number, allow_commas):
     """
-    Pure function (raises ValueError). The identifiers a key stands for: `a,b` is two while parsing,
-    and a stringify key must be a single bare identifier.
+    Pure function (raises ValueError). The names a key stands for: `a,b` is two while parsing, and a
+    stringify key must be a single name.
 
     Examples:
-        >>> _key_names('l1,l2', 1, True), _key_names('table_bottom', None, False)
-        (['l1', 'l2'], ['table_bottom'])
+        >>> _key_names('l1,l2', 1, True), _key_names('file-thing.json', None, False)
+        (['l1', 'l2'], ['file-thing.json'])
         >>> _key_names('a,b', None, False)
         Traceback (most recent call last):
-        ValueError: dtab: invalid key 'a,b': keys must be identifiers (letters, digits, underscores, not starting with a digit)
+        ValueError: dtab: invalid key 'a,b': keys may contain only letters, digits and _ . -
     """
     names = key.split(KEY_SEPARATOR) if allow_commas else [key]
     for name in names:
-        if not name.isidentifier():
+        if not _KEY.fullmatch(name):
             where = " line %d" % line_number if line_number else ""
             raise ValueError("dtab%s: invalid key %r: %s" % (where, key, KEY_RULE))
     return names
