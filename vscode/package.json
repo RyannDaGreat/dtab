@@ -148,7 +148,7 @@
             {
                 "command": "dtab.outdent",
                 "key": "shift+tab",
-                "when": "editorTextFocus && editorLangId == dtab && !editorReadonly"
+                "when": "editorTextFocus && editorLangId == dtab && !editorReadonly && !inSnippetMode && !editorTabMovesFocus"
             },
             {
                 "command": "dtab.indent",

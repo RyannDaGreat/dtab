@@ -19,8 +19,8 @@ augroup dtab
     " >> << (with counts), the > < operators, and visual > <: spaces inside a $ block, a tab elsewhere
     autocmd FileType dtab nnoremap <buffer> >> :<C-U>call <SID>ShiftLines(line('.'), line('.') + v:count1 - 1, 1)<CR>
     autocmd FileType dtab nnoremap <buffer> << :<C-U>call <SID>ShiftLines(line('.'), line('.') + v:count1 - 1, -1)<CR>
-    autocmd FileType dtab nnoremap <buffer> > :set operatorfunc=<SID>IndentOperator<CR>g@
-    autocmd FileType dtab nnoremap <buffer> < :set operatorfunc=<SID>OutdentOperator<CR>g@
+    autocmd FileType dtab nnoremap <buffer> <expr> > <SID>Operator('IndentOperator')
+    autocmd FileType dtab nnoremap <buffer> <expr> < <SID>Operator('OutdentOperator')
     autocmd FileType dtab xnoremap <buffer> > :<C-U>call <SID>ShiftLines(line("'<"), line("'>"), 1)<CR>
     autocmd FileType dtab xnoremap <buffer> < :<C-U>call <SID>ShiftLines(line("'<"), line("'>"), -1)<CR>
     " :DtabPreview toggles a split showing the tree as JSON, which follows every edit
@@ -99,21 +99,31 @@ let s:block_indent = '    '
 " Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
 let s:key_punctuation = '_.-'
 
-function! s:InBlock(lnum, col) abort
-    " Whether (lnum, col) is inside a $ block's text: the syntax there is a block region, and the line is
-    " not the $ line itself (that line is dtab structure, even though the region starts on it).
-    if getline(a:lnum) =~ '^\t*\%([^\t]*\t\+\)*\$[^\t ]'
-        return 0
-    endif
-    let l:groups = map(synstack(a:lnum, max([a:col, 1])), 'synIDattr(v:val, "name")')
-    return index(l:groups, 'dtabBlock') >= 0 || index(l:groups, 'dtabShebang') >= 0
+function! s:InBlock(lnum) abort
+    " Whether a line is inside a $ block: walking up through its ancestors (each the nearest shallower
+    " non-blank line), the first one that is a $ line puts it inside. The line's own tabs are its depth, so
+    " a line of only whitespace at the $ line's depth, or an empty line, is structure: Tab there gives a tab.
+    " The same walk as insideBlock in vscode/extension.js.
+    let l:depth = len(matchstr(getline(a:lnum), '^\t*'))
+    let l:above = prevnonblank(a:lnum - 1)
+    while l:above > 0 && l:depth > 0
+        let l:indent = len(matchstr(getline(l:above), '^\t*'))
+        if l:indent < l:depth
+            if getline(l:above) =~ '^\t*\%([^\t]*\t\+\)*\$[^\t ]'
+                return 1
+            endif
+            let l:depth = l:indent
+        endif
+        let l:above = prevnonblank(l:above - 1)
+    endwhile
+    return 0
 endfunction
 
 function! s:Tab() abort
     " Inside a $ block and past the line's own tabs, insert spaces; everywhere else a tab.
     let l:col = col('.') - 1
     let l:leading = len(matchstr(getline('.'), '^\t*'))
-    return s:InBlock(line('.'), l:col) && l:col >= l:leading ? s:block_indent : "\<Tab>"
+    return s:InBlock(line('.')) && l:col >= l:leading ? s:block_indent : "\<Tab>"
 endfunction
 
 function! s:ShiftLines(first, last, direction) abort
@@ -123,7 +133,7 @@ function! s:ShiftLines(first, last, direction) abort
     " indent and would turn a block's spaces into tabs. Blank lines are untouched.
     let l:code = 1
     for l:lnum in range(a:first, a:last)
-        if getline(l:lnum) =~ '\S' && !s:InBlock(l:lnum, match(getline(l:lnum), '\S') + 1)
+        if getline(l:lnum) =~ '\S' && !s:InBlock(l:lnum)
             let l:code = 0
         endif
     endfor
@@ -140,6 +150,14 @@ function! s:ShiftLines(first, last, direction) abort
             call setline(l:lnum, a:direction > 0 ? "\t" . l:line : substitute(l:line, '^\t', '', ''))
         endif
     endfor
+endfunction
+
+let s:sid = expand('<SID>')
+
+function! s:Operator(name) abort
+    " The > and < operators, as an <expr> mapping: a count typed before the operator (2>j) stays with g@.
+    let &operatorfunc = s:sid . a:name
+    return 'g@'
 endfunction
 
 function! s:IndentOperator(type) abort

@@ -117,13 +117,22 @@ async function main() {
         await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.setCursor({line: 2, ch: 0}) })
         await page.keyboard.press('Tab')
         assert.strictEqual(await page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror.getLine(2)), '\t\t    return 1', 'Tab at the start of a block line should insert a tab')
+        await setEditorText(page, 'a\n\t$code\n\t\tbody\n\t\nafter 1')
+        await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.focus(); c.setCursor({line: 3, ch: 1}) })
+        await page.keyboard.press('Tab')
+        assert.strictEqual(await page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror.getLine(3)), '\t\t', 'a whitespace line at the $ line\'s depth is structure: Tab should insert a tab')
+        await setEditorText(page, '$code python\n\tdef f():\n\t\nafter 1')
+        await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.focus(); c.setCursor({line: 2, ch: 1}) })
+        await page.keyboard.press('Tab'); await page.keyboard.type('return 1')
+        await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.setCursor({line: 2, ch: 0}) })
+        await page.keyboard.press('Tab')
         await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.setCursor({line: 3, ch: 5}) })
         await page.keyboard.press('Tab')
         assert.strictEqual(await page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror.getLine(3)), 'after\t 1', 'Tab outside a block should insert a tab')
 
         // 4b. Shift-Tab outdents; Tab with a multi-line selection indents; each line by its own rule.
         const value = () => page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror.getValue().split('\n'))
-        const select = (a, b) => page.evaluate((a, b) => { const c = document.querySelector('.CodeMirror').CodeMirror; c.focus(); c.setSelection({line: a, ch: 0}, {line: b, ch: 0}) }, a, b)
+        const select = (a, b) => page.evaluate((a, b) => { const c = document.querySelector('.CodeMirror').CodeMirror; c.focus(); c.setSelection({line: a, ch: 0}, {line: b, ch: c.getLine(b).length}) }, a, b)   // through the end of line b
         const shiftTab = async () => { await page.keyboard.down('Shift'); await page.keyboard.press('Tab'); await page.keyboard.up('Shift') }
         await setEditorText(page, 'before 1\n$code python\n\tdef f():\n\t    return 1')
         await select(2, 3); await page.keyboard.press('Tab')
@@ -134,6 +143,16 @@ async function main() {
         assert.deepStrictEqual(await value(), ['before 1', '\t$code python', '\t\tdef f():', '\t\t    return 1'], 'a selection touching the $ line shifts everything by tabs')
         await shiftTab()
         assert.deepStrictEqual(await value(), ['before 1', '$code python', '\tdef f():', '\t    return 1'], 'and Shift-Tab undoes it')
+        // A Shift+Down selection ends at column 0 of the next line, which is not part of it.
+        await setEditorText(page, '$code\n\tx\n\ty\nafter 1\n')
+        await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.focus(); c.setSelection({line: 1, ch: 0}, {line: 3, ch: 0}) })
+        await page.keyboard.press('Tab')
+        assert.deepStrictEqual(await value(), ['$code', '\t    x', '\t    y', 'after 1', ''], 'a selection ending at column 0 must not touch that line')
+        // Right after an edit above, the answer must come from the current text, not a stale highlight cache.
+        await setEditorText(page, 'code\n\tx\n\ty\nafter 1\n')
+        await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.focus(); c.replaceRange('$', {line: 0, ch: 0}); c.setCursor({line: 2, ch: 2}) })
+        await page.keyboard.press('Tab')
+        assert.deepStrictEqual(await value(), ['$code', '\tx', '\ty    ', 'after 1', ''], 'Tab right after typing the $ above should already give spaces')
 
         // 4. The Tab key inserts a tab character instead of leaving the editor.
         await setEditorText(page, 'a')

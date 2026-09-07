@@ -161,14 +161,17 @@ def test_vim_tab_key():
     """In insert mode, Tab inside a $ block (past the line's tabs) inserts spaces; elsewhere a tab."""
     with tempfile.TemporaryDirectory() as directory:
         sample = Path(directory) / "tab.dtab"
-        sample.write_text("$code python\n\tdef f():\n\t\nafter 1\n")
+        sample.write_text("$code python\n\tdef f():\n\t\nafter 1\nx\n\t$code\n\t\tbody\n\t\n\n")
         out = Path(directory) / "lines.txt"
         vim("syntax on", "source dtab.vim", "edit " + str(sample),
             "call cursor(3, 2) | execute \"normal a\\<Tab>return 1\" | call cursor(3, 1) | execute \"normal i\\<Tab>\" | call cursor(4, 6) | execute \"normal i\\<Tab>\"",
-            "call writefile([getline(3), getline(4)], '%s')" % out)
+            "call cursor(8, 1) | execute \"normal A\\<Tab>\" | call cursor(9, 1) | execute \"normal A\\<Tab>\\<Esc>A\\<Tab>\\<Esc>A\\<Tab>\"",
+            "call writefile([getline(3), getline(4), getline(8), getline(9)], '%s')" % out)
         lines = out.read_text().split("\n")
     assert lines[0] == "\t\t    return 1", repr(lines[0])   # spaces past the block's tab; a tab at the line start
     assert lines[1] == "after\t 1", repr(lines[1])          # a tab outside the block
+    assert lines[2] == "\t\t", repr(lines[2])               # a whitespace line at the $ line's depth is structure: a tab
+    assert lines[3] == "\t\t    ", repr(lines[3])           # an empty line: tabs until the line is deeper than the $ line, then spaces
 
 
 def test_vim_shift_keys():
@@ -179,12 +182,13 @@ def test_vim_shift_keys():
         out = Path(directory) / "lines.txt"
         vim("syntax on", "source dtab.vim", "edit " + str(sample),
             "execute '1normal >>' | execute '1normal <<' | execute '3normal >>' | execute '4normal <<' | execute '2normal Vjj>'",
+            "execute '3normal 2>j' | execute '3normal <j' | execute '3normal >2j'",
             "call writefile(getline(1, '$'), '%s')" % out)
         lines = out.read_text().split("\n")
     assert lines[0] == "before 1", repr(lines[0])                 # >> gave it a tab, << took it away
     assert lines[1] == "\t$code python", repr(lines[1])         # visual > over the $ line and its block: tabs for all
-    assert lines[2] == "\t\t    def f():", repr(lines[2])       # >> inside the block: spaces; then the block's tab
-    assert lines[3] == "\t\treturn 1", repr(lines[3])           # << inside the block removed the spaces
+    assert lines[2] == "\t\t        def f():", repr(lines[2])   # >> inside the block: spaces; the block's tab; then 2>j, <j, >2j: net one more level
+    assert lines[3] == "\t\t    return 1", repr(lines[3])       # << removed the spaces; 2>j <j >2j: net one level
 
 
 def test_vim_preview():

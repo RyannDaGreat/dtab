@@ -18,8 +18,9 @@ const isBlockLine = line => /^\t*(?:[^\t]*\t+)*\$[^\t ]/.test(line)
 
 /**
  * Pure function. Whether line `n` of a dtab document is inside a $ block: walking up through its
- * ancestors (each the nearest shallower non-blank line), the first one that is a $ line puts it inside;
- * a blank line continues whatever is above it.
+ * ancestors (each the nearest shallower non-blank line), the first one that is a $ line puts it inside.
+ * The line's own tabs are its depth, so a line of only whitespace at the $ line's depth, or an empty
+ * line, is structure: the Tab key there gives a tab, and only once the line is deeper does it give spaces.
  *
  * @param {string[]} lines - the document's lines
  * @param {number} n - 0-based line number
@@ -28,15 +29,12 @@ const isBlockLine = line => /^\t*(?:[^\t]*\t+)*\$[^\t ]/.test(line)
  * @example insideBlock(['$code python', '\tdef f():', 'after 1'], 2)         // false
  * @example insideBlock(['a', '\t$code', '\t\tx', '\t\t\tdeeper'], 3)         // true (nearest $ ancestor)
  * @example insideBlock(['a', '\tb', '\t\tc 1'], 2)                          // false (no $ ancestor)
- * @example insideBlock(['$code', '\tx', ''], 2)                             // true (a blank line inside the block)
+ * @example insideBlock(['$code', '\tx', '\t'], 2)                           // true (whitespace, deeper than the $ line)
+ * @example insideBlock(['a', '\t$code', '\t\tx', '\t'], 3)                  // false (whitespace at the $ line's depth)
  */
 function insideBlock(lines, n) {
-    let i = n
-    while (i > 0 && !lines[i].trim()) i--            // a blank line: judge by the nearest non-blank line above
-    if (!lines[i].trim()) return false
-    if (i !== n && isBlockLine(lines[i])) return true  // blank line right under a $ line
-    let current = indentOf(lines[i])
-    for (let j = i - 1; j >= 0 && current > 0; j--) {
+    let current = indentOf(lines[n])
+    for (let j = n - 1; j >= 0 && current > 0; j--) {
         if (!lines[j].trim()) continue
         const indent = indentOf(lines[j])
         if (indent < current) {
@@ -72,35 +70,81 @@ function shiftLine(line, inBlock, direction) {
 }
 
 /**
- * Command. Shifts every line the selection touches. A selection entirely inside a $ block is code and
- * shifts by spaces; one touching structure (a $ line, or any line outside a block) shifts by tabs, so a
- * block moves with its $ line.
+ * Pure function. The lines a selection covers, as [first, last]. A selection that ends at column 0 of a
+ * later line does not include that line (that is how Shift+Down selects whole lines), as in VS Code's own
+ * indent command.
+ *
+ * @param {{start: {line: number, character: number}, end: {line: number, character: number}}} selection
+ * @returns {number[]}
+ * @example selectedLines({start: {line: 1, character: 0}, end: {line: 3, character: 0}})   // [1, 2]
+ * @example selectedLines({start: {line: 1, character: 2}, end: {line: 1, character: 5}})   // [1, 1]
+ * @example selectedLines({start: {line: 4, character: 0}, end: {line: 4, character: 0}})   // [4, 4]
+ */
+function selectedLines(selection) {
+    const {start, end} = selection
+    return [start.line, end.character === 0 && end.line > start.line ? end.line - 1 : end.line]
+}
+
+/**
+ * Pure function. The one insertion or deletion that turns `line` into `shifted` (a shift only adds or
+ * removes indentation), as {at, insert} or {from, to}, or null when they are equal. Applying that instead
+ * of replacing the line lets the editor move carets and selections along with the text.
+ *
+ * @param {string} line
+ * @param {string} shifted
+ * @returns {{at: number, insert: string} | {from: number, to: number} | null}
+ * @example lineEdit('\tdef f():', '\t    def f():')   // {at: 1, insert: '    '}
+ * @example lineEdit('\t    return', '\treturn')       // {from: 1, to: 5}
+ * @example lineEdit('a\tb 1', '\ta\tb 1')            // {at: 0, insert: '\t'}
+ * @example lineEdit('a', 'a')                         // null
+ */
+function lineEdit(line, shifted) {
+    if (line === shifted) return null
+    let at = 0
+    while (line[at] === shifted[at]) at++
+    if (shifted.length > line.length) return {at, insert: shifted.slice(at, at + shifted.length - line.length)}
+    return {from: at, to: at + line.length - shifted.length}
+}
+
+/**
+ * Command. Shifts every line any selection touches. Lines all inside $ blocks (blank ones aside) are code
+ * and shift by spaces; a set touching structure (a $ line, or any line outside a block) shifts by tabs, so
+ * a block moves with its $ line.
  */
 async function shiftSelection(direction) {
     const editor = vscode.window.activeTextEditor
     if (!editor) return
     const lines = editor.document.getText().split('\n')
-    const first = editor.selection.start.line, last = editor.selection.end.line
-    let code = true
-    for (let n = first; n <= last; n++) if (lines[n].trim() && !insideBlock(lines, n)) code = false
+    const numbers = new Set()
+    for (const selection of editor.selections) {
+        const [first, last] = selectedLines(selection)
+        for (let n = first; n <= last; n++) numbers.add(n)
+    }
+    const code = [...numbers].every(n => !lines[n].trim() || insideBlock(lines, n))
     await editor.edit(edit => {
-        for (let n = first; n <= last; n++) {
-            const shifted = shiftLine(lines[n], code, direction)
-            if (shifted !== lines[n]) edit.replace(editor.document.lineAt(n).range, shifted)
+        for (const n of numbers) {
+            const change = lineEdit(lines[n], shiftLine(lines[n], code, direction))
+            if (!change) continue
+            if ('insert' in change) edit.insert(new vscode.Position(n, change.at), change.insert)
+            else edit.delete(new vscode.Range(n, change.from, n, change.to))
         }
     })
 }
 
-/** Command. Tab: a selection indents its lines; a caret inside a block, past the line's tabs, gets spaces; else a tab. */
+/**
+ * Command. Tab: a selection indents its lines; a caret inside a block, past the line's tabs, gets spaces;
+ * any other caret gets a tab. Inserts the tab itself: VS Code's own tab command would re-indent a line of
+ * only whitespace to the depth it expects, and dtab structure wants exactly one more tab.
+ */
 async function tab() {
     const editor = vscode.window.activeTextEditor
     if (!editor) return
-    if (!editor.selection.isEmpty) return shiftSelection(1)
-    const position = editor.selection.active
+    if (editor.selections.some(selection => !selection.isEmpty)) return shiftSelection(1)
     const lines = editor.document.getText().split('\n')
-    if (insideBlock(lines, position.line) && position.character >= indentOf(lines[position.line]))
-        return editor.edit(edit => edit.insert(position, BLOCK_INDENT))
-    return vscode.commands.executeCommand('tab')
+    await editor.edit(edit => {
+        for (const {active} of editor.selections)
+            edit.insert(active, insideBlock(lines, active.line) && active.character >= indentOf(lines[active.line]) ? BLOCK_INDENT : '\t')
+    })
 }
 
 /**
@@ -151,4 +195,4 @@ function activate(context) {
     )
 }
 
-module.exports = {activate, insideBlock, shiftLine, previewText}
+module.exports = {activate, insideBlock, shiftLine, selectedLines, lineEdit, previewText}

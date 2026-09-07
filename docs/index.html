@@ -275,17 +275,17 @@ const BLOCK_INDENT = '    '   // what the Tab key inserts inside a $ block: code
 
 /**
  * Query (reads editor state). Whether a line is inside a $ block: the previous line ended in a block (the
- * $ line itself does), and this line is blank or indented deeper than that block's $ line.
+ * $ line itself does), and this line is indented deeper than that block's $ line. A line of only whitespace
+ * counts by its tabs too, so at the $ line's depth (or empty) it is structure and Tab gives a tab.
  *
  * @example insideBlock(cm, 2)   // true for line 2 of '$code python\n\tdef f():\n\t    return 1'
  * @example insideBlock(cm, 0)   // false: the $ line itself is a dtab line
  */
 function insideBlock(cm, lineNumber) {
     if (lineNumber === 0) return false
-    const block = cm.getStateAfter(lineNumber - 1).block
+    const block = cm.getStateAfter(lineNumber - 1, true).block   // precise: the cached state is stale for ~400 ms after an edit above
     if (!block) return false
-    const text = cm.getLine(lineNumber)
-    return !text.trim() || lineIndent(text) > block.indent
+    return lineIndent(cm.getLine(lineNumber)) > block.indent
 }
 
 /**
@@ -306,18 +306,47 @@ function shiftLine(line, inBlock, direction) {
 }
 
 /**
- * Command. Shifts every line the selection touches. A selection entirely inside a $ block is code and
- * shifts by spaces; one touching structure (a $ line, or any line outside a block) shifts by tabs, so a
- * block moves with its $ line.
+ * Pure function. The lines a selection covers, as [first, last]. A selection that ends at column 0 of a
+ * later line does not include that line (that is how Shift+Down selects whole lines), as in CodeMirror's
+ * own indentSelection.
+ *
+ * @example selectedLines({line: 1, ch: 0}, {line: 3, ch: 0})   // [1, 2]
+ * @example selectedLines({line: 1, ch: 2}, {line: 1, ch: 5})   // [1, 1]
+ */
+const selectedLines = (from, to) => [from.line, to.ch === 0 && to.line > from.line ? to.line - 1 : to.line]
+
+/**
+ * Pure function. The one insertion or deletion that turns `line` into `shifted` (a shift only adds or
+ * removes indentation), as {at, insert} or {from, to}, or null when they are equal. Applying that instead
+ * of replacing the line lets the editor keep carets and selections on their text.
+ *
+ * @example lineEdit('\tdef f():', '\t    def f():')   // {at: 1, insert: '    '}
+ * @example lineEdit('\t    return', '\treturn')       // {from: 1, to: 5}
+ * @example lineEdit('a', 'a')                         // null
+ */
+function lineEdit(line, shifted) {
+    if (line === shifted) return null
+    let at = 0
+    while (line[at] === shifted[at]) at++
+    if (shifted.length > line.length) return {at, insert: shifted.slice(at, at + shifted.length - line.length)}
+    return {from: at, to: at + line.length - shifted.length}
+}
+
+/**
+ * Command. Shifts every line the selection touches. Lines all inside $ blocks (blank ones aside) are code
+ * and shift by spaces; a range touching structure (a $ line, or any line outside a block) shifts by tabs,
+ * so a block moves with its $ line.
  */
 function shiftSelection(cm, direction) {
-    const from = cm.getCursor('from').line, to = cm.getCursor('to').line
+    const [first, last] = selectedLines(cm.getCursor('from'), cm.getCursor('to'))
     let code = true
-    for (let n = from; n <= to; n++) if (cm.getLine(n).trim() && !insideBlock(cm, n)) code = false
+    for (let n = first; n <= last; n++) if (cm.getLine(n).trim() && !insideBlock(cm, n)) code = false
     cm.operation(() => {
-        for (let n = from; n <= to; n++) {
-            const line = cm.getLine(n), shifted = shiftLine(line, code, direction)
-            if (shifted !== line) cm.replaceRange(shifted, {line: n, ch: 0}, {line: n, ch: line.length})
+        for (let n = first; n <= last; n++) {
+            const change = lineEdit(cm.getLine(n), shiftLine(cm.getLine(n), code, direction))
+            if (!change) continue
+            if ('insert' in change) cm.replaceRange(change.insert, {line: n, ch: change.at})
+            else cm.replaceRange('', {line: n, ch: change.from}, {line: n, ch: change.to})
         }
     })
 }
@@ -334,6 +363,7 @@ const editor = CodeMirror.fromTextArea(document.getElementById('source'), {
     indentWithTabs: true,
     tabSize: 4,
     lineWrapping: false,
+    maxHighlightLength: Infinity,   // a $ line with a very long value would otherwise hide its block from the mode
     extraKeys: {
         Tab: insertTab, 'Shift-Tab': cm => shiftSelection(cm, -1),
         'Cmd-]': cm => shiftSelection(cm, 1), 'Cmd-[': cm => shiftSelection(cm, -1),
