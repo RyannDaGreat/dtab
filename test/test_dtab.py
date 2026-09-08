@@ -19,7 +19,7 @@ Checks:
   6. node test/test_dtab.js.
   7. Vim: the syntax groups over test/samples/highlight.dtab match test/expected/highlight.txt byte by byte
      (that sample deliberately contains invalid keys, so it is not parsed), embedded languages, the Tab and
-     shift keys, :DtabPreview, and plugin/dtab.vim sets the filetype when the repo is on 'runtimepath',
+     shift keys, J, :DtabPreview, and plugin/dtab.vim sets the filetype when the repo is on 'runtimepath',
      which is what Vundle and vim-plug do.
   8. docs/index.html in headless Chrome (test/test_web.js), skipped with a message if puppeteer is not
      installed (`npm install --no-save puppeteer && npx puppeteer browsers install chrome`).
@@ -191,6 +191,32 @@ def test_vim_shift_keys():
     assert lines[3] == "\t\t    return 1", repr(lines[3])       # << removed the spaces; 2>j <j >2j: net one level
 
 
+def test_vim_join():
+    """J joins structure lines with a tab when the tree stays the same, refuses when a line would change parent, joins block text like vim, drops blanks, takes counts and visual ranges."""
+    text = ("deltas\n\tl1\n\t\tposition\n\t\t\tx 1\n\t\t\ty .5\nafter 1\nl1\nl2\n$code python\n\tdef f():\n\t    return 1\nz 1\n\nend 1\n"
+            "u 1\n\tobj\n\tsib 2\nlast 1\nt 1\t\n\tswallowed 2\nk\tleaf 1\n note\nv 1\n note\n\tw 2\n")
+    with tempfile.TemporaryDirectory() as directory:
+        sample = Path(directory) / "join.dtab"
+        sample.write_text(text)
+        out = Path(directory) / "lines.txt"
+        vim("syntax on", "source dtab.vim", "edit " + str(sample),
+            # 3J: deep to wide; J J: the two leaves; J: refused (after 1 is a sibling of deltas); after 1 + l1: allowed, the upper
+            # steps into nothing; + l2: refused, l1 steps in; block text joins like vim's J; a $ line keeps its block below it: refused
+            "execute '1normal 3J' | execute '1normal J' | execute '1normal J' | execute '1normal J' | execute '2normal J' | execute '2normal J' | execute '5normal J' | execute '4normal J'",
+            # a blank line is dropped; visual J; u 1 + obj: refused, obj would capture sib; obj + sib: refused, obj steps in;
+            # t 1<Tab> + deeper: refused, the empty key would vanish; k<Tab>leaf 1 + a comment: allowed; v 1 + a comment that a
+            # deeper line follows: allowed, since v 1 steps into nothing and w 2 keeps its parent
+            "execute '6normal J' | execute '6normal VjJ' | execute '7normal J' | execute '8normal J' | execute '11normal J' | execute '13normal J' | execute '14normal J'",
+            "call writefile(getline(1, '$'), '%s')" % out)
+        lines = out.read_text().split("\n")[:-1]
+    assert lines == ["deltas\tl1\tposition\tx 1\ty .5", "after 1\tl1", "l2", "$code python", "\tdef f(): return 1", "z 1\tend 1",
+                     "u 1", "\tobj", "\tsib 2", "last 1", "t 1\t", "\tswallowed 2", "k\tleaf 1\t note", "v 1\t note", "\tw 2"], lines
+    joined = dtab.parse("\n".join(lines))
+    expected = dtab.parse(text)
+    expected["code"] = "def f(): return 1"   # the one join that changes a value: two lines of block text, joined like vim does
+    assert joined == expected, joined
+
+
 def test_vim_preview():
     """:DtabPreview opens a JSON split of the buffer's tree that follows edits (showing the parser's message when the text is broken), and closes it when repeated."""
     sample = SAMPLES[0]
@@ -246,7 +272,7 @@ def test_vscode_live():
 
 if __name__ == "__main__":
     for test in [test_doctests, test_readers_agree, test_round_trips, test_key_rule, test_js_suite,
-                 test_vim_highlighting, test_vim_embedded_languages, test_vim_tab_key, test_vim_shift_keys, test_vim_preview, test_vim_plugin_shim, test_web_demo, test_vscode_grammar, test_vscode_live]:
+                 test_vim_highlighting, test_vim_embedded_languages, test_vim_tab_key, test_vim_shift_keys, test_vim_join, test_vim_preview, test_vim_plugin_shim, test_web_demo, test_vscode_grammar, test_vscode_live]:
         test()
         print("ok  " + test.__name__)
     print("All dtab tests passed")

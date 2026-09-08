@@ -23,6 +23,10 @@ augroup dtab
     autocmd FileType dtab nnoremap <buffer> <expr> < <SID>Operator('OutdentOperator')
     autocmd FileType dtab xnoremap <buffer> > :<C-U>call <SID>ShiftLines(line("'<"), line("'>"), 1)<CR>
     autocmd FileType dtab xnoremap <buffer> < :<C-U>call <SID>ShiftLines(line("'<"), line("'>"), -1)<CR>
+    " J joins the line below with a tab (deep form to wide form) when the tree stays the same; inside a $ block
+    " it is vim's own J. A count or a visual range joins pairwise from the top.
+    autocmd FileType dtab nnoremap <buffer> J :<C-U>call <SID>Join(line('.'), line('.') + max([v:count1 - 1, 1]))<CR>
+    autocmd FileType dtab xnoremap <buffer> J :<C-U>call <SID>Join(line("'<"), max([line("'>"), line("'<") + 1]))<CR>
     " :DtabPreview toggles a split showing the tree as JSON, which follows every edit
     autocmd FileType dtab command! -buffer -bar DtabPreview call <SID>TogglePreview()
     autocmd FileType dtab autocmd TextChanged,TextChangedI <buffer> call <SID>RenderPreview()
@@ -166,6 +170,105 @@ endfunction
 
 function! s:OutdentOperator(type) abort
     call s:ShiftLines(line("'["), line("']"), -1)
+endfunction
+
+function! s:Entries(line) abort
+    " A line's entries after its indentation, tab runs being one separator; a trailing tab gives a last empty entry.
+    return split(substitute(a:line, '^\t*', '', ''), '\t\+', 1)
+endfunction
+
+function! s:StepsIn(line) abort
+    " Whether a structure line steps into something, so that a line joined onto it would nest under it:
+    " an entry with no space (an object key, or the empty key of a trailing tab) or a $ key. Comments
+    " (entries starting with a space) do not count.
+    for l:entry in s:Entries(a:line)
+        if l:entry[0] !=# ' ' && (l:entry !~ ' ' || l:entry[0] ==# '$')
+            return 1
+        endif
+    endfor
+    return 0
+endfunction
+
+function! s:IsComment(line) abort
+    " Whether a line is only comment entries, which write nothing wherever they land.
+    for l:entry in s:Entries(a:line)
+        if l:entry[0] !=# ' '
+            return 0
+        endif
+    endfor
+    return 1
+endfunction
+
+function! s:Reparents(lnum, upper_depth, upper_steps_in) abort
+    " Whether joining line lnum onto a line of depth upper_depth would move a later line of the subtree
+    " (the lines before the first one at or above upper_depth) under a different key. If the joined line
+    " steps into a key, every later line must be deeper than it (a descendant), else it would nest under
+    " that key. If the joined line is only a comment at the depth of an upper line that steps into a key,
+    " no later line may be deeper than it: those continued the comment's parent and would now continue
+    " that key.
+    let l:depth = len(matchstr(getline(a:lnum), '^\t*'))
+    let l:steps_in = s:StepsIn(getline(a:lnum))
+    let l:comment_at_depth = s:IsComment(getline(a:lnum)) && l:depth == a:upper_depth && a:upper_steps_in
+    for l:later in range(a:lnum + 1, line('$'))
+        if getline(l:later) !~ '\S'
+            continue
+        endif
+        let l:later_depth = len(matchstr(getline(l:later), '^\t*'))
+        if l:later_depth <= a:upper_depth && !(l:comment_at_depth && l:later_depth > l:depth)
+            return 0
+        elseif l:steps_in && l:later_depth <= l:depth
+            return 1
+        elseif l:comment_at_depth && l:later_depth > l:depth
+            return 1
+        endif
+    endfor
+    return 0
+endfunction
+
+function! s:TabJoin(lnum) abort
+    " Joins line lnum + 1 onto line lnum with one tab, the lower line's own tabs dropped.
+    let l:upper = getline(a:lnum)
+    call setline(a:lnum, l:upper . "\t" . substitute(getline(a:lnum + 1), '^\t*', '', ''))
+    call deletebufline('%', a:lnum + 1)
+    call cursor(a:lnum, len(l:upper) + 1)
+endfunction
+
+function! s:Join(first, last) abort
+    " Joins lines first..last pairwise from the top. Two structure lines join with one tab, the wide form of
+    " the same tree, but only when the tree does stay the same: the lower line is deeper, or at the same
+    " depth under a line that steps into nothing (or is a comment that nothing deeper follows), and no
+    " later line of the subtree changes parent (s:Reparents). Otherwise nothing happens but a message. A $
+    " line keeps its block below it: joins onto it are refused, since on the $ line tabs would become line
+    " breaks and the block's common indentation would shift. So is an upper line ending in a tab, whose
+    " empty key would vanish into the tab run. Two lines inside a $ block are text and join like vim's J.
+    " A blank line is dropped, as vim's J drops it.
+    for l:step in range(a:first, a:last - 1)
+        if a:first >= line('$')
+            return
+        endif
+        let l:upper = getline(a:first)
+        let l:lower = getline(a:first + 1)
+        let l:upper_depth = len(matchstr(l:upper, '^\t*'))
+        let l:lower_depth = len(matchstr(l:lower, '^\t*'))
+        if l:lower !~ '\S'
+            call deletebufline('%', a:first + 1)
+            call cursor(a:first, max([len(l:upper), 1]))
+        elseif l:upper !~ '\S'
+            call deletebufline('%', a:first)
+            call cursor(a:first, 1)
+        elseif s:InBlock(a:first + 1) && s:InBlock(a:first)
+            call cursor(a:first, 1)
+            normal! J
+        elseif l:upper =~ '^\t*\%([^\t]*\t\+\)*\$[^\t ]' || l:upper =~ '\t$'
+            \ || l:lower_depth < l:upper_depth
+            \ || (l:lower_depth == l:upper_depth && s:StepsIn(l:upper) && !s:IsComment(l:lower))
+            \ || s:Reparents(a:first + 1, l:upper_depth, s:StepsIn(l:upper))
+            echohl WarningMsg | echo 'dtab: not joined: the tree would change' | echohl None
+            return
+        else
+            call s:TabJoin(a:first)
+        endif
+    endfor
 endfunction
 
 " The JSON preview parses with the plugin's own dtab.py (next to this file) through vim's python3.
