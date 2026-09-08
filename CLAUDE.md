@@ -19,3 +19,9 @@ Key punctuation (`_.-`, the characters allowed in keys besides letters and digit
 `vscode/dtab.js` is a symlink to the root `dtab.js` (the extension's JSON preview parses with it); the VSIX packager copies it in.
 
 Never write tokens into this repo.
+
+The language tags a `$` block can carry (`sql`, `python`, `bash`, ...) live in four places and change together: `dtab.vim` (`s:dtab_languages`, `s:dtab_shebangs`), `vscode/make_grammar.py` (`EMBEDDED`, `SHEBANGS`), `docs/index.html` (`TAG_MODES`, `shebangTag`), and the README's table.
+
+## Not yet done
+
+- **A Pygments lexer**, so `pygmentize -l dtab` and rp's string injection (`'''...'''#dtab` in the REPL) work. A `pygments.lexer.Lexer` subclass with a line scanner (a `$` block's extent depends on its line's tabs, which a regex table cannot express), shipped in this package and registered through the `pygments.lexers` entry point in `pyproject.toml`; it imports `KEY_PUNCTUATION` and the tag table from `dtab.py` rather than copying them. Test it like the VS Code grammar: token letters over `test/samples/highlight.dtab` against `test/expected/highlight.txt`. Then two lines in rp's `prompt_toolkit/layout/lexers.py`, in `LanguageInjectionMixin._init_language_lexers`: a `LazyLexer('dtab', 'DtabLexer', **lexer_options)` next to the others and a `'dtab'` key in `self.language_lexers`. Do it after the `$` marker decision, so it is written once.
