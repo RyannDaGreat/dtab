@@ -32,7 +32,7 @@
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 }
             },
-            "while": "^(?:\\1\\t|\\s*$)",
+            "while": "^(?=\\1\\t|\\s*$)",
             "contentName": "meta.embedded.block.sql",
             "patterns": [
                 {
@@ -64,7 +64,7 @@
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 }
             },
-            "while": "^(?:\\1\\t|\\s*$)",
+            "while": "^(?=\\1\\t|\\s*$)",
             "contentName": "meta.embedded.block.python",
             "patterns": [
                 {
@@ -96,7 +96,7 @@
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 }
             },
-            "while": "^(?:\\1\\t|\\s*$)",
+            "while": "^(?=\\1\\t|\\s*$)",
             "contentName": "meta.embedded.block.javascript",
             "patterns": [
                 {
@@ -128,7 +128,7 @@
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 }
             },
-            "while": "^(?:\\1\\t|\\s*$)",
+            "while": "^(?=\\1\\t|\\s*$)",
             "contentName": "meta.embedded.block.typescript",
             "patterns": [
                 {
@@ -160,7 +160,7 @@
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 }
             },
-            "while": "^(?:\\1\\t|\\s*$)",
+            "while": "^(?=\\1\\t|\\s*$)",
             "contentName": "meta.embedded.block.html",
             "patterns": [
                 {
@@ -192,7 +192,7 @@
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 }
             },
-            "while": "^(?:\\1\\t|\\s*$)",
+            "while": "^(?=\\1\\t|\\s*$)",
             "contentName": "meta.embedded.block.css",
             "patterns": [
                 {
@@ -224,7 +224,7 @@
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 }
             },
-            "while": "^(?:\\1\\t|\\s*$)",
+            "while": "^(?=\\1\\t|\\s*$)",
             "contentName": "meta.embedded.block.json",
             "patterns": [
                 {
@@ -256,7 +256,7 @@
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 }
             },
-            "while": "^(?:\\1\\t|\\s*$)",
+            "while": "^(?=\\1\\t|\\s*$)",
             "contentName": "meta.embedded.block.yaml",
             "patterns": [
                 {
@@ -288,7 +288,7 @@
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 }
             },
-            "while": "^(?:\\1\\t|\\s*$)",
+            "while": "^(?=\\1\\t|\\s*$)",
             "contentName": "meta.embedded.block.markdown",
             "patterns": [
                 {
@@ -320,7 +320,7 @@
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 }
             },
-            "while": "^(?:\\1\\t|\\s*$)",
+            "while": "^(?=\\1\\t|\\s*$)",
             "contentName": "meta.embedded.block.shellscript",
             "patterns": [
                 {
@@ -352,7 +352,7 @@
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 }
             },
-            "while": "^(?:\\1\\t|\\s*$)",
+            "while": "^(?=\\1\\t|\\s*$)",
             "contentName": "meta.embedded.block.c",
             "patterns": [
                 {
@@ -384,7 +384,7 @@
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 }
             },
-            "while": "^(?:\\1\\t|\\s*$)",
+            "while": "^(?=\\1\\t|\\s*$)",
             "contentName": "meta.embedded.block.cpp",
             "patterns": [
                 {
@@ -416,7 +416,7 @@
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 }
             },
-            "while": "^(?:\\1\\t|\\s*$)",
+            "while": "^(?=\\1\\t|\\s*$)",
             "contentName": "meta.embedded.block.rust",
             "patterns": [
                 {
@@ -448,7 +448,7 @@
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 }
             },
-            "while": "^(?:\\1\\t|\\s*$)",
+            "while": "^(?=\\1\\t|\\s*$)",
             "contentName": "meta.embedded.block.go",
             "patterns": [
                 {
@@ -480,7 +480,7 @@
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 }
             },
-            "while": "^(?:\\1\\t|\\s*$)",
+            "while": "^(?=\\1\\t|\\s*$)",
             "contentName": "meta.embedded.block.java",
             "patterns": [
                 {
@@ -512,7 +512,7 @@
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 }
             },
-            "while": "^(?:\\1\\t|\\s*$)",
+            "while": "^(?=\\1\\t|\\s*$)",
             "contentName": "meta.embedded.block.swift",
             "patterns": [
                 {
@@ -544,7 +544,7 @@
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 }
             },
-            "while": "^(?:\\1\\t|\\s*$)",
+            "while": "^(?=\\1\\t|\\s*$)",
             "contentName": "meta.embedded.block.dtab",
             "patterns": [
                 {
@@ -576,7 +576,7 @@
                     "name": "markup.italic entity.other.attribute-name.block-tag.dtab"
                 }
             },
-            "while": "^(?:\\1\\t|\\s*$)",
+            "while": "^(?=\\1\\t|\\s*$)",
             "contentName": "markup.italic string.unquoted.block.dtab",
             "patterns": [
                 {

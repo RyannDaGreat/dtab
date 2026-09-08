@@ -14,7 +14,10 @@ from pathlib import Path
 KEY_PUNCTUATION = "_.-"  # Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
 KEY = r"[\p{L}\p{N}" + re.escape(KEY_PUNCTUATION) + "]+"  # \p{L}\p{N}: what Python's \w matches
 KEYS = KEY + "(?:," + KEY + ")*"  # a,b comma keys
-WHILE = "^(?:\\1\\t|\\s*$)"  # the block goes on while lines are deeper than the $ line (its tabs are group 1) or blank
+# The block goes on while lines are deeper than the $ line (its tabs are group 1) or blank. A lookahead, so the
+# match is empty and the embedded grammar scans each line from column 0: VS Code's shell grammar only starts a
+# statement after `^` or a separator (`;`, `|`, `&`, ...), so a scan that began after the tabs never saw a command.
+WHILE = "^(?=\\1\\t|\\s*$)"
 
 # (tag regex, VS Code grammar scope, name used in the meta scope). The README's table.
 EMBEDDED = [

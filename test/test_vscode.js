@@ -111,6 +111,18 @@ async function main() {
     for (const line of ['$s', '\t#!/bin/bash']) stack = grammar.tokenizeLine(line, stack).ruleStack
     const shLine = grammar.tokenizeLine('\techo hi', stack)
     assert.ok(shLine.tokens.some(tok => tok.scopes.includes('meta.embedded.block.shellscript')), 'shebang block not handed to the shell grammar')
+    /**
+     * Pure function. Whether the token reading exactly `text` in `line` carries a scope containing `scope`.
+     * @example tokenHasScope('\techo hi', shLine.tokens, 'echo', 'entity.name.command.shell') // true
+     */
+    const tokenHasScope = (line, tokens, text, scope) => tokens.some(tok => line.slice(tok.startIndex, tok.endIndex) === text && tok.scopes.some(s => s.includes(scope)))
+    // The shell grammar starts a statement only at column 0 or after a separator, so the block's `while` must match
+    // nothing: when it consumed the indent tabs, a command was plain text and only its $VARIABLES were colored.
+    assert.ok(tokenHasScope('\techo hi', shLine.tokens, 'echo', 'entity.name.command.shell'), 'the command of a shebang block line was not recognized')
+    const tagged = '\tuv run --script x.py $BATCH'
+    const taggedLine = grammar.tokenizeLine(tagged, grammar.tokenizeLine('$command bash', textmate.INITIAL).ruleStack)
+    assert.ok(tokenHasScope(tagged, taggedLine.tokens, 'uv', 'entity.name.command.shell'), 'the command of a tagged block line was not recognized')
+    assert.ok(tokenHasScope(tagged, taggedLine.tokens, '-script', 'constant.other.option'), 'a --flag of a tagged block line was not recognized')
     const after = grammar.tokenizeLine('after 1', shLine.ruleStack)
     assert.ok(after.tokens.some(tok => tok.scopes.includes('entity.name.tag.leaf-key.dtab')), 'block did not end at a shallower line')
     // The wide form: text after the tag on the $ line is the value's first line, so it is the language's too.
