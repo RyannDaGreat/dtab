@@ -154,7 +154,7 @@ async function tab() {
  * @param {string} text - dtab source
  * @returns {string}
  * @example previewText('a\tb 1')   // '{\n    "a": {\n        "b": "1"\n    }\n}'
- * @example previewText('a/b 1')    // 'dtab line 1: invalid key "a/b": keys may contain only letters, digits and _ . -'
+ * @example previewText('a|b 1')    // 'dtab line 1: invalid key "a|b": keys may contain only letters, digits and _ . - /'
  */
 function previewText(text) {
     try {

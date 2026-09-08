@@ -178,7 +178,7 @@ const KEY_NAME = dtab.KEY   // the parser's own key rule
  * @param {boolean} isLeaf - whether the entry has a space (key value)
  * @returns {string}
  * @example entryClass('l1,l2', true)   // 'dtab-leaf-key'
- * @example entryClass('a/b', false)    // 'dtab-bad-key'
+ * @example entryClass('a|b', false)    // 'dtab-bad-key'
  */
 function entryClass(key, isLeaf) {
     if (!key.split(',').every(name => KEY_NAME.test(name))) return 'dtab-bad-key'

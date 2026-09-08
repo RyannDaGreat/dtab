@@ -30,7 +30,7 @@ async function run() {
     assert.strictEqual(preview.getText(), tree)
     assert.ok(vscode.window.visibleTextEditors.some(e => e.document === preview), 'preview not visible')
     assert.strictEqual(vscode.window.activeTextEditor.document, source, 'focus should stay in the dtab file')
-    await editor.edit(edit => edit.insert(new vscode.Position(0, 0), 'c/d 2\n'))
+    await editor.edit(edit => edit.insert(new vscode.Position(0, 0), 'c|d 2\n'))
     await sleep(SETTLE_MS)
     assert.ok(preview.getText().startsWith('dtab line 1: invalid key'), 'preview did not follow the edit: ' + JSON.stringify(preview.getText()))
     await editor.edit(edit => edit.delete(new vscode.Range(0, 0, 1, 0)))

@@ -11,7 +11,7 @@ import json
 import re
 from pathlib import Path
 
-KEY_PUNCTUATION = "_.-"  # Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
+KEY_PUNCTUATION = "_.-/"  # Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
 KEY = r"[\p{L}\p{N}" + re.escape(KEY_PUNCTUATION) + "]+"  # \p{L}\p{N}: what Python's \w matches
 KEYS = KEY + "(?:," + KEY + ")*"  # a,b comma keys
 # The block goes on while lines are deeper than the $ line (its tabs are group 1) or blank. A lookahead, so the

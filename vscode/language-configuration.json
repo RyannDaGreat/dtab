@@ -9,5 +9,5 @@
     "folding": {
         "offSide": true
     },
-    "wordPattern": "[\\p{L}\\p{N}_\\.\\-]+"
+    "wordPattern": "[\\p{L}\\p{N}_\\.\\-/]+"
 }

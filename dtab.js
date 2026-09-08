@@ -22,7 +22,7 @@
  *   - `$key` is a multiline leaf: its value is the entries after it on its line plus every line indented
  *     under it, one line each, with their common indentation removed. A word after the key on the `$` line
  *     (`$query sql`) is a language tag for editors and is not part of the value.
- *   - Keys are one or more letters, digits, or KEY_PUNCTUATION (`_.-`), so `file.json` and `123aa` are keys. Keys that
+ *   - Keys are one or more letters, digits, or KEY_PUNCTUATION (`_.-/`), so `file.json`, `a/b` and `123aa` are keys. Keys that
  *     are also identifiers work as attributes (config.deltas.l1). Every value is a string.
  *
  * Single pass, one stack, O(total characters). Same algorithm and API as dtab.py.
@@ -32,7 +32,7 @@
 
 const KEY_SEPARATOR = ','  // a,b writes the same value under each key
 const BLOCK_PREFIX = '$'   // $key: a leaf whose value is the lines under it ($ as in string)
-const KEY_PUNCTUATION = '_.-'   // Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
+const KEY_PUNCTUATION = '_.-/'   // Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
 const KEY_RULE = 'keys may contain only letters, digits and ' + [...KEY_PUNCTUATION].join(' ')
 const TAB_RUN = /\t+/  // Several tabs in a row are one separator, so columns can be aligned
 const KEY = new RegExp('^[\\p{L}\\p{N}' + KEY_PUNCTUATION.replace(/[\]\\^-]/g, '\\$&') + ']+$', 'u')  // letters, digits (as Python's \w) and the punctuation; the rest is reserved for syntax
@@ -50,7 +50,7 @@ const KEY = new RegExp('^[\\p{L}\\p{N}' + KEY_PUNCTUATION.replace(/[\]\\^-]/g, '
  * @example parse('$query sql\n\tSELECT *\n\n\t\tFROM users\n\nnext 1')   // {query: 'SELECT *\n\n\tFROM users', next: '1'}
  * @example parse('$cmd\tpip install rp\tpython train.py')                  // {cmd: 'pip install rp\npython train.py'}
  * @example parse('a\tb 1\nfile.json\tsize 2\n123aa 3')   // {a: {b: '1'}, 'file.json': {size: '2'}, '123aa': '3'}
- * @example parse('a\tb 1\nc/d\te 2')              // throws: dtab line 2: invalid key "c/d": keys may contain only letters, digits and _ . -
+ * @example parse('a\tb 1\nc|d\te 2')              // throws: dtab line 2: invalid key "c|d": keys may contain only letters, digits and _ . - /
  */
 function parse(text) {
     const root = {}
@@ -150,7 +150,7 @@ function stringify(tree) {
  *
  * @example keyNames('l1,l2', 1, true)           // ['l1', 'l2']
  * @example keyNames('file-thing.json', null, false) // ['file-thing.json']
- * @example keyNames('a,b', null, false)          // throws: dtab: invalid key "a,b": keys may contain only letters, digits and _ . -
+ * @example keyNames('a,b', null, false)          // throws: dtab: invalid key "a,b": keys may contain only letters, digits and _ . - /
  */
 function keyNames(key, lineNumber, allowCommas) {
     const names = allowCommas ? key.split(KEY_SEPARATOR) : [key]

@@ -55,8 +55,8 @@ dtab.parse(open("scene.dtab").read())
 - An entry that starts with a space is a comment.
 - `$key` starts a multiline string. See below.
 
-Every value is a string. Cast the ones you need. A key is any run of letters, digits, `_`, `.` and `-`,
-so `file.json`, `2026-09-07` and `0` are keys. Keys that happen to be identifiers work as attributes
+Every value is a string. Cast the ones you need. A key is any run of letters, digits, `_`, `.`, `-` and `/`,
+so `file.json`, `2026-09-07`, `assets/logo` and `0` are keys. Keys that happen to be identifiers work as attributes
 (`config.deltas.l1` with EasyDict and friends); the rest are reached with brackets (`config["file.json"]`).
 
 ## Multiline strings

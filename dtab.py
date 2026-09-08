@@ -21,7 +21,7 @@ Rules:
   - `$key` is a multiline leaf: its value is the entries after it on its line plus every line indented
     under it, one line each, with their common indentation removed. A word after the key on the `$` line
     (`$query sql`) is a language tag for editors and is not part of the value.
-  - Keys are one or more letters, digits, or KEY_PUNCTUATION (`_.-`), so `file.json` and `123aa` are keys. Keys that
+  - Keys are one or more letters, digits, or KEY_PUNCTUATION (`_.-/`), so `file.json`, `a/b` and `123aa` are keys. Keys that
     are also Python identifiers work as attributes (config.deltas.l1). Every value is a string.
 
 Single pass, one stack, O(total characters).
@@ -34,7 +34,7 @@ __version__ = "0.3.1"  # SEMANTIC BINDING: dtab-version (also package.json "vers
 
 KEY_SEPARATOR = ","  # a,b writes the same value under each key
 BLOCK_PREFIX = "$"  # $key: a leaf whose value is the lines under it ($ as in string)
-KEY_PUNCTUATION = "_.-"  # Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
+KEY_PUNCTUATION = "_.-/"  # Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
 KEY_RULE = "keys may contain only letters, digits and " + " ".join(KEY_PUNCTUATION)
 _TAB_RUN = re.compile(r"\t+")  # Several tabs in a row are one separator, so columns can be aligned
 _KEY = re.compile(r"[\w" + re.escape(KEY_PUNCTUATION) + "]+")  # \w: letters, digits, _ (Unicode); the rest is reserved for syntax
@@ -62,9 +62,9 @@ def parse(text):
         {'cmd': 'pip install rp\\npython train.py'}
         >>> parse('a\\tb 1\\nfile.json\\tsize 2\\n123aa 3')
         {'a': {'b': '1'}, 'file.json': {'size': '2'}, '123aa': '3'}
-        >>> parse('a\\tb 1\\nc/d\\te 2')
+        >>> parse('a\\tb 1\\nc|d\\te 2')
         Traceback (most recent call last):
-        ValueError: dtab line 2: invalid key 'c/d': keys may contain only letters, digits and _ . -
+        ValueError: dtab line 2: invalid key 'c|d': keys may contain only letters, digits and _ . - /
     """
     root = {}
     stack = [(-1, [root])]  # (indent, nodes that deeper lines nest into)
@@ -139,7 +139,7 @@ def _key_names(key, line_number, allow_commas):
         (['l1', 'l2'], ['file-thing.json'])
         >>> _key_names('a,b', None, False)
         Traceback (most recent call last):
-        ValueError: dtab: invalid key 'a,b': keys may contain only letters, digits and _ . -
+        ValueError: dtab: invalid key 'a,b': keys may contain only letters, digits and _ . - /
     """
     names = key.split(KEY_SEPARATOR) if allow_commas else [key]
     for name in names:

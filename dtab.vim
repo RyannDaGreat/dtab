@@ -50,7 +50,7 @@ function! s:DtabSyntax() abort
     syntax match dtabTrailingTab /\t\+$/
     " A character outside the key bag: keyword characters (letters incl. multibyte, digits, _) and
     " s:key_punctuation, plus the , that separates keys
-    execute 'syntax match dtabBadKey /\%(\k\|[,' . escape(s:key_punctuation, ']^-\') . ']\)\@!./ contained'
+    execute 'syntax match dtabBadKey /\%(\k\|[,' . escape(s:key_punctuation, ']^-\/') . ']\)\@!./ contained'
 
     " $key [tag]: a multiline block. The region runs over every following line indented deeper than the $ line
     " (\z1 is the $ line's own tabs) or blank. Defined after the entry matches so it wins at the same column.
@@ -101,7 +101,7 @@ endfunction
 " What the Tab key inserts inside a $ block: code indents with spaces; tabs are dtab structure.
 let s:block_indent = '    '
 " Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
-let s:key_punctuation = '_.-'
+let s:key_punctuation = '_.-/'
 
 function! s:InBlock(lnum) abort
     " Whether a line is inside a $ block: walking up through its ancestors (each the nearest shallower

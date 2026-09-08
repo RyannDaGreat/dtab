@@ -92,7 +92,7 @@ def test_round_trips():
 
 def test_key_rule():
     for text, fragments in [
-        ("a\tc/d 1", ["line 1", "'c/d'"]),
+        ("a\tc|d 1", ["line 1", "'c|d'"]),
         ("ok 1\n\tk:v 2", ["line 2", "'k:v'"]),
         ("~scope\n\tx 1", ["'~scope'"]),
         ("log\t@ e", ["'@'"]),
@@ -100,9 +100,9 @@ def test_key_rule():
         ("\"quoted\" 1", ["'\"quoted\"'"]),
     ]:
         raises_value_error(lambda: dtab.parse(text), *fragments)
-    assert dtab.parse("123aa 1\nfile.json 2\nfile-thing.json 3\n123.json-yaml 4\nitems 5\n_p 6\ncafé 7\n-x 8") == {
-        "123aa": "1", "file.json": "2", "file-thing.json": "3", "123.json-yaml": "4", "items": "5", "_p": "6", "café": "7", "-x": "8"}
-    for tree in [{"a b": "1"}, {"a,b": "1"}, {"a/b": "1"}, {"": "1"}]:
+    assert dtab.parse("123aa 1\nfile.json 2\nfile-thing.json 3\n123.json-yaml 4\nitems 5\n_p 6\ncafé 7\n-x 8\nassets/logo.png 9\n/ 10") == {
+        "123aa": "1", "file.json": "2", "file-thing.json": "3", "123.json-yaml": "4", "items": "5", "_p": "6", "café": "7", "-x": "8", "assets/logo.png": "9", "/": "10"}
+    for tree in [{"a b": "1"}, {"a,b": "1"}, {"a|b": "1"}, {"": "1"}]:
         raises_value_error(lambda: dtab.stringify(tree), "dtab")
     assert dtab.parse(dtab.stringify({0: "a", "file.json": "b"})) == {"0": "a", "file.json": "b"}   # int keys are written as text
     for value in ["x\ny", "x\ty", "a\n\n\tb\n  c", "#!/bin/bash\necho hi", ""]:
@@ -224,12 +224,12 @@ def test_vim_preview():
         out = Path(directory) / "preview.txt"
         vim("syntax on", "source dtab.vim", "edit " + str(sample),
             "DtabPreview | call writefile(getbufline(b:dtab_preview, 1, '$') + ['---'], '%s')" % out,
-            "call setline(1, 'bad/key 1') | doautocmd TextChanged",
+            "call setline(1, 'bad|key 1') | doautocmd TextChanged",
             "call writefile(getbufline(b:dtab_preview, 1, '$') + ['---', getbufvar(b:dtab_preview, '&filetype')], '%s', 'a')" % out,
             "DtabPreview | call writefile([bufwinnr(b:dtab_preview)], '%s', 'a')" % out)
         tree, message, closed = out.read_text().split("---\n")
     assert json.loads(tree) == dtab.parse(sample.read_text()), "the preview is not the parsed tree"
-    assert message.startswith("dtab line 1: invalid key 'bad/key'"), "the preview did not follow the edit: %r" % message
+    assert message.startswith("dtab line 1: invalid key 'bad|key'"), "the preview did not follow the edit: %r" % message
     assert closed == "json\n-1\n", "expected a json split that the second :DtabPreview closes: %r" % closed
 
 
