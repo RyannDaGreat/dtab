@@ -99,3 +99,10 @@ notes txt
 - Both raise on an invalid key or a line under several leaves, naming the line.
 - Values are strings: cast numbers and booleans yourself after parsing. For a list, use keys
   (`0`, `1`, ...) or one value with a separator, split when reading.
+
+## When unsure
+
+The source is https://github.com/RyannDaGreat/dtab. `dtab.py` and `dtab.js` are the parsers, one
+short function each, and the docstring at the top of `dtab.py` is the full specification.
+`test/samples/*.dtab` exercise every feature, edge cases included; run `dtab` on one to see its tree.
+Read a file with `curl https://raw.githubusercontent.com/RyannDaGreat/dtab/main/dtab.py`.
