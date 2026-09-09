@@ -53,7 +53,8 @@
             "[dtab]": {
                 "editor.insertSpaces": false,
                 "editor.tabSize": 4,
-                "editor.detectIndentation": false
+                "editor.detectIndentation": false,
+                "editor.semanticHighlighting.enabled": true
             },
             "editor.tokenColorCustomizations": {
                 "textMateRules": [
@@ -177,7 +178,30 @@
                     "group": "navigation"
                 }
             ]
-        }
+        },
+        "semanticTokenTypes": [
+            {
+                "id": "dtabBlockKey",
+                "description": "The key of a multiline string's header line (the grammar cannot see that a deeper line follows)"
+            },
+            {
+                "id": "dtabBlockTag",
+                "description": "The language tag of a multiline string's header line"
+            }
+        ],
+        "semanticTokenScopes": [
+            {
+                "language": "dtab",
+                "scopes": {
+                    "dtabBlockKey": [
+                        "entity.name.function.block-key.dtab"
+                    ],
+                    "dtabBlockTag": [
+                        "entity.other.attribute-name.block-tag.dtab"
+                    ]
+                }
+            }
+        ]
     },
     "main": "./extension.js",
     "activationEvents": [

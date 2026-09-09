@@ -1,36 +1,67 @@
-// dtab extension entry point. Two jobs. Indentation inside $ blocks: code indents with spaces while tabs
-// are dtab structure (and the parser strips a tab of block indentation), so inside a block Tab inserts
-// spaces, and indent/outdent (Cmd+] Cmd+[ Shift+Tab, selections too) shift by spaces; elsewhere all of
-// them work with tabs, like a plain dtab file wants. And a live JSON preview of the file beside it, like
-// Markdown's, refreshed on every edit.
+// dtab extension entry point. Three jobs. Indentation inside multiline strings: code indents with spaces
+// while tabs are dtab structure (the parser strips the one tab that puts a line under its key), so inside a
+// string Tab inserts spaces, and indent/outdent (Cmd+] Cmd+[ Shift+Tab, selections too) shift by spaces;
+// elsewhere all of them work with tabs, like a plain dtab file wants. A live JSON preview of the file beside
+// it, like Markdown's, refreshed on every edit. And semantic tokens for the header line of every multiline
+// string, since the grammar cannot see that a deeper line follows.
 'use strict'
 const vscode = require('vscode')
 const dtab = require('./dtab.js')   // the repo's parser; vscode/dtab.js is a symlink to it
 
-const BLOCK_INDENT = '    '   // one level of code indentation inside a $ block
+const BLOCK_INDENT = '    '   // one level of code indentation inside a multiline string
 const PREVIEW_SCHEME = 'dtab-preview'   // uri scheme of the read-only JSON documents the preview shows
 
 /** Pure function. Number of leading tabs of a line. @example indentOf('\t\tx') // 2 */
 const indentOf = line => line.length - line.replace(/^\t+/, '').length
 
-/** Pure function. Whether a line opens a $ block (a `$key` entry, possibly after other entries). @example isBlockLine('a\t$b sql') // true */
-const isBlockLine = line => /^\t*(?:[^\t]*\t+)*\$[^\t ]/.test(line)
+/**
+ * Pure function. Whether a line has the shape that opens a multiline string once a deeper line follows:
+ * exactly one leaf, whose value is one word or nothing, and otherwise only comments. The parser's rule.
+ * @example isHeaderLine('query sql')            // true
+ * @example isHeaderLine('\tprompt \t note')      // true (empty tag, a comment after it)
+ * @example isHeaderLine('hello big world')      // false
+ * @example isHeaderLine('a\tb sql')             // false (steps into a)
+ */
+const isHeaderLine = line => /^\t*(?: [^\t]*\t+)*[^\t ]+ [^\t ]*(?:\t+ [^\t]*)*$/.test(line)
 
 /**
- * Pure function. Whether line `n` of a dtab document is inside a $ block: walking up through its
- * ancestors (each the nearest shallower non-blank line), the first one that is a $ line puts it inside.
- * The line's own tabs are its depth, so a line of only whitespace at the $ line's depth, or an empty
- * line, is structure: the Tab key there gives a tab, and only once the line is deeper does it give spaces.
+ * Pure function. The header lines of a document's multiline strings: the lines shaped like a header
+ * whose next non-blank line is deeper, each with the columns of its key and of its tag.
+ *
+ * @param {string[]} lines - the document's lines
+ * @returns {{line: number, key: [number, number], tag: [number, number]}[]} - 0-based line, [start, end) columns
+ * @example headers(['query sql\t note', '\tSELECT 1', 'dialect sql', 'after 1'])   // [{line: 0, key: [0, 5], tag: [6, 9]}]
+ */
+function headers(lines) {
+    const found = []
+    for (let n = 0; n < lines.length; n++) {
+        if (!isHeaderLine(lines[n])) continue
+        let next = n + 1
+        while (next < lines.length && !lines[next].trim()) next++
+        if (next === lines.length || indentOf(lines[next]) <= indentOf(lines[n])) continue
+        const match = /^\t*(?: [^\t]*\t+)*/.exec(lines[n])
+        const key = match[0].length + lines[n].slice(match[0].length).indexOf(' ')
+        found.push({line: n, key: [match[0].length, key], tag: [key + 1, key + 1 + lines[n].slice(key + 1).search(/\t|$/)]})
+    }
+    return found
+}
+
+/**
+ * Pure function. Whether line `n` of a dtab document is inside a multiline string: walking up through
+ * its ancestors (each the nearest shallower non-blank line), the first one shaped like a header puts it
+ * inside (a deeper line follows it by construction). The line's own tabs are its depth, so a line of only
+ * whitespace at the header's depth, or an empty line, is structure: the Tab key there gives a tab, and
+ * only once the line is deeper does it give spaces.
  *
  * @param {string[]} lines - the document's lines
  * @param {number} n - 0-based line number
  * @returns {boolean}
- * @example insideBlock(['$code python', '\tdef f():', '\t    return 1'], 2)   // true
- * @example insideBlock(['$code python', '\tdef f():', 'after 1'], 2)         // false
- * @example insideBlock(['a', '\t$code', '\t\tx', '\t\t\tdeeper'], 3)         // true (nearest $ ancestor)
- * @example insideBlock(['a', '\tb', '\t\tc 1'], 2)                          // false (no $ ancestor)
- * @example insideBlock(['$code', '\tx', '\t'], 2)                           // true (whitespace, deeper than the $ line)
- * @example insideBlock(['a', '\t$code', '\t\tx', '\t'], 3)                  // false (whitespace at the $ line's depth)
+ * @example insideBlock(['code python', '\tdef f():', '\t    return 1'], 2)   // true
+ * @example insideBlock(['code python', '\tdef f():', 'after 1'], 2)         // false
+ * @example insideBlock(['a', '\tcode ', '\t\tx', '\t\t\tdeeper'], 3)         // true (nearest header ancestor)
+ * @example insideBlock(['a', '\tb', '\t\tc 1'], 2)                          // false (no header ancestor)
+ * @example insideBlock(['code ', '\tx', '\t'], 2)                           // true (whitespace, deeper than the header)
+ * @example insideBlock(['a', '\tcode ', '\t\tx', '\t'], 3)                  // false (whitespace at the header's depth)
  */
 function insideBlock(lines, n) {
     let current = indentOf(lines[n])
@@ -38,7 +69,7 @@ function insideBlock(lines, n) {
         if (!lines[j].trim()) continue
         const indent = indentOf(lines[j])
         if (indent < current) {
-            if (isBlockLine(lines[j])) return true
+            if (isHeaderLine(lines[j])) return true
             current = indent
         }
     }
@@ -50,7 +81,7 @@ function insideBlock(lines, n) {
  * outside it. Blank lines are left alone; outdenting removes what is there, up to one level.
  *
  * @param {string} line
- * @param {boolean} inBlock - whether the line is inside a $ block
+ * @param {boolean} inBlock - whether the line is inside a multiline string
  * @param {number} direction - +1 to indent, -1 to outdent
  * @returns {string}
  * @example shiftLine('\tdef f():', true, 1)     // '\t    def f():'
@@ -107,9 +138,9 @@ function lineEdit(line, shifted) {
 }
 
 /**
- * Command. Shifts every line any selection touches. Lines all inside $ blocks (blank ones aside) are code
- * and shift by spaces; a set touching structure (a $ line, or any line outside a block) shifts by tabs, so
- * a block moves with its $ line.
+ * Command. Shifts every line any selection touches. Lines all inside multiline strings (blank ones aside)
+ * are code and shift by spaces; a set touching structure (a header, or any line outside a string) shifts by
+ * tabs, so a string moves with its header.
  */
 async function shiftSelection(direction) {
     const editor = vscode.window.activeTextEditor
@@ -183,9 +214,22 @@ async function openPreview() {
     await vscode.window.showTextDocument(document, {viewColumn: vscode.ViewColumn.Beside, preserveFocus: true, preview: false})
 }
 
+const SEMANTIC_LEGEND = ['dtabBlockKey', 'dtabBlockTag']   // token types; package.json maps them to the grammar's scopes
+
+/** Query (reads the document). Semantic tokens for the key and tag of every multiline string's header line. */
+function headerTokens(document) {
+    const builder = new vscode.SemanticTokensBuilder()
+    for (const header of headers(document.getText().split('\n'))) {
+        builder.push(header.line, header.key[0], header.key[1] - header.key[0], 0, 0)
+        builder.push(header.line, header.tag[0], header.tag[1] - header.tag[0], 1, 0)
+    }
+    return builder.build()
+}
+
 function activate(context) {
     const previewChanged = new vscode.EventEmitter()   // fired with a preview uri: VS Code then asks previewContent again
     context.subscriptions.push(
+        vscode.languages.registerDocumentSemanticTokensProvider({language: 'dtab'}, {provideDocumentSemanticTokens: headerTokens}, new vscode.SemanticTokensLegend(SEMANTIC_LEGEND)),
         vscode.commands.registerCommand('dtab.tab', tab),
         vscode.commands.registerCommand('dtab.indent', () => shiftSelection(1)),
         vscode.commands.registerCommand('dtab.outdent', () => shiftSelection(-1)),
@@ -195,4 +239,4 @@ function activate(context) {
     )
 }
 
-module.exports = {activate, insideBlock, shiftLine, selectedLines, lineEdit, previewText}
+module.exports = {activate, isHeaderLine, headers, insideBlock, shiftLine, selectedLines, lineEdit, previewText}

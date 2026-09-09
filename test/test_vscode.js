@@ -28,7 +28,7 @@ const SCOPE_FOR_VIM_GROUP = {
     X: 'invalid.illegal.key',
     T: 'block-tag',
     B: 'string.unquoted.block',
-    K2: 'entity.name.function.block-key',   // a $key: its own scope, same structural letter as a leaf key
+    K2: 'entity.name.function.block-key',   // a header's key, when painted by semantic tokens; the grammar gives it the leaf-key scope
 }
 
 /** Command (reads files). The dtab TextMate grammar, loaded through the same engine VS Code uses. */
@@ -73,7 +73,7 @@ async function main() {
     const grammar = await loadGrammar()
     const sample = fs.readFileSync(path.join(ROOT, 'test', 'samples', 'highlight.dtab'), 'utf8').split('\n')
     const expected = fs.readFileSync(path.join(ROOT, 'test', 'expected', 'highlight.txt'), 'utf8').split('\n')
-    let stack = textmate.INITIAL   // carried across lines, as VS Code does, so multi-line $ blocks work
+    let stack = textmate.INITIAL   // carried across lines, as VS Code does, so multiline strings work
     for (let i = 0; i < expected.length; i++) {
         const result = grammar.tokenizeLine(sample[i] ?? '', stack)
         stack = result.ruleStack
@@ -94,21 +94,24 @@ async function main() {
                 || (want[c] === ' ' && got[c] === '?')
                 || (bytes[c] === 0x20 && want[c] === 'K')
                 || (got[c] === 'X' && 'OK'.includes(want[c]) && entryHasBadKey(c))
-                || (want[c] === 'K' && bytes[c] === 0x24 && got[c] === '?')   // the $ of a block key: vim colors it, the grammar leaves it
-                || (want[c] === 'T' && bytes[c] === 0x20 && got[c] === '?')   // the space before a block tag: vim's tag match includes it
-                || (bytes[c] === 0x09 && (got[c] === '?' || got[c] === 'B'))  // tabs in and around a block: region vs capture boundaries
+                || (want[c] === 'T' && bytes[c] === 0x20 && got[c] === '?')   // the space before a tag: vim's tag match includes it
+                || (want[c] === 'T' && got[c] === 'V')                        // a header's tag: the grammar cannot see the deeper line, so it is a value until semantic tokens paint it
+                || (bytes[c] === 0x09 && (got[c] === '?' || got[c] === 'B' || want[c] === 'B'))  // tabs in and around a string: region vs capture boundaries
             assert.ok(ok, 'line ' + (i + 1) + ' col ' + (c + 1) + ': vim says ' + JSON.stringify(want[c]) + ', grammar says ' + JSON.stringify(got[c]) + '\n  ' + JSON.stringify(sample[i]) + '\n  want ' + want + '\n  got  ' + got)
         }
     }
 
-    // Embedded languages: a tagged block hands its lines to that language's grammar; a shebang does the same.
-    const sqlLine = grammar.tokenizeLine('\tSELECT * FROM t', grammar.tokenizeLine('$query sql', textmate.INITIAL).ruleStack)
+    // Embedded languages: a tagged string hands its lines to that language's grammar; a shebang does the same.
+    const sqlLine = grammar.tokenizeLine('\tSELECT * FROM t', grammar.tokenizeLine('query sql\t comment', textmate.INITIAL).ruleStack)
     const inLanguage = (line, name, suffix) => line.tokens.some(tok => tok.scopes.includes('meta.embedded.block.' + name) && tok.scopes.some(s => s.endsWith(suffix) && !s.startsWith('meta.')))
-    assert.ok(inLanguage(sqlLine, 'sql', '.sql'), 'sql block not handed to the sql grammar')
-    const midLine = grammar.tokenizeLine('\t\tCREATE TABLE t', grammar.tokenizeLine('config\tdb\t$init sql', textmate.INITIAL).ruleStack)
-    assert.ok(inLanguage(midLine, 'sql', '.sql'), 'a $ block after other entries on its line was not handed to sql')
+    assert.ok(inLanguage(sqlLine, 'sql', '.sql'), 'sql string not handed to the sql grammar')
+    const headerLine = grammar.tokenizeLine('query sql\t comment', textmate.INITIAL)
+    assert.ok(headerLine.tokens.some(tok => tok.scopes.includes('comment.line.dtab')), 'a comment after the tag on the header line is a comment')
     stack = textmate.INITIAL
-    for (const line of ['$s', '\t#!/bin/bash']) stack = grammar.tokenizeLine(line, stack).ruleStack
+    for (const line of ['config\tdb', '\tinit sql']) stack = grammar.tokenizeLine(line, stack).ruleStack
+    assert.ok(inLanguage(grammar.tokenizeLine('\t\tCREATE TABLE t', stack), 'sql', '.sql'), 'a nested sql string was not handed to sql')
+    stack = textmate.INITIAL
+    for (const line of ['s ', '\t#!/bin/bash']) stack = grammar.tokenizeLine(line, stack).ruleStack
     const shLine = grammar.tokenizeLine('\techo hi', stack)
     assert.ok(shLine.tokens.some(tok => tok.scopes.includes('meta.embedded.block.shellscript')), 'shebang block not handed to the shell grammar')
     /**
@@ -120,16 +123,14 @@ async function main() {
     // nothing: when it consumed the indent tabs, a command was plain text and only its $VARIABLES were colored.
     assert.ok(tokenHasScope('\techo hi', shLine.tokens, 'echo', 'entity.name.command.shell'), 'the command of a shebang block line was not recognized')
     const tagged = '\tuv run --script x.py $BATCH'
-    const taggedLine = grammar.tokenizeLine(tagged, grammar.tokenizeLine('$command bash', textmate.INITIAL).ruleStack)
+    const taggedLine = grammar.tokenizeLine(tagged, grammar.tokenizeLine('command bash', textmate.INITIAL).ruleStack)
     assert.ok(tokenHasScope(tagged, taggedLine.tokens, 'uv', 'entity.name.command.shell'), 'the command of a tagged block line was not recognized')
     assert.ok(tokenHasScope(tagged, taggedLine.tokens, '-script', 'constant.other.option'), 'a --flag of a tagged block line was not recognized')
     const after = grammar.tokenizeLine('after 1', shLine.ruleStack)
-    assert.ok(after.tokens.some(tok => tok.scopes.includes('entity.name.tag.leaf-key.dtab')), 'block did not end at a shallower line')
-    // The wide form: text after the tag on the $ line is the value's first line, so it is the language's too.
-    const wide = grammar.tokenizeLine('$command bash\tbash /path/to/$BATCH --some', textmate.INITIAL)
-    assert.ok(inLanguage(wide, 'shellscript', '.shell'), 'the rest of a tagged $ line was not handed to the language')
-    const wideShebang = grammar.tokenizeLine('\techo more', grammar.tokenizeLine('$s\t#!/bin/bash\techo hi', textmate.INITIAL).ruleStack)
-    assert.ok(wideShebang.tokens.some(tok => tok.scopes.includes('meta.embedded.block.shellscript')), 'a shebang on the $ line did not pick the language')
+    assert.ok(after.tokens.some(tok => tok.scopes.includes('entity.name.tag.leaf-key.dtab')), 'string did not end at a shallower line')
+    // A one-word leaf with nothing deeper under it is an ordinary leaf, and the line after it is structure again.
+    const plain = grammar.tokenizeLine('after 1', grammar.tokenizeLine('dialect sql', textmate.INITIAL).ruleStack)
+    assert.ok(plain.tokens.some(tok => tok.scopes.includes('entity.name.tag.leaf-key.dtab')), 'a one-word leaf without deeper lines swallowed the next line')
 
     const manifest = JSON.parse(fs.readFileSync(path.join(EXTENSION, 'package.json'), 'utf8'))
     const previewCommand = manifest.contributes.commands.find(c => c.command === 'dtab.preview')
@@ -146,16 +147,22 @@ async function main() {
     const Module = require('module'); const realLoad = Module._load
     Module._load = (request, ...rest) => request === 'vscode' ? {} : realLoad(request, ...rest)
     const {insideBlock} = require(path.join(EXTENSION, manifest.main))
-    assert.strictEqual(insideBlock(['$code python', '\tdef f():', '\t    return 1'], 2), true)
-    assert.strictEqual(insideBlock(['$code python', '\tdef f():', 'after 1'], 2), false)
-    assert.strictEqual(insideBlock(['a', '\t$code', '\t\tx', '\t\t\tdeeper'], 3), true, 'nearest $ ancestor')
-    assert.strictEqual(insideBlock(['a', '\tb', '\t\tc 1'], 2), false, 'no $ ancestor')
-    assert.strictEqual(insideBlock(['$code', '\tx', '\t'], 2), true, 'a whitespace line deeper than the $ line is block text')
-    assert.strictEqual(insideBlock(['a', '\t$code', '\t\tx', '\t'], 3), false, 'a whitespace line at the $ line\'s depth is structure')
-    assert.strictEqual(insideBlock(['$code', '\tx', ''], 2), false, 'an empty line is structure: Tab gives the tab first')
-    assert.strictEqual(insideBlock(['a', '\t$code', '\t\tx', '\tnext 1'], 3), false, 'shallower line ends the block')
-    assert.strictEqual(insideBlock(['config\tdb\t$init sql', '\t\tCREATE'], 1), true, '$ after other entries')
-    assert.strictEqual(insideBlock(['$code', '\tx'], 0), false, 'the $ line itself is not inside the block')
+    assert.strictEqual(insideBlock(['code python', '\tdef f():', '\t    return 1'], 2), true)
+    assert.strictEqual(insideBlock(['code python', '\tdef f():', 'after 1'], 2), false)
+    assert.strictEqual(insideBlock(['a', '\tcode ', '\t\tx', '\t\t\tdeeper'], 3), true, 'nearest header ancestor')
+    assert.strictEqual(insideBlock(['a', '\tb', '\t\tc 1'], 2), false, 'no header ancestor')
+    assert.strictEqual(insideBlock(['code ', '\tx', '\t'], 2), true, 'a whitespace line deeper than the header is text')
+    assert.strictEqual(insideBlock(['a', '\tcode ', '\t\tx', '\t'], 3), false, 'a whitespace line at the header\'s depth is structure')
+    assert.strictEqual(insideBlock(['code ', '\tx', ''], 2), false, 'an empty line is structure: Tab gives the tab first')
+    assert.strictEqual(insideBlock(['a', '\tcode ', '\t\tx', '\tnext 1'], 3), false, 'shallower line ends the string')
+    assert.strictEqual(insideBlock(['config\tdb', '\tinit sql', '\t\tCREATE'], 2), true, 'a nested header')
+    assert.strictEqual(insideBlock(['x 1\ty 2', '\tz'], 1), false, 'two leaves are no header')
+    assert.strictEqual(insideBlock(['code ', '\tx'], 0), false, 'the header itself is not inside the string')
+    const {isHeaderLine, headers} = require(path.join(EXTENSION, manifest.main))
+    assert.deepStrictEqual(['query sql', 'prompt ', '\tinit sql\t note', ' note\tq sql', 'hello big world', 'a\tb sql', 'x 1\ty 2', 'k', 'q sql\t'].map(isHeaderLine),
+        [true, true, true, true, false, false, false, false, false], 'header shape: one leaf with a one-word value, comments around it')
+    assert.deepStrictEqual(headers(['query sql\t note', '\tSELECT 1', 'dialect sql', 'after 1', 'x', '\tp ', '', '\t\ttext']),
+        [{line: 0, key: [0, 5], tag: [6, 9]}, {line: 5, key: [1, 2], tag: [3, 3]}], 'headers are the shaped lines followed by a deeper line, blank lines skipped')
     const {shiftLine} = require(path.join(EXTENSION, manifest.main))
     assert.strictEqual(shiftLine('\tdef f():', true, 1), '\t    def f():')
     assert.strictEqual(shiftLine('\t    return', true, -1), '\treturn')
@@ -178,7 +185,8 @@ async function main() {
     assert.ok(manifest.contributes.keybindings.some(k => k.key === 'shift+tab' && k.command === 'dtab.outdent'))
     // The JSON preview: the parser's tree, or its message while the text does not parse. It uses the repo's own parser.
     const {previewText} = require(path.join(EXTENSION, manifest.main))
-    assert.strictEqual(previewText('a\tb 1\n$q sql\n\tSELECT 1'), JSON.stringify({a: {b: '1'}, q: 'SELECT 1'}, null, 4))
+    assert.strictEqual(previewText('a\tb 1\nq sql\n\tSELECT 1'), JSON.stringify({a: {b: '1'}, q: 'SELECT 1'}, null, 4))
+    assert.ok(manifest.contributes.semanticTokenScopes[0].scopes.dtabBlockKey[0].includes('block-key'), 'header tokens map onto the block-key scope')
     assert.ok(previewText('a|b 1').startsWith('dtab line 1: invalid key'), 'the preview should show the parser error')
     assert.strictEqual(fs.realpathSync(path.join(EXTENSION, 'dtab.js')), fs.realpathSync(path.join(ROOT, 'dtab.js')), 'vscode/dtab.js must be the repo parser')
     assert.ok(manifest.contributes.commands.some(c => c.command === 'dtab.preview'))

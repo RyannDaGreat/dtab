@@ -13,7 +13,8 @@ To see the tabs that carry the structure without dotting every space inside a va
 `"editor.renderWhitespace": "boundary"` (it draws tabs and runs of spaces, not single spaces).
 VS Code's normal Toggle Render Whitespace command works as usual.
 
-Inside a `$` block the Tab key inserts four spaces, since code indents with spaces and tabs are dtab
+Inside a multiline string (a `key word` line with lines indented under it) the Tab key inserts four spaces,
+since code indents with spaces and tabs are dtab
 structure. Everywhere else it inserts a tab.
 
 The preview button in the editor title bar (or Cmd+K V / Ctrl+K V) opens the file's tree as JSON beside
