@@ -158,7 +158,7 @@ const EXAMPLE = [
     ' Every value is a string. Cast the ones you need.',
     'debug\tenabled false\tlevel 2',
     '',
-    ' A key with a one-word tag and lines under it is a multiline string. The tag picks the highlighting',
+    ' A leaf with lines under it is a multiline string. Its own text is a tag that picks the highlighting',
     ' and is not part of the value; an empty tag is plain text (a shebang inside still picks a language).',
     'query sql',
     '\tSELECT name, age',
@@ -213,11 +213,11 @@ const lineIndent = line => line.length - line.replace(/^\t+/, '').length
 
 /**
  * Pure function. Whether a line has the shape that opens a multiline string once a deeper line follows:
- * exactly one leaf, whose value is one word or nothing, and otherwise only comments. The parser's rule.
+ * exactly one leaf and otherwise only comments. The parser's rule.
  * @example isHeaderLine('query sql\t note')   // true
- * @example isHeaderLine('hello big world')    // false
+ * @example isHeaderLine('x 1\ty 2')           // false
  */
-const isHeaderLine = line => /^\t*(?: [^\t]*\t+)*[^\t ]+ [^\t ]*(?:\t+ [^\t]*)*$/.test(line)
+const isHeaderLine = line => /^\t*(?: [^\t]*\t+)*[^\t ]+ [^\t]*(?:\t+ [^\t]*)*$/.test(line)
 
 /**
  * Query (reads the lines after the stream's). Whether the next non-blank line is deeper than the stream's line.
@@ -244,8 +244,8 @@ function blockState(config, indent, tag) {
 }
 
 // A line is entries separated by tab runs. Each entry is a comment (starts with a space), a leaf
-// (key, one space, value) or an object key. A `key word` line with a deeper line after it is a multiline
-// string's header: the lines under it are value text, handed to the word's language mode if there is one.
+// (key, one space, value) or an object key. A line of one leaf with a deeper line after it is a multiline
+// string's header: the lines under it are value text, handed to the tag's language mode if there is one.
 CodeMirror.defineMode('dtab', config => ({
     // block: the multiline string the text from here on belongs to (a blockState); pending: one whose header
     // is the current line, so it starts on the next; header: the current line is a header; tagPending: the

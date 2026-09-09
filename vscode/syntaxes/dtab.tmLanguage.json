@@ -689,8 +689,8 @@
             ]
         },
         {
-            "comment": "key with any other one-word tag, or none: plain text, unless its first text is a shebang",
-            "begin": "^(\\t*)((?: [^\\t\\n]*\\t+)*)([\\p{L}\\p{N}_\\.\\-/]+(?:,[\\p{L}\\p{N}_\\.\\-/]+)*) ([^\\t ]*)((?:\\t+ [^\\t\\n]*)*)$",
+            "comment": "key with any other tag, or none: plain text, unless its first text is a shebang",
+            "begin": "^(\\t*)((?: [^\\t\\n]*\\t+)*)([\\p{L}\\p{N}_\\.\\-/]+(?:,[\\p{L}\\p{N}_\\.\\-/]+)*) ([^\\t\\n]*)((?:\\t+ [^\\t\\n]*)*)$",
             "beginCaptures": {
                 "2": {
                     "name": "meta.entries-before-block.dtab",

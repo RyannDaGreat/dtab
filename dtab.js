@@ -19,10 +19,10 @@
  *   - Writing a key again replaces it; writing into an object merges. Last line wins.
  *   - `a,b` writes the same value under a and under b.
  *   - An entry starting with a space is a comment. A trailing tab is an empty key that swallows the lines under it.
- *   - A `key word` line with lines indented under it is a multiline string: the word is a language tag for
- *     editors (empty, or `txt`, for plain text) and the value is those lines, one tab deeper than the key's line
- *     and verbatim from there, tabs included. The only way to put a tab in a value.
- *   - A line indented under any other leaf line (a value with spaces, or several leaves) is an error.
+ *   - A leaf with lines indented under it is a multiline string: those lines are the value, one tab deeper
+ *     than the key's line and verbatim from there, tabs included (the only way to put a tab in a value). The
+ *     leaf's own text is a tag for editors, `sql` or `python` or `txt` or nothing, and is not part of the value.
+ *   - A line indented under a line of several leaves is an error, since no leaf can claim it.
  *   - Keys are one or more letters, digits, or KEY_PUNCTUATION (`_.-/`), so `file.json`, `a/b` and `123aa` are keys. Keys that
  *     are also identifiers work as attributes (config.deltas.l1). Every value is a string.
  *
@@ -40,7 +40,7 @@ const KEY = new RegExp('^[\\p{L}\\p{N}' + KEY_PUNCTUATION.replace(/[\]\\^-]/g, '
 
 /**
  * Pure function. Parses dtab text into nested plain objects of strings. Throws, with the line number,
- * on a key that breaks KEY_RULE or on a line indented under a leaf that is not a multiline string's header.
+ * on a key that breaks KEY_RULE or on a line indented under several leaves.
  *
  * @param {string} text - dtab source. Whitespace-only lines are ignored outside multiline strings.
  * @returns {object}
@@ -53,12 +53,13 @@ const KEY = new RegExp('^[\\p{L}\\p{N}' + KEY_PUNCTUATION.replace(/[\]\\^-]/g, '
  * @example parse('dialect sql')                        // {dialect: 'sql'}
  * @example parse('a\tb 1\nfile.json\tsize 2\n123aa 3')   // {a: {b: '1'}, 'file.json': {size: '2'}, '123aa': '3'}
  * @example parse('a\tb 1\nc|d\te 2')              // throws: dtab line 2: invalid key "c|d": keys may contain only letters, digits and _ . - /
- * @example parse('hello big world\n\tkey value')   // throws: dtab line 2: indented under a value; a multiline string starts with `key word`
+ * @example parse('hello big world\n\tkey value')   // {hello: 'key value'}
+ * @example parse('x 1\ty 2\n\tz 3')                 // throws: dtab line 2: indented under several leaves; a multiline string has one
  */
 function parse(text) {
     const root = {}
-    const stack = [[-1, [root], false]]  // [indent, nodes that deeper lines nest into, whether the line is only leaves]
-    let block = null  // after a `key word` line: {indent, nodes, names, deep: raw lines under it}
+    const stack = [[-1, [root], false]]  // [indent, nodes that deeper lines nest into, whether the line is several leaves]
+    let block = null  // after a line of one leaf: {indent, nodes, names, deep: raw lines under it}
     const lines = text.split('\n')
     for (let index = 0; index < lines.length; index++) {
         const line = lines[index]
@@ -73,9 +74,9 @@ function parse(text) {
         }
         if (!line.trim()) continue
         while (stack[stack.length - 1][0] >= indent) stack.pop()
-        if (stack[stack.length - 1][2]) throw new Error('dtab line ' + (index + 1) + ': indented under a value; a multiline string starts with `key word`')
+        if (stack[stack.length - 1][2]) throw new Error('dtab line ' + (index + 1) + ': indented under several leaves; a multiline string has one')
         let nodes = stack[stack.length - 1][1]
-        const leaves = []  // [names, value] of the line's leaves; a header is a line of exactly one, with a one-word value
+        const leaves = []  // [names, value] of the line's leaves; a line of exactly one may be a multiline string's header
         let stepsIn = false
         for (const entry of line.slice(indent).split(TAB_RUN)) {
             const spaceAt = entry.indexOf(' ')
@@ -94,18 +95,17 @@ function parse(text) {
                 stepsIn = true
             }
         }
-        const onlyLeaves = leaves.length > 0 && !stepsIn
-        stack.push([indent, nodes, onlyLeaves])
-        if (onlyLeaves && leaves.length === 1 && !leaves[0][1].includes(' ')) block = {indent, nodes, names: leaves[0][0], deep: []}
+        stack.push([indent, nodes, leaves.length > 1 && !stepsIn])
+        if (leaves.length === 1 && !stepsIn) block = {indent, nodes, names: leaves[0][0], deep: []}
     }
     if (block) finishBlock(block)
     return root
 }
 
 /**
- * Command (mutates the block's nodes). The lines under a `key word` line, trailing blank lines dropped,
- * become the key's value: each loses the one tab that puts it under the key's line and is verbatim from
- * there, so tabs and deeper indentation inside code survive. With no lines, the key keeps the word.
+ * Command (mutates the block's nodes). The lines under a leaf, trailing blank lines dropped, become the
+ * key's value: each loses the one tab that puts it under the key's line and is verbatim from there, so
+ * tabs and deeper indentation inside code survive. With no lines, the key keeps the leaf's own text.
  *
  * @example const nodes = [{q: 'sql'}]; finishBlock({indent: 0, nodes, names: ['q'], deep: ['\tSELECT *', '', '\t\tFROM t', '', '']}); nodes
  *   // [{q: 'SELECT *\n\n\tFROM t'}]

@@ -16,13 +16,14 @@ const indentOf = line => line.length - line.replace(/^\t+/, '').length
 
 /**
  * Pure function. Whether a line has the shape that opens a multiline string once a deeper line follows:
- * exactly one leaf, whose value is one word or nothing, and otherwise only comments. The parser's rule.
+ * exactly one leaf and otherwise only comments. The parser's rule.
  * @example isHeaderLine('query sql')            // true
  * @example isHeaderLine('\tprompt \t note')      // true (empty tag, a comment after it)
- * @example isHeaderLine('hello big world')      // false
+ * @example isHeaderLine('hello big world')      // true (the tag is "big world")
  * @example isHeaderLine('a\tb sql')             // false (steps into a)
+ * @example isHeaderLine('x 1\ty 2')             // false (two leaves)
  */
-const isHeaderLine = line => /^\t*(?: [^\t]*\t+)*[^\t ]+ [^\t ]*(?:\t+ [^\t]*)*$/.test(line)
+const isHeaderLine = line => /^\t*(?: [^\t]*\t+)*[^\t ]+ [^\t]*(?:\t+ [^\t]*)*$/.test(line)
 
 /**
  * Pure function. The header lines of a document's multiline strings: the lines shaped like a header

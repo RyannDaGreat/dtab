@@ -98,11 +98,10 @@ def test_key_rule():
         ("log\t@ e", ["'@'"]),
         ("a,b#c\tx 1", ["'a,b#c'"]),
         ("\"quoted\" 1", ["'\"quoted\"'"]),
-        ("hello big world\n\tkey value", ["line 2", "indented under a value"]),   # only a one-word value opens a multiline string
-        ("x 1\ty 2\n\tz 3", ["line 2", "indented under a value"]),                 # several leaves never do
+        ("x 1\ty 2\n\tz 3", ["line 2", "indented under several leaves"]),   # no leaf can claim the line
     ]:
         raises_value_error(lambda: dtab.parse(text), *fragments)
-    assert dtab.parse("a sql\nb 1\nc \n\tline\n\t\ttabbed") == {"a": "sql", "b": "1", "c": "line\n\ttabbed"}, "a one-word value is a leaf until lines follow; text is verbatim past one tab"
+    assert dtab.parse("a sql\nb 1\nc \n\tline\n\t\ttabbed\nd any tag at all\n\ttext") == {"a": "sql", "b": "1", "c": "line\n\ttabbed", "d": "text"}, "a leaf is a leaf until lines follow; then its text is the tag and the lines, verbatim past one tab, the value"
     assert dtab.parse("123aa 1\nfile.json 2\nfile-thing.json 3\n123.json-yaml 4\nitems 5\n_p 6\ncafé 7\n-x 8\nassets/logo.png 9\n/ 10") == {
         "123aa": "1", "file.json": "2", "file-thing.json": "3", "123.json-yaml": "4", "items": "5", "_p": "6", "café": "7", "-x": "8", "assets/logo.png": "9", "/": "10"}
     for tree in [{"a b": "1"}, {"a,b": "1"}, {"a|b": "1"}, {"": "1"}]:

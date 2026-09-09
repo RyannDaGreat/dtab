@@ -53,7 +53,7 @@ dtab.parse(open("scene.dtab").read())
 - Writing a key again replaces it. Writing into an object merges.
 - `a,b` writes the same value under `a` and under `b`.
 - An entry that starts with a space is a comment.
-- A key with a one-word value and lines indented under it is a multiline string. See below.
+- A leaf with lines indented under it is a multiline string. See below.
 
 Every value is a string. Cast the ones you need. A key is any run of letters, digits, `_`, `.`, `-` and `/`,
 so `file.json`, `2026-09-07`, `assets/logo` and `0` are keys. Keys that happen to be identifiers work as attributes
@@ -61,10 +61,10 @@ so `file.json`, `2026-09-07`, `assets/logo` and `0` are keys. Keys that happen t
 
 ## Multiline strings
 
-A line whose only entry is `key word`, with lines indented under it, is a multiline string. The lines
-under it are the value: each starts one tab deeper than the key's line and is taken verbatim from
-there, so tabs and deeper indentation inside are part of the value. This is the only way to put a tab
-in a value. Blank lines inside are kept, trailing ones dropped.
+A leaf with lines indented under it is a multiline string. The lines under it are the value: each
+starts one tab deeper than the key's line and is taken verbatim from there, so tabs and deeper
+indentation inside are part of the value. This is the only way to put a tab in a value. Blank lines
+inside are kept, trailing ones dropped.
 
 ```
 query sql	 a comment may follow the tag
@@ -73,10 +73,10 @@ query sql	 a comment may follow the tag
 	WHERE age > 30
 ```
 
-The word tells editors which language to highlight and is not part of the value. Any word will do,
-`txt` or nothing at all (`prompt ` with a trailing space) for plain text. Unknown words are plain text,
-never an error. A line indented under any other leaf line, one whose value has spaces or that holds
-several leaves, is an error, since there is nothing for it to continue.
+The leaf's own text is a tag that tells editors which language to highlight, and it is not part of the
+value. Any text will do, `txt` or nothing at all (`prompt ` with a trailing space) for plain text.
+Unknown tags are plain text, never an error. A line indented under a line of several leaves is an
+error, since no leaf can claim it.
 
 | Tag | Also |
 |---|---|

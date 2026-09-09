@@ -18,10 +18,10 @@ Rules:
   - Writing a key again replaces it; writing into an object merges. Last line wins.
   - `a,b` writes the same value under a and under b.
   - An entry starting with a space is a comment. A trailing tab is an empty key that swallows the lines under it.
-  - A `key word` line with lines indented under it is a multiline string: the word is a language tag for
-    editors (empty, or `txt`, for plain text) and the value is those lines, one tab deeper than the key's line
-    and verbatim from there, tabs included. The only way to put a tab in a value.
-  - A line indented under any other leaf line (a value with spaces, or several leaves) is an error.
+  - A leaf with lines indented under it is a multiline string: those lines are the value, one tab deeper
+    than the key's line and verbatim from there, tabs included (the only way to put a tab in a value). The
+    leaf's own text is a tag for editors, `sql` or `python` or `txt` or nothing, and is not part of the value.
+  - A line indented under a line of several leaves is an error, since no leaf can claim it.
   - Keys are one or more letters, digits, or KEY_PUNCTUATION (`_.-/`), so `file.json`, `a/b` and `123aa` are keys. Keys that
     are also Python identifiers work as attributes (config.deltas.l1). Every value is a string.
 
@@ -44,8 +44,7 @@ _KEY = re.compile(r"[\w" + re.escape(KEY_PUNCTUATION) + "]+")  # \w: letters, di
 def parse(text):
     """
     Pure function. Parses dtab text into nested dicts of strings. Raises ValueError, with the line
-    number, on a key that breaks KEY_RULE or on a line indented under a leaf that is not a multiline
-    string's header.
+    number, on a key that breaks KEY_RULE or on a line indented under several leaves.
 
     Args:
         text (str): dtab source. Whitespace-only lines are ignored outside multiline strings.
@@ -70,12 +69,14 @@ def parse(text):
         Traceback (most recent call last):
         ValueError: dtab line 2: invalid key 'c|d': keys may contain only letters, digits and _ . - /
         >>> parse('hello big world\\n\\tkey value')
+        {'hello': 'key value'}
+        >>> parse('x 1\\ty 2\\n\\tz 3')
         Traceback (most recent call last):
-        ValueError: dtab line 2: indented under a value; a multiline string starts with `key word`
+        ValueError: dtab line 2: indented under several leaves; a multiline string has one
     """
     root = {}
-    stack = [(-1, [root], False)]  # (indent, nodes that deeper lines nest into, whether the line is only leaves)
-    block = None  # after a `key word` line: (its indent, nodes, names, raw lines under it)
+    stack = [(-1, [root], False)]  # (indent, nodes that deeper lines nest into, whether the line is several leaves)
+    block = None  # after a line of one leaf: (its indent, nodes, names, raw lines under it)
     for line_number, line in enumerate(text.split("\n"), 1):
         indent = len(line) - len(line.lstrip("\t"))
         if block is not None:
@@ -89,9 +90,9 @@ def parse(text):
         while stack[-1][0] >= indent:
             stack.pop()
         if stack[-1][2]:
-            raise ValueError("dtab line %d: indented under a value; a multiline string starts with `key word`" % line_number)
+            raise ValueError("dtab line %d: indented under several leaves; a multiline string has one" % line_number)
         nodes = stack[-1][1]
-        leaves = []  # (names, value) of the line's leaves; a header is a line of exactly one, with a one-word value
+        leaves = []  # (names, value) of the line's leaves; a line of exactly one may be a multiline string's header
         steps_in = False
         for entry in _TAB_RUN.split(line[indent:]):
             key, space, value = entry.partition(" ")
@@ -109,9 +110,8 @@ def parse(text):
             else:
                 nodes = [_child(node, name) for node in nodes for name in names]
                 steps_in = True
-        only_leaves = bool(leaves) and not steps_in
-        stack.append((indent, nodes, only_leaves))
-        if only_leaves and len(leaves) == 1 and " " not in leaves[0][1]:
+        stack.append((indent, nodes, len(leaves) > 1 and not steps_in))
+        if len(leaves) == 1 and not steps_in:
             block = (indent, nodes, leaves[0][0], [])
     if block is not None:
         _finish_block(block)
@@ -179,9 +179,9 @@ def _child(node, name):
 
 def _finish_block(block):
     """
-    Command (mutates the block's nodes). The lines under a `key word` line, trailing blank lines dropped,
-    become the key's value: each loses the one tab that puts it under the key's line and is verbatim from
-    there, so tabs and deeper indentation inside code survive. With no lines, the key keeps the word.
+    Command (mutates the block's nodes). The lines under a leaf, trailing blank lines dropped, become the
+    key's value: each loses the one tab that puts it under the key's line and is verbatim from there, so
+    tabs and deeper indentation inside code survive. With no lines, the key keeps the leaf's own text.
 
     Examples:
         >>> nodes = [{'q': 'sql'}]; _finish_block((0, nodes, ['q'], ['\\tSELECT *', '', '\\t\\tFROM t', '', ''])); nodes

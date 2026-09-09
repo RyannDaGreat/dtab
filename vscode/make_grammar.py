@@ -31,8 +31,7 @@ EMBEDDED = [
 # (interpreter regex in a shebang, scope, name)
 SHEBANGS = [("bash|zsh|sh", "source.shell", "shellscript"), ("python\\d*", "source.python", "python"), ("node", "source.js", "javascript")]
 
-# A header is a line with one leaf whose value is one word, comments allowed before and after, with lines
-# indented under it. A TextMate grammar cannot look at the next line, so every such line opens a region that
+# A header is a line with one leaf, comments allowed before and after, with lines indented under it. A TextMate grammar cannot look at the next line, so every such line opens a region that
 # ends at once when nothing deeper follows, and the header itself is colored as the ordinary leaf it may be.
 # The extension paints real headers (key yellow, tag orange) through semantic tokens, which can look ahead.
 BLOCK_CAPTURES = {
@@ -41,7 +40,7 @@ BLOCK_CAPTURES = {
     "4": {"name": "string.unquoted.value.dtab"},
     "5": {"name": "meta.entries-after-header.dtab", "patterns": [{"include": "#entry"}]},
 }
-HEADER = "^(\\t*)((?: [^\\t\\n]*\\t+)*)(%s) (%s)((?:\\t+ [^\\t\\n]*)*)$"  # tabs, comments, key(s), one-word tag, comments
+HEADER = "^(\\t*)((?: [^\\t\\n]*\\t+)*)(%s) (%s)((?:\\t+ [^\\t\\n]*)*)$"  # tabs, comments, key(s), the tag, comments
 
 
 def block_rule(tag_regex, scope, name):
@@ -83,8 +82,8 @@ def grammar():
             {"comment": "A whitespace-only line", "match": "^\\s*$"},
         ] + [block_rule(*e) for e in EMBEDDED] + [
             {
-                "comment": "key with any other one-word tag, or none: plain text, unless its first text is a shebang",
-                "begin": HEADER % (KEYS, "[^\\t ]*"),
+                "comment": "key with any other tag, or none: plain text, unless its first text is a shebang",
+                "begin": HEADER % (KEYS, "[^\\t\\n]*"),
                 "beginCaptures": BLOCK_CAPTURES,
                 "while": WHILE,
                 "contentName": "markup.italic string.unquoted.block.dtab",

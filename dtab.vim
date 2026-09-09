@@ -4,8 +4,8 @@
 "
 " Object keys purple, leaf keys cyan, leaf values blue, comments (entries starting with a space) as
 " Comment. Errors: trailing tabs (an empty key that silently swallows the following indented lines) and
-" characters a key may not contain (letters, digits, _ . - / only). A `key word` line with lines indented under
-" it is a multiline string: the key yellow, the word (its language tag) orange, and the lines colored as text,
+" characters a key may not contain (letters, digits, _ . - / only). A leaf with lines indented under it is a
+" multiline string: the key yellow, the leaf's text (a tag for editors) orange, and the lines colored as text,
 " or by the tagged language's own syntax file (sql, python, bash, ...), or by a shebang.
 "
 " A dtab line is tab-indented, with entries separated by tabs:
@@ -53,15 +53,15 @@ function! s:DtabSyntax() abort
     " s:key_punctuation, plus the , that separates keys
     execute 'syntax match dtabBadKey /\%(\k\|[,' . escape(s:key_punctuation, ']^-\/') . ']\)\@!./ contained'
 
-    " A `key word` line whose next non-blank line is deeper opens a multiline string. The key match looks ahead
+    " A line of one leaf whose next non-blank line is deeper opens a multiline string. The key match looks ahead
     " for that deeper line (\1 is the line's own tabs), and only from the key can the string's region start,
     " through nextgroup: it begins at the tag, whose lookbehind captures the tabs (\z1) that bound the region,
     " and runs over every following line indented deeper, or blank. Comment entries may precede the key and
     " follow the tag. Defined after the entry matches so the key wins at the same column. keepend: when the
     " string ends, an embedded-language region inside it ends too.
-    syntax match  dtabBlockKey /^\(\t*\)\%( [^\t]*\t\+\)*\zs[^\t ]\+\ze [^\t ]*\%(\t\+ [^\t]*\)*\n\%(\s*\n\)*\1\t/ contains=dtabComma,dtabBadKey nextgroup=dtabBlock
-    syntax region dtabBlock matchgroup=dtabBlockTag start=/\%(^\z(\t*\)\%( [^\t]*\t\+\)*[^\t ]\+\)\@<= [^\t ]*/ end=/^\%(\z1\t\|\s*$\)\@!/ contained keepend contains=dtabHeaderComment,@dtabShebangs
-    syntax match  dtabHeaderComment /\%(^\t*\%( [^\t]*\t\+\)*[^\t ]\+ [^\t ]*\%(\t\+ [^\t]*\)*\t\+\)\@<= [^\t]*/ contained
+    syntax match  dtabBlockKey /^\(\t*\)\%( [^\t]*\t\+\)*\zs[^\t ]\+\ze [^\t]*\%(\t\+ [^\t]*\)*\n\%(\s*\n\)*\1\t/ contains=dtabComma,dtabBadKey nextgroup=dtabBlock
+    syntax region dtabBlock matchgroup=dtabBlockTag start=/\%(^\z(\t*\)\%( [^\t]*\t\+\)*[^\t ]\+\)\@<= [^\t]*/ end=/^\%(\z1\t\|\s*$\)\@!/ contained keepend contains=dtabHeaderComment,@dtabShebangs
+    syntax match  dtabHeaderComment /\%(^\t*\%( [^\t]*\t\+\)*[^\t ]\+ [^\t]*\%(\t\+ [^\t]*\)*\t\+\)\@<= [^\t]*/ contained
     call s:DtabEmbedded()
     syntax sync fromstart
     call s:DtabHighlight()
@@ -108,9 +108,9 @@ let s:block_indent = '    '
 let s:key_punctuation = '_.-/'
 
 function! s:IsHeaderLine(line) abort
-    " Whether a line has the shape that opens a multiline string once a deeper line follows: exactly one leaf,
-    " whose value is one word or nothing, and otherwise only comments. The parser's rule.
-    return a:line =~ '^\t*\%( [^\t]*\t\+\)*[^\t ]\+ [^\t ]*\%(\t\+ [^\t]*\)*$'
+    " Whether a line has the shape that opens a multiline string once a deeper line follows: exactly one leaf
+    " and otherwise only comments. The parser's rule.
+    return a:line =~ '^\t*\%( [^\t]*\t\+\)*[^\t ]\+ [^\t]*\%(\t\+ [^\t]*\)*$'
 endfunction
 
 function! s:Deeper(lnum, depth) abort
