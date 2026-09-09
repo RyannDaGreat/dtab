@@ -28,6 +28,8 @@ Checks:
      (`npm install --no-save vscode-textmate vscode-oniguruma`).
  10. The JSON preview inside the installed VS Code, in an isolated profile (test/test_vscode_live.js),
      skipped if @vscode/test-electron is not installed.
+ 11. The agent skill: every ```dtab fence in skills/dtab/SKILL.md parses, in Python and in JS, to the
+     ```json fence right after it, which also proves the fences hold real tabs.
 
 Needs: python 3, node, vim. The optional packages go in together, since an `npm install --no-save` removes
 the ones it was not given: `npm install --no-save puppeteer vscode-textmate vscode-oniguruma @vscode/test-electron`.
@@ -35,12 +37,14 @@ the ones it was not given: `npm install --no-save puppeteer vscode-textmate vsco
 
 import doctest
 import json
+import re
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+SKILL = ROOT / "skills" / "dtab" / "SKILL.md"
 HIGHLIGHT_SAMPLE = ROOT / "test" / "samples" / "highlight.dtab"
 SAMPLES = sorted(path for path in (ROOT / "test" / "samples").glob("*.dtab") if path != HIGHLIGHT_SAMPLE)
 DEVIATING = {"deviations.dtab", "game_config.dtab", "multiline.dtab"}  # multiline: strings did not exist in the original
@@ -66,9 +70,36 @@ def raises_value_error(function, *fragments):
     raise AssertionError("expected a ValueError mentioning %r" % (fragments,))
 
 
+def fenced_pairs(markdown):
+    """
+    Pure function. The (dtab, json) text of every ```dtab fence that a ```json fence follows directly.
+
+    Examples:
+        >>> fenced_pairs('Rules.\\n```dtab\\na\\tb 1\\n```\\n```json\\n{"a": {"b": "1"}}\\n```\\n```dtab\\nunpaired 1\\n```\\n')
+        [('a\\tb 1', '{"a": {"b": "1"}}')]
+    """
+    return re.findall(r"^```dtab\n(.*?)\n```\n```json\n(.*?)\n```$", markdown, re.DOTALL | re.MULTILINE)
+
+
 def test_doctests():
     failed, _ = doctest.testmod(dtab)
     assert failed == 0, "dtab.py doctests failed"
+    failed, _ = doctest.testmod(sys.modules[__name__])
+    assert failed == 0, "test helper doctests failed"
+
+
+def test_skill_examples():
+    """Every dtab example in skills/dtab/SKILL.md gives the JSON after it, in Python and in JS."""
+    pairs = fenced_pairs(SKILL.read_text())
+    assert len(pairs) >= 4, "SKILL.md should teach by dtab/json example pairs, found %d" % len(pairs)
+    with tempfile.TemporaryDirectory() as directory:
+        for number, (text, expected_json) in enumerate(pairs, 1):
+            expected = json.loads(expected_json)
+            assert dtab.parse(text) == expected, "SKILL.md example %d: dtab.py gives %r" % (number, dtab.parse(text))
+            sample = Path(directory) / ("example_%d.dtab" % number)
+            sample.write_text(text)
+            js_tree = json.loads(run("node", "dtab.js", str(sample)))
+            assert js_tree == expected, "SKILL.md example %d: dtab.js gives %r" % (number, js_tree)
 
 
 def test_readers_agree():
@@ -273,7 +304,7 @@ def test_vscode_live():
 
 
 if __name__ == "__main__":
-    for test in [test_doctests, test_readers_agree, test_round_trips, test_key_rule, test_js_suite,
+    for test in [test_doctests, test_skill_examples, test_readers_agree, test_round_trips, test_key_rule, test_js_suite,
                  test_vim_highlighting, test_vim_embedded_languages, test_vim_tab_key, test_vim_shift_keys, test_vim_join, test_vim_preview, test_vim_plugin_shim, test_web_demo, test_vscode_grammar, test_vscode_live]:
         test()
         print("ok  " + test.__name__)

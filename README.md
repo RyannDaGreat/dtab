@@ -95,6 +95,7 @@ error, since no leaf can claim it.
 - **JavaScript**: `npm install deltatab` then `const dtab = require('deltatab')`, or `<script src="https://cdn.jsdelivr.net/npm/deltatab/dtab.js">` for `window.dtab`
 - **Vim**: `Plugin 'RyannDaGreat/dtab'` (Vundle) or `Plug 'RyannDaGreat/dtab'` (vim-plug), or paste `dtab.vim` into your vimrc. Highlights `*.dtab`, flags bad keys and trailing tabs, gives the file a Δ icon in NERDTree if vim-devicons is installed, `:DtabPreview` opens a split showing the tree as JSON that follows your edits (needs `+python3`), and `J` joins the line below with a tab (deep form to wide form) whenever that keeps the tree the same.
 - **VS Code**: search "dtab" in Extensions, or `code --install-extension RyannDaGreat.dtab`. Highlighting, a Δ file icon, and a live JSON preview of the file beside it (the preview button in the title bar, or Cmd+K V).
+- **Claude Code, Codex, Cursor and other agents**: `npx skills add RyannDaGreat/dtab` installs a skill that teaches the agent the rules ([`skills/dtab/SKILL.md`](skills/dtab/SKILL.md), in the Agent Skills format they all read).
 
 ## API
 
