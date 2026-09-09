@@ -14,16 +14,22 @@ const PREVIEW_SCHEME = 'dtab-preview'   // uri scheme of the read-only JSON docu
 /** Pure function. Number of leading tabs of a line. @example indentOf('\t\tx') // 2 */
 const indentOf = line => line.length - line.replace(/^\t+/, '').length
 
+// A key list within a line: runs of non-blanks, where a run ending in a comma goes on past spaces, then tabs
+const KEYS = '[^\\t ]+(?:(?<=,) *\\t*[^\\t ]+)*'
+// A header line: tabs, comments, the keys (group 1, with its indices), a space, the tag, comments
+const HEADER_LINE = new RegExp('^\\t*(?: [^\\t]*\\t+)*(' + KEYS + ') [^\\t]*(?:\\t+ [^\\t]*)*$', 'd')
+
 /**
  * Pure function. Whether a line has the shape that opens a multiline string once a deeper line follows:
  * exactly one leaf and otherwise only comments. The parser's rule.
  * @example isHeaderLine('query sql')            // true
  * @example isHeaderLine('\tprompt \t note')      // true (empty tag, a comment after it)
  * @example isHeaderLine('hello big world')      // true (the tag is "big world")
+ * @example isHeaderLine('x, y sql')             // true (one leaf with two keys)
  * @example isHeaderLine('a\tb sql')             // false (steps into a)
  * @example isHeaderLine('x 1\ty 2')             // false (two leaves)
  */
-const isHeaderLine = line => /^\t*(?: [^\t]*\t+)*[^\t ]+ [^\t]*(?:\t+ [^\t]*)*$/.test(line)
+const isHeaderLine = line => HEADER_LINE.test(line)
 
 /**
  * Pure function. The header lines of a document's multiline strings: the lines shaped like a header
@@ -40,9 +46,8 @@ function headers(lines) {
         let next = n + 1
         while (next < lines.length && !lines[next].trim()) next++
         if (next === lines.length || indentOf(lines[next]) <= indentOf(lines[n])) continue
-        const match = /^\t*(?: [^\t]*\t+)*/.exec(lines[n])
-        const key = match[0].length + lines[n].slice(match[0].length).indexOf(' ')
-        found.push({line: n, key: [match[0].length, key], tag: [key + 1, key + 1 + lines[n].slice(key + 1).search(/\t|$/)]})
+        const [start, key] = HEADER_LINE.exec(lines[n]).indices[1]
+        found.push({line: n, key: [start, key], tag: [key + 1, key + 1 + lines[n].slice(key + 1).search(/\t|$/)]})
     }
     return found
 }

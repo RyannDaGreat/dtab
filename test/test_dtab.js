@@ -21,6 +21,10 @@ function testDocumentedExamples() {
     assert.deepStrictEqual(dtab.parse('config\tdb\n\tinit sql\t schema\n\t\tCREATE\n\tport 1'), {config: {db: {init: 'CREATE', port: '1'}}}, 'a comment may follow the tag')
     assert.deepStrictEqual(dtab.parse('hello big world\n\tkey value'), {hello: 'key value'}, 'any leaf text is a tag')
     assert.throws(() => dtab.parse('x 1\ty 2\n\tz 3'), /line 2: indented under several leaves/)
+    assert.deepStrictEqual(dtab.parse('x, y 1\nservers\talpha,\n\tbeta,\tgamma\tport 80'),
+        {x: '1', y: '1', servers: {alpha: {port: '80'}, beta: {port: '80'}, gamma: {port: '80'}}}, 'whitespace after a comma is skipped, line breaks included')
+    assert.throws(() => dtab.parse('a,\n comment\nb 1'), /line 1: invalid key "a,": a comma needs a key on both sides/)
+    assert.strictEqual(dtab.parse('k a, b').k, 'a, b', 'a value keeps its comma and space')
     assert.strictEqual(dtab.stringify({query: 'SELECT *\nFROM t', table: 'a\tb'}), 'query txt\n\tSELECT *\n\tFROM t\ntable txt\n\ta\tb')
     for (const value of ['x\ny', 'x\ty', 'a\n\n\tb\n  c', '#!/bin/bash\necho hi', ''])
         assert.deepStrictEqual(dtab.parse(dtab.stringify({a: value})), {a: value}, 'multiline round trip: ' + JSON.stringify(value))

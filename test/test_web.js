@@ -93,6 +93,21 @@ async function main() {
         assert.deepStrictEqual((await lineTokens(page, 3)).map(t => t[0]), ['dtab-leaf-key', 'dtab-value'], 'a one-word leaf without deeper lines stays a leaf')
         assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), {command: 'echo hi', dialect: 'sql', after: '1'})
 
+        // 2c. Whitespace after a comma in a key: spaces and tabs within the line, or a line break with the list
+        //     going on on the next line, where the mode looks ahead to color the dangling keys as what the list
+        //     turns out to be. A comma that only a comment follows is an error.
+        await setEditorText(page, 'x, y 1\nlist\talpha,\n\tbeta,\tgamma\tport 80\nq,\nr txt\n\ttext\nbad,\n a comment\n')
+        assert.deepStrictEqual(await lineTokens(page, 1), [['dtab-leaf-key', 'x, y '], ['dtab-value', '1']])
+        assert.deepStrictEqual(await lineTokens(page, 2), [['dtab-object-key', 'list'], ['tab', '\t'], ['dtab-object-key', 'alpha,']])
+        const tabbed = await lineTokens(page, 3)   // the tab inside the key token is drawn as spaces
+        assert.deepStrictEqual(tabbed.map(t => t[0]), ['tab', 'dtab-object-key', 'tab', 'dtab-leaf-key', 'dtab-value'])
+        assert.match(tabbed[1][1], /^beta, +gamma$/, 'one key token across the tab after the comma')
+        assert.deepStrictEqual((await lineTokens(page, 4)).map(t => t[0]), ['dtab-leaf-key'], 'a dangling list that ends as a leaf is painted as one')
+        assert.deepStrictEqual((await lineTokens(page, 5)).map(t => t[0]), ['dtab-block-key', 'dtab-block-tag'], 'the continuation line is the header')
+        assert.deepStrictEqual(await lineTokens(page, 7), [['dtab-bad-key', 'bad,']])
+        const commaError = await page.$eval('#output', element => element.textContent)
+        assert.ok(commaError.includes('line 7') && commaError.includes('a comma needs a key'), 'error not shown: ' + commaError)
+
         // 3. The toggles: unchecking removes the colors and the tab glyphs, and the choice survives a reload.
         const valueColor = () => page.evaluate(() => getComputedStyle(document.querySelector('.cm-dtab-value')).color)
         const glyph = () => page.evaluate(() => getComputedStyle(document.querySelector('.cm-tab'), '::before').content)

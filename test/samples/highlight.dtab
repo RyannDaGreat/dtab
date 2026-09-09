@@ -21,3 +21,16 @@ config	db
 		CREATE TABLE t
 dialect sql
 after 1
+spaced	l1, l2, l3 light
+tabbed	x,	y 1
+list	alpha,
+	beta,
+	gamma	port 80
+x,
+y 1
+bad	a,,b 1
+dangle,
+ a comment cannot follow the comma
+q,
+r txt
+	plain text

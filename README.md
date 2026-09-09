@@ -45,13 +45,21 @@ dtab.parse(open("scene.dtab").read())
   a	b	c,d x
   ```
 
+  A long list goes one key per line, the comma at the end of each saying it goes on:
+
+  ```
+  servers	alpha,
+  	beta,
+  	gamma	port 80
+  ```
+
 ## Rules
 
 - Tabs separate the steps of a path. `deltas	l1	position` walks three keys down. Several tabs in a row count as one, so you can align columns.
 - An entry with a space is `key value`. It sets the key and stays at the same level, so `x 1	y .5` sets two keys.
 - An indented line continues the path of the line above it.
 - Writing a key again replaces it. Writing into an object merges.
-- `a,b` writes the same value under `a` and under `b`.
+- `a,b` writes the same value under `a` and under `b`. Spaces, tabs or a line break may follow the comma, so `a, b`, and `a,` at the end of a line with `b` on the next, are the same list. A key must follow the comma: a comment cannot stand there.
 - An entry that starts with a space is a comment.
 - A leaf with lines indented under it is a multiline string. See below.
 
@@ -93,7 +101,7 @@ error, since no leaf can claim it.
 
 - **Python**: `pip install dtab` then `import dtab`
 - **JavaScript**: `npm install deltatab` then `const dtab = require('deltatab')`, or `<script src="https://cdn.jsdelivr.net/npm/deltatab/dtab.js">` for `window.dtab`
-- **Vim**: `Plugin 'RyannDaGreat/dtab'` (Vundle) or `Plug 'RyannDaGreat/dtab'` (vim-plug), or paste `dtab.vim` into your vimrc. Highlights `*.dtab`, flags bad keys and trailing tabs, gives the file a Δ icon in NERDTree if vim-devicons is installed, `:DtabPreview` opens a split showing the tree as JSON that follows your edits (needs `+python3`), and `J` joins the line below with a tab (deep form to wide form) whenever that keeps the tree the same.
+- **Vim**: `Plugin 'RyannDaGreat/dtab'` (Vundle) or `Plug 'RyannDaGreat/dtab'` (vim-plug), or paste `dtab.vim` into your vimrc. Highlights `*.dtab`, flags bad keys and trailing tabs, gives the file a Δ icon in NERDTree if vim-devicons is installed, `:DtabPreview` opens a split showing the tree as JSON that follows your edits (needs `+python3`), and `J` joins the line below with a tab (deep form to wide form), or with a space after a comma, whenever that keeps the tree the same.
 - **VS Code**: search "dtab" in Extensions, or `code --install-extension RyannDaGreat.dtab`. Highlighting, a Δ file icon, and a live JSON preview of the file beside it (the preview button in the title bar, or Cmd+K V).
 - **Claude Code, Codex, Cursor and other agents**: `npx skills add RyannDaGreat/dtab` installs a skill that teaches the agent the rules ([`skills/dtab/SKILL.md`](skills/dtab/SKILL.md), in the Agent Skills format they all read).
 

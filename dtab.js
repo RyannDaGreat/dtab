@@ -17,7 +17,9 @@
  *   - An entry with a space is `key value`, split at the first space. It sets the key and stays put.
  *   - An indented line continues the path of the line above it.
  *   - Writing a key again replaces it; writing into an object merges. Last line wins.
- *   - `a,b` writes the same value under a and under b.
+ *   - `a,b` writes the same value under a and under b. After the comma, spaces, then tabs or line breaks, are
+ *     skipped, so `a, b` and `a,` at the end of a line with `b` on the next are the same. What follows the comma
+ *     must be a key: a comment there (a space after a tab or a line break), or nothing, is an error.
  *   - An entry starting with a space is a comment. A trailing tab is an empty key that swallows the lines under it.
  *   - A leaf with lines indented under it is a multiline string: those lines are the value, one tab deeper
  *     than the key's line and verbatim from there, tabs included (the only way to put a tab in a value). The
@@ -35,8 +37,11 @@ const KEY_SEPARATOR = ','  // a,b writes the same value under each key
 const TEXT_TAG = 'txt'     // the tag stringify gives a multiline string; any single word is a tag, editors color the ones they know
 const KEY_PUNCTUATION = '_.-/'   // Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
 const KEY_RULE = 'keys may contain only letters, digits and ' + [...KEY_PUNCTUATION].join(' ')
+const COMMA_RULE = 'a comma needs a key on both sides; a comment does not count'
 const TAB_RUN = /\t+/  // Several tabs in a row are one separator, so columns can be aligned
 const KEY = new RegExp('^[\\p{L}\\p{N}' + KEY_PUNCTUATION.replace(/[\]\\^-]/g, '\\$&') + ']+$', 'u')  // letters, digits (as Python's \w) and the punctuation; the rest is reserved for syntax
+const SPACED_KEYS = /(^|\t)((?:[^\t\n ,]+, *[\t\n]*)+)/g  // keys at an entry's start whose commas are followed by whitespace
+const DANGLING = /(?:^|\t)[^\t\n ]*,$/  // a key list ending in a comma: it goes on on the next line
 
 /**
  * Pure function. Parses dtab text into nested plain objects of strings. Throws, with the line number,
@@ -55,6 +60,9 @@ const KEY = new RegExp('^[\\p{L}\\p{N}' + KEY_PUNCTUATION.replace(/[\]\\^-]/g, '
  * @example parse('a\tb 1\nc|d\te 2')              // throws: dtab line 2: invalid key "c|d": keys may contain only letters, digits and _ . - /
  * @example parse('hello big world\n\tkey value')   // {hello: 'key value'}
  * @example parse('x 1\ty 2\n\tz 3')                 // throws: dtab line 2: indented under several leaves; a multiline string has one
+ * @example parse('x, y 1\nservers\talpha,\n\tbeta,\tgamma\tport 80')
+ *   // {x: '1', y: '1', servers: {alpha: {port: '80'}, beta: {port: '80'}, gamma: {port: '80'}}}
+ * @example parse('a,\n comment\nb 1')   // throws: dtab line 1: invalid key "a,": a comma needs a key on both sides; a comment does not count
  */
 function parse(text) {
     const root = {}
@@ -62,7 +70,8 @@ function parse(text) {
     let block = null  // after a line of one leaf: {indent, nodes, names, deep: raw lines under it}
     const lines = text.split('\n')
     for (let index = 0; index < lines.length; index++) {
-        const line = lines[index]
+        let line = lines[index]
+        const lineNumber = index + 1
         const indent = line.length - line.replace(/^\t+/, '').length
         if (block) {
             if (!line.trim() || indent > block.indent) {
@@ -73,8 +82,10 @@ function parse(text) {
             block = null
         }
         if (!line.trim()) continue
+        line = closeUp(line)
+        while (DANGLING.test(line) && index + 1 < lines.length) line = closeUp(line + '\n' + lines[++index])  // the key list goes on on the next line
         while (stack[stack.length - 1][0] >= indent) stack.pop()
-        if (stack[stack.length - 1][2]) throw new Error('dtab line ' + (index + 1) + ': indented under several leaves; a multiline string has one')
+        if (stack[stack.length - 1][2]) throw new Error('dtab line ' + lineNumber + ': indented under several leaves; a multiline string has one')
         let nodes = stack[stack.length - 1][1]
         const leaves = []  // [names, value] of the line's leaves; a line of exactly one may be a multiline string's header
         let stepsIn = false
@@ -85,7 +96,7 @@ function parse(text) {
                 if (spaceAt === -1) { nodes = [{}]; stepsIn = true }  // Empty key (trailing tab): everything under it is discarded
                 continue
             }
-            const names = keyNames(key, index + 1, true)
+            const names = keyNames(key, lineNumber, true)
             if (spaceAt !== -1) {
                 const value = entry.slice(spaceAt + 1)
                 for (const node of nodes) for (const name of names) node[name] = value
@@ -151,16 +162,28 @@ function stringify(tree) {
  * @example keyNames('l1,l2', 1, true)           // ['l1', 'l2']
  * @example keyNames('file-thing.json', null, false) // ['file-thing.json']
  * @example keyNames('a,b', null, false)          // throws: dtab: invalid key "a,b": keys may contain only letters, digits and _ . - /
+ * @example keyNames('a,,b', 3, true)             // throws: dtab line 3: invalid key "a,,b": a comma needs a key on both sides; a comment does not count
  */
 function keyNames(key, lineNumber, allowCommas) {
     const names = allowCommas ? key.split(KEY_SEPARATOR) : [key]
     for (const name of names) {
         if (!KEY.test(name)) {
             const where = lineNumber ? ' line ' + lineNumber : ''
-            throw new Error('dtab' + where + ': invalid key ' + JSON.stringify(key) + ': ' + KEY_RULE)
+            throw new Error('dtab' + where + ': invalid key ' + JSON.stringify(key) + ': ' + (allowCommas && !name ? COMMA_RULE : KEY_RULE))
         }
     }
     return names
+}
+
+/**
+ * Pure function. A line with the whitespace after its keys' commas removed: `a, b,` becomes `a,b,`.
+ * Values keep theirs, since only an entry's start is a key.
+ *
+ * @example closeUp('x, y 1\tk a, b')   // 'x,y 1\tk a, b'
+ * @example closeUp('a,\n\tb,\tc')      // 'a,b,c'
+ */
+function closeUp(line) {
+    return line.replace(SPACED_KEYS, (match, before, keys) => before + keys.replace(/[ \t\n]/g, ''))
 }
 
 /**

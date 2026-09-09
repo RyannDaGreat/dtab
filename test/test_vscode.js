@@ -81,9 +81,14 @@ async function main() {
         // Differences that are fine: vim paints only the offending character of a bad key red, the grammar
         // paints the whole key (so X is accepted wherever vim has a key letter in an entry that contains an X);
         // the space after a leaf key is K in vim and uncaptured here; a trailing tab is E in vim, '.' here.
+        // A key list that ends its line with a comma goes on on the next line: vim's match spans both lines,
+        // so it knows whether the list ends as a leaf (K) and paints the next line's leading tabs as part of
+        // the key, while the grammar sees one line at a time: object keys (O), indent ('.'), and a comma it
+        // cannot tell is bad (',') because only a comment follows it.
         const got = letters(sample[i], result.tokens)
         const want = expected[i].replace(/E/g, '.')
         const bytes = Buffer.from(sample[i])   // both maps are per byte
+        const dangling = /,$/.test(sample[i])
         const entryHasBadKey = c => {
             const start = bytes.lastIndexOf('\t', c) + 1
             let end = bytes.indexOf('\t', c); if (end === -1) end = bytes.length
@@ -97,6 +102,9 @@ async function main() {
                 || (want[c] === 'T' && bytes[c] === 0x20 && got[c] === '?')   // the space before a tag: vim's tag match includes it
                 || (want[c] === 'T' && got[c] === 'V')                        // a header's tag: the grammar cannot see the deeper line, so it is a value until semantic tokens paint it
                 || (bytes[c] === 0x09 && (got[c] === '?' || got[c] === 'B' || want[c] === 'B'))  // tabs in and around a string: region vs capture boundaries
+                || (dangling && want[c] === 'K' && got[c] === 'O')
+                || (bytes[c] === 0x09 && 'OK'.includes(want[c]) && got[c] === '.')
+                || (dangling && c === bytes.length - 1 && want[c] === 'X' && got[c] === ',')
             assert.ok(ok, 'line ' + (i + 1) + ' col ' + (c + 1) + ': vim says ' + JSON.stringify(want[c]) + ', grammar says ' + JSON.stringify(got[c]) + '\n  ' + JSON.stringify(sample[i]) + '\n  want ' + want + '\n  got  ' + got)
         }
     }
@@ -159,10 +167,10 @@ async function main() {
     assert.strictEqual(insideBlock(['x 1\ty 2', '\tz'], 1), false, 'two leaves are no header')
     assert.strictEqual(insideBlock(['code ', '\tx'], 0), false, 'the header itself is not inside the string')
     const {isHeaderLine, headers} = require(path.join(EXTENSION, manifest.main))
-    assert.deepStrictEqual(['query sql', 'prompt ', '\tinit sql\t note', ' note\tq sql', 'hello big world', 'a\tb sql', 'x 1\ty 2', 'k', 'q sql\t'].map(isHeaderLine),
-        [true, true, true, true, true, false, false, false, false], 'header shape: one leaf, comments around it')
-    assert.deepStrictEqual(headers(['query sql\t note', '\tSELECT 1', 'dialect sql', 'after 1', 'x', '\tp ', '', '\t\ttext']),
-        [{line: 0, key: [0, 5], tag: [6, 9]}, {line: 5, key: [1, 2], tag: [3, 3]}], 'headers are the shaped lines followed by a deeper line, blank lines skipped')
+    assert.deepStrictEqual(['query sql', 'prompt ', '\tinit sql\t note', ' note\tq sql', 'hello big world', 'x, y sql', 'x,\ty sql', 'a\tb sql', 'x 1\ty 2', 'k', 'q sql\t'].map(isHeaderLine),
+        [true, true, true, true, true, true, true, false, false, false, false], 'header shape: one leaf, comments around it, whitespace after a comma inside the keys')
+    assert.deepStrictEqual(headers(['query sql\t note', '\tSELECT 1', 'dialect sql', 'after 1', 'x', '\tp ', '', '\t\ttext', ' note\tx, y sql', '\tSELECT 2']),
+        [{line: 0, key: [0, 5], tag: [6, 9]}, {line: 5, key: [1, 2], tag: [3, 3]}, {line: 8, key: [6, 10], tag: [11, 14]}], 'headers are the shaped lines followed by a deeper line, blank lines skipped')
     const {shiftLine} = require(path.join(EXTENSION, manifest.main))
     assert.strictEqual(shiftLine('\tdef f():', true, 1), '\t    def f():')
     assert.strictEqual(shiftLine('\t    return', true, -1), '\treturn')

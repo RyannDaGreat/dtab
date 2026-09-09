@@ -1,0 +1,24 @@
+ After a comma in a key, whitespace is skipped: spaces, tabs, or a line break with the next key on the line below
+objects	l1, l2, l3 light
+deltas	initial	l1, l2, l3	castShadow true
+deltas	initial	l1,	l2	intensity .4
+
+ A long list goes one key per line. The comma at the end says the list goes on.
+servers	alpha,
+	beta,
+	gamma
+		port 80
+		region us-east
+
+ The continuation may hang deeper or keep the first line's indent; the line has the first line's indent either way
+lights
+	key,
+	fill,
+	rim	castShadow true
+
+ Leaves too, and the header of a multiline string
+x, y 1
+query,
+backup sql
+	SELECT name FROM users
+	WHERE age > 30

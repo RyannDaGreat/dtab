@@ -1,0 +1,51 @@
+{
+    "objects": {
+        "l1": "light",
+        "l2": "light",
+        "l3": "light"
+    },
+    "deltas": {
+        "initial": {
+            "l1": {
+                "castShadow": "true",
+                "intensity": ".4"
+            },
+            "l2": {
+                "castShadow": "true",
+                "intensity": ".4"
+            },
+            "l3": {
+                "castShadow": "true"
+            }
+        }
+    },
+    "servers": {
+        "alpha": {
+            "port": "80",
+            "region": "us-east"
+        },
+        "beta": {
+            "port": "80",
+            "region": "us-east"
+        },
+        "gamma": {
+            "port": "80",
+            "region": "us-east"
+        }
+    },
+    "lights": {
+        "key": {
+            "castShadow": "true"
+        },
+        "fill": {
+            "castShadow": "true"
+        },
+        "rim": {
+            "castShadow": "true"
+        }
+    },
+    "x": "1",
+    "y": "1",
+    "query": "SELECT name FROM users\nWHERE age > 30",
+    "backup": "SELECT name FROM users\nWHERE age > 30"
+}

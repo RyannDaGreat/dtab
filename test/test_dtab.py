@@ -12,10 +12,12 @@ Checks:
      in test/expected/, which were diffed against the original when written. The differences are exactly:
      blank lines are ignored, an object can overwrite a leaf, comma keys respect line order (in game_config
      that is one leaf, deltas.initial.l1.intensity, where the original ignored the later `l1	intensity 1`),
-     and multiline strings (`key word` with lines under it), which the original did not have.
+     multiline strings (`key word` with lines under it), and whitespace after a comma in a key
+     (comma_whitespace.dtab), which the original did not have.
   4. parse(stringify(parse(text))) == parse(text) for every sample.
   5. The key rule (letters, digits, _ . -): bad keys are rejected with a line number in parse and in
-     stringify, and the Python and JS character classes agree on a set of Unicode probes.
+     stringify, and the Python and JS character classes agree on a set of Unicode probes. Whitespace after
+     a comma in a key (`a, b`, `a,` continued on the next line): both parsers give the same tree or error.
   6. node test/test_dtab.js.
   7. Vim: the syntax groups over test/samples/highlight.dtab match test/expected/highlight.txt byte by byte
      (that sample deliberately contains invalid keys, so it is not parsed), embedded languages, the Tab and
@@ -47,7 +49,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SKILL = ROOT / "skills" / "dtab" / "SKILL.md"
 HIGHLIGHT_SAMPLE = ROOT / "test" / "samples" / "highlight.dtab"
 SAMPLES = sorted(path for path in (ROOT / "test" / "samples").glob("*.dtab") if path != HIGHLIGHT_SAMPLE)
-DEVIATING = {"deviations.dtab", "game_config.dtab", "multiline.dtab"}  # multiline: strings did not exist in the original
+DEVIATING = {"deviations.dtab", "game_config.dtab", "multiline.dtab", "comma_whitespace.dtab"}  # multiline strings and whitespace after commas did not exist in the original
 IDENTIFIER_PROBES = ["café", "变量", "x²", "_x", "0x", "a-b", "ok_1", "ª", "Ⅻ", "℘", "ℕ", "𝔸", "a.b", "é1", "1é", "a/b", "a:b", "ä-ö.ü", "١٢٣", "a~b"]   # the key rule, py vs js
 
 sys.path.insert(0, str(ROOT))
@@ -156,6 +158,51 @@ def test_key_rule():
         (probe, py, js) for probe, py, js in zip(IDENTIFIER_PROBES, python_verdicts, js_verdicts) if py != js]
 
 
+COMMA_CASES = {   # text -> the tree, or the fragment of the error; the same in Python and in JS
+    "a, b 1": {"a": "1", "b": "1"},
+    "a,\tb 1": {"a": "1", "b": "1"},
+    "a,\nb 1": {"a": "1", "b": "1"},
+    "a,\n\tb 1": {"a": "1", "b": "1"},
+    "a,\n\n\n\tb 1": {"a": "1", "b": "1"},
+    "a, \tb 1": {"a": "1", "b": "1"},
+    "a,\t\n\tb 1": {"a": "1", "b": "1"},
+    "a, b, c 1": {"a": "1", "b": "1", "c": "1"},
+    "a,\n\tb,\n\tc 1": {"a": "1", "b": "1", "c": "1"},
+    "\ta,\n\t\tb 1": {"a": "1", "b": "1"},
+    "servers\talpha,\n\tbeta\tport 80": {"servers": {"alpha": {"port": "80"}, "beta": {"port": "80"}}},
+    "a,\n\tb\n\t\tc 1": {"a": {"c": "1"}, "b": {"c": "1"}},   # the logical line keeps the first line's indent
+    "q,\n\tr sql\n\tSELECT 1\nafter 2": {"q": "SELECT 1", "r": "SELECT 1", "after": "2"},   # a split header
+    "items txt\n\tapple,\n\tbanana\nafter 1": {"items": "apple,\nbanana", "after": "1"},   # text is verbatim
+    "x a, b\ty c,": {"x": "a, b", "y": "c,"},   # values keep their commas and spaces
+    "a,": "line 1: invalid key 'a,': a comma needs a key",
+    "a,\n comment\nb 1": "line 1: invalid key 'a,'",
+    "a,\n\t comment\nb 1": "line 1: invalid key 'a,'",
+    "a,\t b 1": "line 1: invalid key 'a,'",
+    "a,\n  b 1": "line 1: invalid key 'a,'",   # spaces after a line break are a comment, not indentation
+    ",a 1": "invalid key ',a'",
+    "a,,b 1": "invalid key 'a,,b'",
+    "a, ,b 1": "invalid key 'a,,b'",
+    "a,\nb|c 1": "line 1: invalid key 'a,b|c': keys may contain",
+    "a,\n\tb x\ty 2\n\tz 3": "line 3: indented under several leaves",
+}
+
+
+def test_comma_whitespace():
+    """After a comma in a key, spaces, tabs and line breaks are skipped; both parsers agree on every case."""
+    js_results = json.loads(run(
+        "node", "-e",
+        "const d = require('./dtab.js'); console.log(JSON.stringify(%s.map(t => { try { return d.parse(t) } catch (e) { return e.message.replace(/\"/g, \"'\") } })))"
+        % json.dumps(list(COMMA_CASES)),
+    ))
+    for (text, expected), js_result in zip(COMMA_CASES.items(), js_results):
+        if isinstance(expected, dict):
+            assert dtab.parse(text) == expected, "%r: dtab.py gives %r" % (text, dtab.parse(text))
+            assert js_result == expected, "%r: dtab.js gives %r" % (text, js_result)
+        else:
+            raises_value_error(lambda: dtab.parse(text), expected)
+            assert isinstance(js_result, str) and expected in js_result, "%r: dtab.js gives %r" % (text, js_result)
+
+
 def test_js_suite():
     subprocess.run(["node", "test/test_dtab.js"], check=True, cwd=ROOT)
 
@@ -250,6 +297,21 @@ def test_vim_join():
     assert joined == expected, joined
 
 
+def test_vim_join_after_comma():
+    """J on a line whose key list ends in a comma joins the continuation with a space, `a,` and `b` to `a, b`, whatever the depths."""
+    text = "x,\ny 1\nlist\talpha,\n\tbeta,\n\tgamma\tport 80\nsame\tk,\nk2 2\n"
+    with tempfile.TemporaryDirectory() as directory:
+        sample = Path(directory) / "join.dtab"
+        sample.write_text(text)
+        out = Path(directory) / "lines.txt"
+        vim("syntax on", "source dtab.vim", "edit " + str(sample),
+            "execute '1normal J' | execute '2normal 3J' | execute '3normal J'",
+            "call writefile(getline(1, '$'), '%s')" % out)
+        lines = out.read_text().split("\n")[:-1]
+    assert lines == ["x, y 1", "list\talpha, beta, gamma\tport 80", "same\tk, k2 2"], lines
+    assert dtab.parse("\n".join(lines)) == dtab.parse(text)
+
+
 def test_vim_preview():
     """:DtabPreview opens a JSON split of the buffer's tree that follows edits (showing the parser's message when the text is broken), and closes it when repeated."""
     sample = SAMPLES[0]
@@ -304,8 +366,9 @@ def test_vscode_live():
 
 
 if __name__ == "__main__":
-    for test in [test_doctests, test_skill_examples, test_readers_agree, test_round_trips, test_key_rule, test_js_suite,
-                 test_vim_highlighting, test_vim_embedded_languages, test_vim_tab_key, test_vim_shift_keys, test_vim_join, test_vim_preview, test_vim_plugin_shim, test_web_demo, test_vscode_grammar, test_vscode_live]:
+    for test in [test_doctests, test_skill_examples, test_readers_agree, test_round_trips, test_key_rule, test_comma_whitespace, test_js_suite,
+                 test_vim_highlighting, test_vim_embedded_languages, test_vim_tab_key, test_vim_shift_keys, test_vim_join, test_vim_join_after_comma,
+                 test_vim_preview, test_vim_plugin_shim, test_web_demo, test_vscode_grammar, test_vscode_live]:
         test()
         print("ok  " + test.__name__)
     print("All dtab tests passed")

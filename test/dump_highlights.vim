@@ -3,7 +3,7 @@
 "     -c 'edit test/samples/highlight.dtab' -c 'source test/dump_highlights.vim' -c 'call DumpHighlights("out.txt")' -c 'qa!'
 let s:codes = {
     \ 'dtabObjectKey': 'O', 'dtabLeafKey': 'K', 'dtabLeafValue': 'V', 'dtabComment': 'C',
-    \ 'dtabComma': ',', 'dtabTrailingTab': 'E', 'dtabBadKey': 'X',
+    \ 'dtabComma': ',', 'dtabBadComma': 'X', 'dtabTrailingTab': 'E', 'dtabBadKey': 'X',
     \ 'dtabBlockKey': 'K', 'dtabBlockTag': 'T', 'dtabBlock': 'B', 'dtabHeaderComment': 'C',
     \ 'dtabLeaf': ' ', '': '.',
     \ }

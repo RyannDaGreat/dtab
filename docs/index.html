@@ -149,8 +149,10 @@ const EXAMPLE = [
     '\tfill',
     '\t\tintensity .3',
     '',
-    ' a,b writes the same value under several keys',
-    'lights\tkey,fill\tcastShadow true',
+    ' a,b writes the same value under several keys. After the comma, spaces, tabs or a line break may follow.',
+    'lights\tkey, fill\tcastShadow true',
+    'lights\tkey,',
+    '\tfill\tshadowBias .01',
     '',
     ' Writing a key again replaces it. Last line wins.',
     'camera\tfov 35',
@@ -170,20 +172,45 @@ const EXAMPLE = [
 ].join('\n')
 
 const KEY_NAME = dtab.KEY   // the parser's own key rule
+// A key list within a line: runs of non-blanks, where a run ending in a comma goes on past spaces, then tabs
+const KEYS = '[^\\t ]+(?:(?<=,) *\\t*[^\\t ]+)*'
 
 /**
  * Pure function. The CodeMirror token class for one dtab entry (the text between tabs).
- * A key part with a character outside the bag (letters, digits, _ . -) is flagged; commas between parts are fine.
+ * A key part with a character outside the bag (letters, digits, _ . - /) is flagged, and so is a comma with
+ * no key on one side; the whitespace a comma allows after it is fine.
  *
- * @param {string} key - the entry's key (text before its first space, or the whole entry)
- * @param {boolean} isLeaf - whether the entry has a space (key value)
+ * @param {string} key - the entry's key (text before its value's space, or the whole entry)
+ * @param {boolean} isLeaf - whether the entry has a value
  * @returns {string}
- * @example entryClass('l1,l2', true)   // 'dtab-leaf-key'
- * @example entryClass('a|b', false)    // 'dtab-bad-key'
+ * @example entryClass('l1,l2', true)     // 'dtab-leaf-key'
+ * @example entryClass('l1, l2', false)   // 'dtab-object-key'
+ * @example entryClass('a|b', false)      // 'dtab-bad-key'
+ * @example entryClass('a,,b', false)     // 'dtab-bad-key'
  */
 function entryClass(key, isLeaf) {
-    if (!key.split(',').every(name => KEY_NAME.test(name))) return 'dtab-bad-key'
+    if (!key.replace(/, *\t*/g, ',').split(',').every(name => KEY_NAME.test(name))) return 'dtab-bad-key'
     return isLeaf ? 'dtab-leaf-key' : 'dtab-object-key'
+}
+
+/**
+ * Query (reads the lines after the stream's). How a key list that ends its line with a comma goes on: 'leaf'
+ * or 'object' by what ends the list on a later line, or null when nothing valid follows (the end of the
+ * text, or a line that does not start with a key after its tabs), which makes that comma an error.
+ *
+ * @example continuation(stream)   // 'leaf' when the stream is on 'x,' and the next line is 'y 1'
+ * @example continuation(stream)   // 'object' when the stream is on 'alpha,' and the next line is '\tbeta\tport 80'
+ * @example continuation(stream)   // null when the stream is on 'a,' and the next line is ' a comment'
+ */
+function continuation(stream) {
+    for (let n = 1; ; n++) {
+        const next = stream.lookAhead(n)
+        if (next === undefined) return null
+        if (/^\t*$/.test(next)) continue
+        const match = new RegExp('^\\t*(' + KEYS + ')').exec(next)
+        if (!match) return null
+        if (!match[1].endsWith(',')) return next[match[0].length] === ' ' ? 'leaf' : 'object'
+    }
 }
 
 // Language tag of a multiline string's header -> CodeMirror mode. No tag: a shebang on the first line, else plain.
@@ -211,13 +238,16 @@ function shebangTag(line) {
 /** Pure function. Number of leading tabs of a line. @example lineIndent('\t\tx') // 2 */
 const lineIndent = line => line.length - line.replace(/^\t+/, '').length
 
+const HEADER_LINE = new RegExp('^\\t*(?: [^\\t]*\\t+)*' + KEYS + ' [^\\t]*(?:\\t+ [^\\t]*)*$')
+
 /**
  * Pure function. Whether a line has the shape that opens a multiline string once a deeper line follows:
  * exactly one leaf and otherwise only comments. The parser's rule.
  * @example isHeaderLine('query sql\t note')   // true
+ * @example isHeaderLine('x, y sql')           // true (one leaf with two keys)
  * @example isHeaderLine('x 1\ty 2')           // false
  */
-const isHeaderLine = line => /^\t*(?: [^\t]*\t+)*[^\t ]+ [^\t]*(?:\t+ [^\t]*)*$/.test(line)
+const isHeaderLine = line => HEADER_LINE.test(line)
 
 /**
  * Query (reads the lines after the stream's). Whether the next non-blank line is deeper than the stream's line.
@@ -281,16 +311,19 @@ CodeMirror.defineMode('dtab', config => ({
         if (stream.eatWhile('\t')) return 'tab'                        // CodeMirror styles 'tab' tokens as .cm-tab
         if (stream.eat(' ')) { stream.skipTo('\t') || stream.skipToEnd(); return 'dtab-comment' }
         const start = stream.pos
-        while (!stream.eol() && stream.peek() !== '\t' && stream.peek() !== ' ') stream.next()
-        const key = stream.string.slice(start, stream.pos)
-        const isLeaf = stream.peek() === ' '
+        do { while (!stream.eol() && stream.peek() !== '\t' && stream.peek() !== ' ') stream.next() }   // a key, going on past a comma's whitespace
+        while (stream.string[stream.pos - 1] === ',' && stream.match(/^ *\t*(?=[^\t ])/))
+        let key = stream.string.slice(start, stream.pos)
+        const goesOn = key.endsWith(',') && stream.eol() ? continuation(stream) : null   // the list ends on a later line
+        if (goesOn) key = key.slice(0, -1)
+        const isLeaf = goesOn ? goesOn === 'leaf' : stream.peek() === ' '
         if (state.header && isLeaf) {                                   // the header's key, then its tag; the string starts on the next line
             const tag = stream.string.slice(stream.pos + 1).split('\t')[0]
             state.pending = blockState(config, lineIndent(stream.string), tag || null)
             state.tagPending = true
             return entryClass(key, true) === 'dtab-bad-key' ? 'dtab-bad-key' : 'dtab-block-key'
         }
-        if (isLeaf) { stream.next(); state.inValue = !stream.eol() }
+        if (isLeaf && !goesOn) { stream.next(); state.inValue = !stream.eol() }
         return entryClass(key, isLeaf)
     },
 }))

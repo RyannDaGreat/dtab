@@ -16,7 +16,9 @@ Rules:
   - An entry with a space is `key value`, split at the first space. It sets the key and stays put.
   - An indented line continues the path of the line above it.
   - Writing a key again replaces it; writing into an object merges. Last line wins.
-  - `a,b` writes the same value under a and under b.
+  - `a,b` writes the same value under a and under b. After the comma, spaces, then tabs or line breaks, are
+    skipped, so `a, b` and `a,` at the end of a line with `b` on the next are the same. What follows the comma
+    must be a key: a comment there (a space after a tab or a line break), or nothing, is an error.
   - An entry starting with a space is a comment. A trailing tab is an empty key that swallows the lines under it.
   - A leaf with lines indented under it is a multiline string: those lines are the value, one tab deeper
     than the key's line and verbatim from there, tabs included (the only way to put a tab in a value). The
@@ -31,14 +33,17 @@ Single pass, one stack, O(total characters).
 import json
 import re
 
-__version__ = "0.4.1"  # SEMANTIC BINDING: dtab-version (also package.json "version")
+__version__ = "0.5.0"  # SEMANTIC BINDING: dtab-version (also package.json "version")
 
 KEY_SEPARATOR = ","  # a,b writes the same value under each key
 TEXT_TAG = "txt"  # the tag stringify gives a multiline string; any single word is a tag, editors color the ones they know
 KEY_PUNCTUATION = "_.-/"  # Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
 KEY_RULE = "keys may contain only letters, digits and " + " ".join(KEY_PUNCTUATION)
+COMMA_RULE = "a comma needs a key on both sides; a comment does not count"
 _TAB_RUN = re.compile(r"\t+")  # Several tabs in a row are one separator, so columns can be aligned
 _KEY = re.compile(r"[\w" + re.escape(KEY_PUNCTUATION) + "]+")  # \w: letters, digits, _ (Unicode); the rest is reserved for syntax
+_SPACED_KEYS = re.compile(r"(?:^|(?<=\t))(?:[^\t\n ,]+, *[\t\n]*)+")  # keys at an entry's start whose commas are followed by whitespace
+_DANGLING = re.compile(r"(?:^|\t)[^\t\n ]*,\Z")  # a key list ending in a comma: it goes on on the next line
 
 
 def parse(text):
@@ -73,11 +78,17 @@ def parse(text):
         >>> parse('x 1\\ty 2\\n\\tz 3')
         Traceback (most recent call last):
         ValueError: dtab line 2: indented under several leaves; a multiline string has one
+        >>> parse('x, y 1\\nservers\\talpha,\\n\\tbeta,\\tgamma\\tport 80')
+        {'x': '1', 'y': '1', 'servers': {'alpha': {'port': '80'}, 'beta': {'port': '80'}, 'gamma': {'port': '80'}}}
+        >>> parse('a,\\n comment\\nb 1')
+        Traceback (most recent call last):
+        ValueError: dtab line 1: invalid key 'a,': a comma needs a key on both sides; a comment does not count
     """
     root = {}
     stack = [(-1, [root], False)]  # (indent, nodes that deeper lines nest into, whether the line is several leaves)
     block = None  # after a line of one leaf: (its indent, nodes, names, raw lines under it)
-    for line_number, line in enumerate(text.split("\n"), 1):
+    numbered = enumerate(text.split("\n"), 1)
+    for line_number, line in numbered:
         indent = len(line) - len(line.lstrip("\t"))
         if block is not None:
             if not line.strip() or indent > block[0]:
@@ -87,6 +98,9 @@ def parse(text):
             block = None
         if not line.strip():
             continue
+        line = _SPACED_KEYS.sub(_close_up, line)
+        while _DANGLING.search(line) and (pulled := next(numbered, None)):  # the key list goes on on the next line
+            line = _SPACED_KEYS.sub(_close_up, line + "\n" + pulled[1])
         while stack[-1][0] >= indent:
             stack.pop()
         if stack[-1][2]:
@@ -142,6 +156,17 @@ def stringify(tree):
     return "\n".join(lines)
 
 
+def _close_up(match):
+    """
+    Pure function. A regex match's text without its whitespace: `a, b,` becomes `a,b,`.
+
+    Examples:
+        >>> _close_up(re.match('.*', 'a, b,\\n\\t'))
+        'a,b,'
+    """
+    return "".join(match.group().split())
+
+
 def _key_names(key, line_number, allow_commas):
     """
     Pure function (raises ValueError). The names a key stands for: `a,b` is two while parsing, and a
@@ -153,12 +178,15 @@ def _key_names(key, line_number, allow_commas):
         >>> _key_names('a,b', None, False)
         Traceback (most recent call last):
         ValueError: dtab: invalid key 'a,b': keys may contain only letters, digits and _ . - /
+        >>> _key_names('a,,b', 3, True)
+        Traceback (most recent call last):
+        ValueError: dtab line 3: invalid key 'a,,b': a comma needs a key on both sides; a comment does not count
     """
     names = key.split(KEY_SEPARATOR) if allow_commas else [key]
     for name in names:
         if not _KEY.fullmatch(name):
             where = " line %d" % line_number if line_number else ""
-            raise ValueError("dtab%s: invalid key %r: %s" % (where, key, KEY_RULE))
+            raise ValueError("dtab%s: invalid key %r: %s" % (where, key, COMMA_RULE if allow_commas and not name else KEY_RULE))
     return names
 
 

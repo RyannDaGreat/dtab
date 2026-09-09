@@ -3,14 +3,17 @@
 " after `syntax on`.
 "
 " Object keys purple, leaf keys cyan, leaf values blue, comments (entries starting with a space) as
-" Comment. Errors: trailing tabs (an empty key that silently swallows the following indented lines) and
-" characters a key may not contain (letters, digits, _ . - / only). A leaf with lines indented under it is a
-" multiline string: the key yellow, the leaf's text (a tag for editors) orange, and the lines colored as text,
-" or by the tagged language's own syntax file (sql, python, bash, ...), or by a shebang.
+" Comment. Errors: trailing tabs (an empty key that silently swallows the following indented lines),
+" characters a key may not contain (letters, digits, _ . - / only), and a comma with no key on one side.
+" A leaf with lines indented under it is a multiline string: the key yellow, the leaf's text (a tag for
+" editors) orange, and the lines colored as text, or by the tagged language's own syntax file (sql, python,
+" bash, ...), or by a shebang.
 "
 " A dtab line is tab-indented, with entries separated by tabs:
 "     deltas	l1,l2	position	x 1	y .5	 inline comment
 "     object keys ............... leaf  leaf  comment
+" After a comma in a key, spaces, then tabs or line breaks, are skipped, so `l1, l2` and `l1,` at the end of a
+" line with `l2` on the next are `l1,l2`; a key match may therefore span lines.
 augroup dtab
     autocmd!
     autocmd BufRead,BufNewFile *.dtab setfiletype dtab
@@ -40,18 +43,23 @@ let g:WebDevIconsUnicodeDecorateFileNodesExtensionSymbols = get(g:, 'WebDevIcons
 let g:WebDevIconsUnicodeDecorateFileNodesExtensionSymbols['dtab'] = 'Δ'
 
 function! s:DtabSyntax() abort
-    " An entry is a run of non-tab characters bounded by tabs or the line's ends.
-    " No space in the entry: object key.  Space in the entry: leaf `key value`.  Leading space: comment.
-    syntax match dtabObjectKey   /\%(^\t*\|\t\)\zs[^\t ]\+\ze\%(\t\|$\)/ contains=dtabComma,dtabBadKey
-    syntax match dtabLeaf        /\%(^\t*\|\t\)\zs[^\t ]\+ [^\t]*/         contains=dtabLeafKey,dtabLeafValue
-    syntax match dtabLeafKey     /[^\t ]\+\ze /                              contained contains=dtabComma,dtabBadKey
+    " An entry is a run of non-tab characters bounded by tabs or the line's ends, except that a key's comma
+    " may be followed by whitespace (s:keys). No space in the entry: object key. Space in the entry: leaf
+    " `key value`. Leading space: comment.
+    execute 'syntax match dtabObjectKey   /\%(^\t*\|\t\)\zs' . s:keys . '\ze\%(\t\|$\)/ contains=@dtabKeyParts'
+    execute 'syntax match dtabLeaf        /\%(^\t*\|\t\)\zs' . s:keys . ' [^\t]*/         contains=dtabLeafKey,dtabLeafValue'
+    execute 'syntax match dtabLeafKey     /' . s:keys . '\ze /                             contained contains=@dtabKeyParts'
     syntax match dtabLeafValue   / \zs[^\t]*/                                 contained
     syntax match dtabComment     /\%(^\t*\|\t\)\zs [^\t]*/
-    syntax match dtabComma       /,/                                          contained
     syntax match dtabTrailingTab /\t\+$/
-    " A character outside the key bag: keyword characters (letters incl. multibyte, digits, _) and
-    " s:key_punctuation, plus the , that separates keys
-    execute 'syntax match dtabBadKey /\%(\k\|[,' . escape(s:key_punctuation, ']^-\/') . ']\)\@!./ contained'
+    " A comma needs a key on both sides: the one before it right there, the one after it past the whitespace
+    " it allows. Any other comma is an error (dtabComma is defined last, so it wins where both match).
+    syntax match dtabBadComma    /,/                                                    contained
+    syntax match dtabComma       /[^\t\n ,]\@<=,\ze *[\t\n]*[^\t\n ,]/                  contained
+    " A character outside the key bag: keyword characters (letters incl. multibyte, digits, _),
+    " s:key_punctuation, the , that separates keys and the whitespace a comma allows
+    execute 'syntax match dtabBadKey /\%(\k\|[,' . escape(s:key_punctuation, ']^-\/') . ' \t\n]\)\@!./ contained'
+    syntax cluster dtabKeyParts contains=dtabBadComma,dtabComma,dtabBadKey
 
     " A line of one leaf whose next non-blank line is deeper opens a multiline string. The key match looks ahead
     " for that deeper line (\1 is the line's own tabs), and only from the key can the string's region start,
@@ -59,9 +67,9 @@ function! s:DtabSyntax() abort
     " and runs over every following line indented deeper, or blank. Comment entries may precede the key and
     " follow the tag. Defined after the entry matches so the key wins at the same column. keepend: when the
     " string ends, an embedded-language region inside it ends too.
-    syntax match  dtabBlockKey /^\(\t*\)\%( [^\t]*\t\+\)*\zs[^\t ]\+\ze [^\t]*\%(\t\+ [^\t]*\)*\n\%(\s*\n\)*\1\t/ contains=dtabComma,dtabBadKey nextgroup=dtabBlock
-    syntax region dtabBlock matchgroup=dtabBlockTag start=/\%(^\z(\t*\)\%( [^\t]*\t\+\)*[^\t ]\+\)\@<= [^\t]*/ end=/^\%(\z1\t\|\s*$\)\@!/ contained keepend contains=dtabHeaderComment,@dtabShebangs
-    syntax match  dtabHeaderComment /\%(^\t*\%( [^\t]*\t\+\)*[^\t ]\+ [^\t]*\%(\t\+ [^\t]*\)*\t\+\)\@<= [^\t]*/ contained
+    execute 'syntax match  dtabBlockKey /^\(\t*\)\%( [^\t]*\t\+\)*\zs' . s:keys . '\ze [^\t]*\%(\t\+ [^\t]*\)*\n\%(\s*\n\)*\1\t/ contains=@dtabKeyParts nextgroup=dtabBlock'
+    execute 'syntax region dtabBlock matchgroup=dtabBlockTag start=/\%(^\z(\t*\)\%( [^\t]*\t\+\)*' . s:keys . '\)\@<= [^\t]*/ end=/^\%(\z1\t\|\s*$\)\@!/ contained keepend contains=dtabHeaderComment,@dtabShebangs'
+    execute 'syntax match  dtabHeaderComment /\%(^\t*\%( [^\t]*\t\+\)*' . s:keys . ' [^\t]*\%(\t\+ [^\t]*\)*\t\+\)\@<= [^\t]*/ contained'
     call s:DtabEmbedded()
     syntax sync fromstart
     call s:DtabHighlight()
@@ -91,7 +99,7 @@ function! s:DtabEmbedded() abort
             let l:included[l:syntax] = 1
         endif
         execute 'syntax region dtabBlock matchgroup=dtabBlockTag'
-            \ . ' start=/\%(^\z(\t*\)\%( [^\t]*\t\+\)*[^\t ]\+\)\@<= ' . l:tag . '\ze\%(\t\|$\)/'
+            \ . ' start=/\%(^\z(\t*\)\%( [^\t]*\t\+\)*' . s:keys . '\)\@<= ' . l:tag . '\ze\%(\t\|$\)/'
             \ . ' end=/^\%(\z1\t\|\s*$\)\@!/ contained keepend contains=dtabHeaderComment,@dtabLang_' . l:syntax
     endfor
     for [l:word, l:tag] in items(s:dtab_shebangs)
@@ -106,11 +114,16 @@ endfunction
 let s:block_indent = '    '
 " Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
 let s:key_punctuation = '_.-/'
+" A key list: runs of non-blank characters, where a run ending in a comma may go on past spaces, then tabs
+" or line breaks. Any character goes in; dtabBadKey and dtabBadComma flag the wrong ones.
+let s:keys = '[^\t ]\+\%(,\@<= *[\t\n]*[^\t ]\+\)*'
+" The same within one line, for the functions that look at a line
+let s:line_keys = '[^\t ]\+\%(,\@<= *\t*[^\t ]\+\)*'
 
 function! s:IsHeaderLine(line) abort
     " Whether a line has the shape that opens a multiline string once a deeper line follows: exactly one leaf
     " and otherwise only comments. The parser's rule.
-    return a:line =~ '^\t*\%( [^\t]*\t\+\)*[^\t ]\+ [^\t]*\%(\t\+ [^\t]*\)*$'
+    return a:line =~ '^\t*\%( [^\t]*\t\+\)*' . s:line_keys . ' [^\t]*\%(\t\+ [^\t]*\)*$'
 endfunction
 
 function! s:Deeper(lnum, depth) abort
@@ -195,8 +208,14 @@ function! s:OutdentOperator(type) abort
 endfunction
 
 function! s:Entries(line) abort
-    " A line's entries after its indentation, tab runs being one separator; a trailing tab gives a last empty entry.
-    return split(substitute(a:line, '^\t*', '', ''), '\t\+', 1)
+    " A line's entries after its indentation, tab runs being one separator; a trailing tab gives a last empty
+    " entry. The whitespace a key's comma allows is closed up first, so `a, b` and `a,	b` are one entry `a,b`.
+    return split(substitute(substitute(a:line, '^\t*', '', ''), ',\zs *\t*', '', 'g'), '\t\+', 1)
+endfunction
+
+function! s:Dangling(line) abort
+    " Whether a line's last entry is a key ending in a comma, so the key list goes on on the next line.
+    return substitute(a:line, ',\zs *\t*', '', 'g') =~ '\%(^\t*\|\t\)[^\t ]*,$'
 endfunction
 
 function! s:StepsIn(line) abort
@@ -247,10 +266,10 @@ function! s:Reparents(lnum, upper_depth, upper_steps_in) abort
     return 0
 endfunction
 
-function! s:TabJoin(lnum) abort
-    " Joins line lnum + 1 onto line lnum with one tab, the lower line's own tabs dropped.
+function! s:JoinWith(lnum, glue) abort
+    " Joins line lnum + 1 onto line lnum with glue between, the lower line's own tabs dropped.
     let l:upper = getline(a:lnum)
-    call setline(a:lnum, l:upper . "\t" . substitute(getline(a:lnum + 1), '^\t*', '', ''))
+    call setline(a:lnum, l:upper . a:glue . substitute(getline(a:lnum + 1), '^\t*', '', ''))
     call deletebufline('%', a:lnum + 1)
     call cursor(a:lnum, len(l:upper) + 1)
 endfunction
@@ -263,8 +282,9 @@ function! s:Join(first, last) abort
     " multiline string's header keeps its text below it, and a header joined onto anything would stop being
     " one, so joins involving a header are refused, as is a join whose result would become one (a comment
     " joined onto `v 1` with a deeper line below would turn that line into text). So is an upper line ending
-    " in a tab, whose empty key would vanish into the tab run. Two lines inside a string are text and join
-    " like vim's J. A blank line is dropped, as vim's J drops it.
+    " in a tab, whose empty key would vanish into the tab run. An upper line ending in a comma continues on
+    " the lower one already: they join with a space, `a,` and `b` to `a, b`. Two lines inside a string are
+    " text and join like vim's J. A blank line is dropped, as vim's J drops it.
     for l:step in range(a:first, a:last - 1)
         if a:first >= line('$')
             return
@@ -282,6 +302,8 @@ function! s:Join(first, last) abort
         elseif s:InBlock(a:first + 1) && s:InBlock(a:first)
             call cursor(a:first, 1)
             normal! J
+        elseif s:Dangling(l:upper)
+            call s:JoinWith(a:first, ' ')
         elseif s:IsHeader(a:first) || s:IsHeader(a:first + 1) || l:upper =~ '\t$'
             \ || (s:IsHeaderLine(l:upper . "\t" . substitute(l:lower, '^\t*', '', '')) && s:Deeper(a:first + 1, l:upper_depth))
             \ || l:lower_depth < l:upper_depth
@@ -290,7 +312,7 @@ function! s:Join(first, last) abort
             echohl WarningMsg | echo 'dtab: not joined: the tree would change' | echohl None
             return
         else
-            call s:TabJoin(a:first)
+            call s:JoinWith(a:first, "\t")
         endif
     endfor
 endfunction
@@ -346,6 +368,7 @@ function! s:DtabHighlight() abort
     highlight default link dtabShebang     dtabBlock
     highlight default link dtabHeaderComment Comment
     highlight default link dtabComma       Delimiter
+    highlight default link dtabBadComma    Error
     highlight default link dtabTrailingTab Error
     highlight default link dtabBadKey      Error
 endfunction

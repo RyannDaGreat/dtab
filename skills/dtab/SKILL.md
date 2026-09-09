@@ -22,7 +22,9 @@ dtab FILE.dtab    # prints the tree as JSON, or the error with its line number (
   same level, so `x 1	y .5` sets two keys.
 - An indented line continues the path of the line above it.
 - Writing a key again replaces it. Writing into an object merges. The last line wins.
-- `a,b` writes the same value under `a` and under `b`.
+- `a,b` writes the same value under `a` and under `b`. Spaces, tabs or a line break may follow the
+  comma, so `a, b`, and `a,` at the end of a line with `b` on the next, are the same list. A key must
+  follow the comma: a comment cannot stand there.
 - An entry that starts with a space is a comment.
 - A key is a run of letters, digits, `_`, `.`, `-` and `/`. Anything else is an error, with the line number.
 - A line that is one `key tag` entry, with lines indented under it, is a multiline string: those lines
@@ -63,6 +65,19 @@ a
 ```
 ```json
 {"a": {"b": {"c": "x", "d": "x"}}}
+```
+
+A key list may hold spaces after its commas, or go on to the next line after a comma at the end:
+
+```dtab
+lights	key, fill	on true
+servers	alpha,
+	beta,
+	gamma	port 80
+```
+```json
+{"lights": {"key": {"on": "true"}, "fill": {"on": "true"}},
+ "servers": {"alpha": {"port": "80"}, "beta": {"port": "80"}, "gamma": {"port": "80"}}}
 ```
 
 Comments, replacing and merging:
