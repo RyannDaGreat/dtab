@@ -16,9 +16,12 @@ function testDocumentedExamples() {
         {objects: {l1: 'light', l2: 'light'}, deltas: {l1: {position: {x: '1', y: '.5', z: '-2'}}}})
     assert.deepStrictEqual(dtab.parse('a\tb 1\n\t comment\na\tb 2'), {a: {b: '2'}})
     assert.deepStrictEqual(dtab.parse('a\t\t\tb 1'), {a: {b: '1'}})
-    assert.deepStrictEqual(dtab.parse('$query sql\n\tSELECT *\n\n\t\tFROM users\n\nnext 1'), {query: 'SELECT *\n\n\tFROM users', next: '1'})
-    assert.deepStrictEqual(dtab.parse('$cmd\tpip install rp\tpython train.py'), {cmd: 'pip install rp\npython train.py'})
-    assert.strictEqual(dtab.stringify({query: 'SELECT *\nFROM t'}), '$query\n\tSELECT *\n\tFROM t')
+    assert.deepStrictEqual(dtab.parse('query sql\n\tSELECT *\n\n\t\tFROM users\n\nnext 1'), {query: 'SELECT *\n\n\tFROM users', next: '1'})
+    assert.deepStrictEqual(dtab.parse('table txt\n\tname\tage\nprompt \n\tLook here.\ndialect sql'), {table: 'name\tage', prompt: 'Look here.', dialect: 'sql'})
+    assert.deepStrictEqual(dtab.parse('config\tdb\n\tinit sql\t schema\n\t\tCREATE\n\tport 1'), {config: {db: {init: 'CREATE', port: '1'}}}, 'a comment may follow the tag')
+    assert.throws(() => dtab.parse('hello big world\n\tkey value'), /line 2: indented under a value/)
+    assert.throws(() => dtab.parse('x 1\ty 2\n\tz 3'), /line 2: indented under a value/)
+    assert.strictEqual(dtab.stringify({query: 'SELECT *\nFROM t', table: 'a\tb'}), 'query txt\n\tSELECT *\n\tFROM t\ntable txt\n\ta\tb')
     for (const value of ['x\ny', 'x\ty', 'a\n\n\tb\n  c', '#!/bin/bash\necho hi', ''])
         assert.deepStrictEqual(dtab.parse(dtab.stringify({a: value})), {a: value}, 'multiline round trip: ' + JSON.stringify(value))
     assert.strictEqual(
@@ -29,7 +32,7 @@ function testDocumentedExamples() {
 function testKeyRule() {
     for (const [text, fragment] of [
         ['a\tc|d 1', 'line 1: invalid key "c|d"'],
-        ['ok 1\n\tk:v 2', 'line 2: invalid key "k:v"'],
+        ['ok\n\tk:v 2', 'line 2: invalid key "k:v"'],
         ['~scope\n\tx 1', 'invalid key "~scope"'],
         ['log\t@ e', 'invalid key "@"'],
         ['a,b#c\tx 1', 'invalid key "a,b#c"'],

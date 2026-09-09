@@ -4,7 +4,7 @@
 let s:codes = {
     \ 'dtabObjectKey': 'O', 'dtabLeafKey': 'K', 'dtabLeafValue': 'V', 'dtabComment': 'C',
     \ 'dtabComma': ',', 'dtabTrailingTab': 'E', 'dtabBadKey': 'X',
-    \ 'dtabBlockKey': 'K', 'dtabBlockTag': 'T', 'dtabBlock': 'B',
+    \ 'dtabBlockKey': 'K', 'dtabBlockTag': 'T', 'dtabBlock': 'B', 'dtabHeaderComment': 'C',
     \ 'dtabLeaf': ' ', '': '.',
     \ }
 

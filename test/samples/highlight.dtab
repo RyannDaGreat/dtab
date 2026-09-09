@@ -10,11 +10,14 @@ _private 1
 café 1
 ~scope
 	@ first
-$note
+note 
 	plain block text
 
 		deeper line
-$query sql	
-$wide	line one	line two
-config	db	$init
+query txt	 comment
+	SELECT 1
+config	db
+	init txt
 		CREATE TABLE t
+dialect sql
+after 1

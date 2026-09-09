@@ -12,7 +12,7 @@ Checks:
      in test/expected/, which were diffed against the original when written. The differences are exactly:
      blank lines are ignored, an object can overwrite a leaf, comma keys respect line order (in game_config
      that is one leaf, deltas.initial.l1.intensity, where the original ignored the later `l1	intensity 1`),
-     and `$` multiline blocks, which the original did not have.
+     and multiline strings (`key word` with lines under it), which the original did not have.
   4. parse(stringify(parse(text))) == parse(text) for every sample.
   5. The key rule (letters, digits, _ . -): bad keys are rejected with a line number in parse and in
      stringify, and the Python and JS character classes agree on a set of Unicode probes.
@@ -43,7 +43,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 HIGHLIGHT_SAMPLE = ROOT / "test" / "samples" / "highlight.dtab"
 SAMPLES = sorted(path for path in (ROOT / "test" / "samples").glob("*.dtab") if path != HIGHLIGHT_SAMPLE)
-DEVIATING = {"deviations.dtab", "game_config.dtab", "multiline.dtab"}  # multiline: $ blocks did not exist in the original
+DEVIATING = {"deviations.dtab", "game_config.dtab", "multiline.dtab"}  # multiline: strings did not exist in the original
 IDENTIFIER_PROBES = ["café", "变量", "x²", "_x", "0x", "a-b", "ok_1", "ª", "Ⅻ", "℘", "ℕ", "𝔸", "a.b", "é1", "1é", "a/b", "a:b", "ä-ö.ü", "١٢٣", "a~b"]   # the key rule, py vs js
 
 sys.path.insert(0, str(ROOT))
@@ -93,13 +93,16 @@ def test_round_trips():
 def test_key_rule():
     for text, fragments in [
         ("a\tc|d 1", ["line 1", "'c|d'"]),
-        ("ok 1\n\tk:v 2", ["line 2", "'k:v'"]),
+        ("ok\n\tk:v 2", ["line 2", "'k:v'"]),
         ("~scope\n\tx 1", ["'~scope'"]),
         ("log\t@ e", ["'@'"]),
         ("a,b#c\tx 1", ["'a,b#c'"]),
         ("\"quoted\" 1", ["'\"quoted\"'"]),
+        ("hello big world\n\tkey value", ["line 2", "indented under a value"]),   # only a one-word value opens a multiline string
+        ("x 1\ty 2\n\tz 3", ["line 2", "indented under a value"]),                 # several leaves never do
     ]:
         raises_value_error(lambda: dtab.parse(text), *fragments)
+    assert dtab.parse("a sql\nb 1\nc \n\tline\n\t\ttabbed") == {"a": "sql", "b": "1", "c": "line\n\ttabbed"}, "a one-word value is a leaf until lines follow; text is verbatim past one tab"
     assert dtab.parse("123aa 1\nfile.json 2\nfile-thing.json 3\n123.json-yaml 4\nitems 5\n_p 6\ncafé 7\n-x 8\nassets/logo.png 9\n/ 10") == {
         "123aa": "1", "file.json": "2", "file-thing.json": "3", "123.json-yaml": "4", "items": "5", "_p": "6", "café": "7", "-x": "8", "assets/logo.png": "9", "/": "10"}
     for tree in [{"a b": "1"}, {"a,b": "1"}, {"a|b": "1"}, {"": "1"}]:
@@ -146,22 +149,22 @@ def test_vim_highlighting():
 
 
 def test_vim_embedded_languages():
-    """A tagged $ block (at line start or after other entries) and a shebang block get the language's own groups."""
+    """A tagged multiline string (at the top level or nested) and a shebang string get the language's own groups."""
     with tempfile.TemporaryDirectory() as directory:
         sample = Path(directory) / "embedded.dtab"
-        sample.write_text("$query sql\n\tSELECT name FROM t\nconfig\tdb\t$init sql\n\t\tCREATE TABLE t\n$s\n\t#!/bin/bash\n\techo hi\nafter 1\n")
+        sample.write_text("query sql\n\tSELECT name FROM t\nconfig\tdb\n\tinit sql\n\t\tCREATE TABLE t\ns \n\t#!/bin/bash\n\techo hi\nafter 1\n")
         out = Path(directory) / "groups.txt"
         vim("syntax on", "source dtab.vim", "edit " + str(sample),
-            "call writefile([synIDattr(synID(2,2,1),'name'), synIDattr(synID(3,12,1),'name'), synIDattr(synID(4,3,1),'name'), synIDattr(synID(7,2,1),'name'), synIDattr(synID(8,1,1),'name')], '%s')" % out)
+            "call writefile([synIDattr(synID(2,2,1),'name'), synIDattr(synID(4,2,1),'name'), synIDattr(synID(5,3,1),'name'), synIDattr(synID(8,2,1),'name'), synIDattr(synID(9,1,1),'name')], '%s')" % out)
         groups = out.read_text().split()
     assert groups == ["sqlStatement", "dtabBlockKey", "sqlStatement", "shStatement", "dtabLeafKey"], groups
 
 
 def test_vim_tab_key():
-    """In insert mode, Tab inside a $ block (past the line's tabs) inserts spaces; elsewhere a tab."""
+    """In insert mode, Tab inside a multiline string (past the line's tabs) inserts spaces; elsewhere a tab."""
     with tempfile.TemporaryDirectory() as directory:
         sample = Path(directory) / "tab.dtab"
-        sample.write_text("$code python\n\tdef f():\n\t\nafter 1\nx\n\t$code\n\t\tbody\n\t\n\n")
+        sample.write_text("code python\n\tdef f():\n\t\nafter 1\nx\n\tcode \n\t\tbody\n\t\n\n")
         out = Path(directory) / "lines.txt"
         vim("syntax on", "source dtab.vim", "edit " + str(sample),
             "call cursor(3, 2) | execute \"normal a\\<Tab>return 1\" | call cursor(3, 1) | execute \"normal i\\<Tab>\" | call cursor(4, 6) | execute \"normal i\\<Tab>\"",
@@ -170,15 +173,15 @@ def test_vim_tab_key():
         lines = out.read_text().split("\n")
     assert lines[0] == "\t\t    return 1", repr(lines[0])   # spaces past the block's tab; a tab at the line start
     assert lines[1] == "after\t 1", repr(lines[1])          # a tab outside the block
-    assert lines[2] == "\t\t", repr(lines[2])               # a whitespace line at the $ line's depth is structure: a tab
-    assert lines[3] == "\t\t    ", repr(lines[3])           # an empty line: tabs until the line is deeper than the $ line, then spaces
+    assert lines[2] == "\t\t", repr(lines[2])               # a whitespace line at the header's depth is structure: a tab
+    assert lines[3] == "\t\t    ", repr(lines[3])           # an empty line: tabs until the line is deeper than the header, then spaces
 
 
 def test_vim_shift_keys():
     """>> and << (and visual > <) shift block lines by four spaces, other lines by a tab."""
     with tempfile.TemporaryDirectory() as directory:
         sample = Path(directory) / "shift.dtab"
-        sample.write_text("before 1\n$code python\n\tdef f():\n\t    return 1\n")
+        sample.write_text("before 1\ncode python\n\tdef f():\n\t    return 1\n")
         out = Path(directory) / "lines.txt"
         vim("syntax on", "source dtab.vim", "edit " + str(sample),
             "execute '1normal >>' | execute '1normal <<' | execute '3normal >>' | execute '4normal <<' | execute '2normal Vjj>'",
@@ -186,31 +189,31 @@ def test_vim_shift_keys():
             "call writefile(getline(1, '$'), '%s')" % out)
         lines = out.read_text().split("\n")
     assert lines[0] == "before 1", repr(lines[0])                 # >> gave it a tab, << took it away
-    assert lines[1] == "\t$code python", repr(lines[1])         # visual > over the $ line and its block: tabs for all
+    assert lines[1] == "\tcode python", repr(lines[1])          # visual > over the header and its string: tabs for all
     assert lines[2] == "\t\t        def f():", repr(lines[2])   # >> inside the block: spaces; the block's tab; then 2>j, <j, >2j: net one more level
     assert lines[3] == "\t\t    return 1", repr(lines[3])       # << removed the spaces; 2>j <j >2j: net one level
 
 
 def test_vim_join():
     """J joins structure lines with a tab when the tree stays the same, refuses when a line would change parent, joins block text like vim, drops blanks, takes counts and visual ranges."""
-    text = ("deltas\n\tl1\n\t\tposition\n\t\t\tx 1\n\t\t\ty .5\nafter 1\nl1\nl2\n$code python\n\tdef f():\n\t    return 1\nz 1\n\nend 1\n"
-            "u 1\n\tobj\n\tsib 2\nlast 1\nt 1\t\n\tswallowed 2\nk\tleaf 1\n note\nv 1\n note\n\tw 2\n")
+    text = ("deltas\n\tl1\n\t\tposition\n\t\t\tx 1\n\t\t\ty .5\nafter 1\nl1\nl2\ncode python\n\tdef f():\n\t    return 1\nz 1\n\nend 1\n"
+            "u\n\tobj\n\tsib 2\nlast 1\nt 1\t\n\tswallowed 2\nk\tleaf 1\n note\nv 1\n note\n\tw 2\n")
     with tempfile.TemporaryDirectory() as directory:
         sample = Path(directory) / "join.dtab"
         sample.write_text(text)
         out = Path(directory) / "lines.txt"
         vim("syntax on", "source dtab.vim", "edit " + str(sample),
             # 3J: deep to wide; J J: the two leaves; J: refused (after 1 is a sibling of deltas); after 1 + l1: allowed, the upper
-            # steps into nothing; + l2: refused, l1 steps in; block text joins like vim's J; a $ line keeps its block below it: refused
+            # steps into nothing; + l2: refused, l1 steps in; string text joins like vim's J; a header keeps its text below it: refused
             "execute '1normal 3J' | execute '1normal J' | execute '1normal J' | execute '1normal J' | execute '2normal J' | execute '2normal J' | execute '5normal J' | execute '4normal J'",
-            # a blank line is dropped; visual J; u 1 + obj: refused, obj would capture sib; obj + sib: refused, obj steps in;
+            # a blank line is dropped; visual J; u + obj: refused, obj would capture sib; obj + sib: refused, obj steps in;
             # t 1<Tab> + deeper: refused, the empty key would vanish; k<Tab>leaf 1 + a comment: allowed; v 1 + a comment that a
-            # deeper line follows: allowed, since v 1 steps into nothing and w 2 keeps its parent
+            # deeper line follows: refused, the joined line would be a header and w 2 its text
             "execute '6normal J' | execute '6normal VjJ' | execute '7normal J' | execute '8normal J' | execute '11normal J' | execute '13normal J' | execute '14normal J'",
             "call writefile(getline(1, '$'), '%s')" % out)
         lines = out.read_text().split("\n")[:-1]
-    assert lines == ["deltas\tl1\tposition\tx 1\ty .5", "after 1\tl1", "l2", "$code python", "\tdef f(): return 1", "z 1\tend 1",
-                     "u 1", "\tobj", "\tsib 2", "last 1", "t 1\t", "\tswallowed 2", "k\tleaf 1\t note", "v 1\t note", "\tw 2"], lines
+    assert lines == ["deltas\tl1\tposition\tx 1\ty .5", "after 1\tl1", "l2", "code python", "\tdef f(): return 1", "z 1\tend 1",
+                     "u", "\tobj", "\tsib 2", "last 1", "t 1\t", "\tswallowed 2", "k\tleaf 1\t note", "v 1", " note", "\tw 2"], lines
     joined = dtab.parse("\n".join(lines))
     expected = dtab.parse(text)
     expected["code"] = "def f(): return 1"   # the one join that changes a value: two lines of block text, joined like vim does

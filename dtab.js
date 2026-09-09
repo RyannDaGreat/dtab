@@ -7,7 +7,7 @@
  *     deltas	l1	position	x 1	y .5     ->  {"deltas": {"l1": {"position": {"x": "1", "y": ".5"}}}}
  *     	z -2                              ->  continues the path of the line above
  *     	 this entry starts with a space, so it is a comment
- *     $query sql                            ->  {"query": "SELECT *\nFROM users"}: a multiline value, tagged sql for editors
+ *     query sql                             ->  {"query": "SELECT *\nFROM users"}: a multiline string, tagged sql for editors
  *     	SELECT *
  *     	FROM users
  *
@@ -19,9 +19,10 @@
  *   - Writing a key again replaces it; writing into an object merges. Last line wins.
  *   - `a,b` writes the same value under a and under b.
  *   - An entry starting with a space is a comment. A trailing tab is an empty key that swallows the lines under it.
- *   - `$key` is a multiline leaf: its value is the entries after it on its line plus every line indented
- *     under it, one line each, with their common indentation removed. A word after the key on the `$` line
- *     (`$query sql`) is a language tag for editors and is not part of the value.
+ *   - A `key word` line with lines indented under it is a multiline string: the word is a language tag for
+ *     editors (empty, or `txt`, for plain text) and the value is those lines, one tab deeper than the key's line
+ *     and verbatim from there, tabs included. The only way to put a tab in a value.
+ *   - A line indented under any other leaf line (a value with spaces, or several leaves) is an error.
  *   - Keys are one or more letters, digits, or KEY_PUNCTUATION (`_.-/`), so `file.json`, `a/b` and `123aa` are keys. Keys that
  *     are also identifiers work as attributes (config.deltas.l1). Every value is a string.
  *
@@ -31,7 +32,7 @@
 'use strict'
 
 const KEY_SEPARATOR = ','  // a,b writes the same value under each key
-const BLOCK_PREFIX = '$'   // $key: a leaf whose value is the lines under it ($ as in string)
+const TEXT_TAG = 'txt'     // the tag stringify gives a multiline string; any single word is a tag, editors color the ones they know
 const KEY_PUNCTUATION = '_.-/'   // Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
 const KEY_RULE = 'keys may contain only letters, digits and ' + [...KEY_PUNCTUATION].join(' ')
 const TAB_RUN = /\t+/  // Several tabs in a row are one separator, so columns can be aligned
@@ -39,23 +40,25 @@ const KEY = new RegExp('^[\\p{L}\\p{N}' + KEY_PUNCTUATION.replace(/[\]\\^-]/g, '
 
 /**
  * Pure function. Parses dtab text into nested plain objects of strings. Throws, with the line number,
- * on a key that breaks KEY_RULE.
+ * on a key that breaks KEY_RULE or on a line indented under a leaf that is not a multiline string's header.
  *
- * @param {string} text - dtab source. Whitespace-only lines are ignored.
+ * @param {string} text - dtab source. Whitespace-only lines are ignored outside multiline strings.
  * @returns {object}
  *
  * @example parse('objects\tl1,l2 light\ndeltas\tl1\tposition\tx 1\ty .5\n\tz -2')
  *   // {objects: {l1: 'light', l2: 'light'}, deltas: {l1: {position: {x: '1', y: '.5', z: '-2'}}}}
  * @example parse('a\tb 1\n\t comment\na\tb 2')   // {a: {b: '2'}}
- * @example parse('$query sql\n\tSELECT *\n\n\t\tFROM users\n\nnext 1')   // {query: 'SELECT *\n\n\tFROM users', next: '1'}
- * @example parse('$cmd\tpip install rp\tpython train.py')                  // {cmd: 'pip install rp\npython train.py'}
+ * @example parse('query sql\n\tSELECT *\n\n\t\tFROM users\n\nnext 1')   // {query: 'SELECT *\n\n\tFROM users', next: '1'}
+ * @example parse('table txt\n\tname\tage\n\tryan\t30\nprompt \n\tLook here.')   // {table: 'name\tage\nryan\t30', prompt: 'Look here.'}
+ * @example parse('dialect sql')                        // {dialect: 'sql'}
  * @example parse('a\tb 1\nfile.json\tsize 2\n123aa 3')   // {a: {b: '1'}, 'file.json': {size: '2'}, '123aa': '3'}
  * @example parse('a\tb 1\nc|d\te 2')              // throws: dtab line 2: invalid key "c|d": keys may contain only letters, digits and _ . - /
+ * @example parse('hello big world\n\tkey value')   // throws: dtab line 2: indented under a value; a multiline string starts with `key word`
  */
 function parse(text) {
     const root = {}
-    const stack = [[-1, [root]]]  // [indent, nodes that deeper lines nest into]
-    let block = null  // while inside a $ block: {indent of the $ line, nodes, names, first lines, raw deeper lines}
+    const stack = [[-1, [root], false]]  // [indent, nodes that deeper lines nest into, whether the line is only leaves]
+    let block = null  // after a `key word` line: {indent, nodes, names, deep: raw lines under it}
     const lines = text.split('\n')
     for (let index = 0; index < lines.length; index++) {
         const line = lines[index]
@@ -70,68 +73,65 @@ function parse(text) {
         }
         if (!line.trim()) continue
         while (stack[stack.length - 1][0] >= indent) stack.pop()
+        if (stack[stack.length - 1][2]) throw new Error('dtab line ' + (index + 1) + ': indented under a value; a multiline string starts with `key word`')
         let nodes = stack[stack.length - 1][1]
-        const entries = line.slice(indent).split(TAB_RUN)
-        for (let position = 0; position < entries.length; position++) {
-            const entry = entries[position]
+        const leaves = []  // [names, value] of the line's leaves; a header is a line of exactly one, with a one-word value
+        let stepsIn = false
+        for (const entry of line.slice(indent).split(TAB_RUN)) {
             const spaceAt = entry.indexOf(' ')
             const key = spaceAt === -1 ? entry : entry.slice(0, spaceAt)
             if (!key) {
-                if (spaceAt === -1) nodes = [{}]  // Empty key (trailing tab): everything under it is discarded
+                if (spaceAt === -1) { nodes = [{}]; stepsIn = true }  // Empty key (trailing tab): everything under it is discarded
                 continue
-            }
-            if (key.startsWith(BLOCK_PREFIX)) {
-                const names = keyNames(key.slice(BLOCK_PREFIX.length), index + 1, true)
-                block = {indent, nodes, names, head: entries.slice(position + 1), deep: []}  // rest of the $ line, then deeper lines (raw)
-                break
             }
             const names = keyNames(key, index + 1, true)
             if (spaceAt !== -1) {
                 const value = entry.slice(spaceAt + 1)
                 for (const node of nodes) for (const name of names) node[name] = value
+                leaves.push([names, value])
             } else {
                 nodes = nodes.flatMap(node => names.map(name => child(node, name)))
+                stepsIn = true
             }
         }
-        stack.push([indent, nodes])
+        const onlyLeaves = leaves.length > 0 && !stepsIn
+        stack.push([indent, nodes, onlyLeaves])
+        if (onlyLeaves && leaves.length === 1 && !leaves[0][1].includes(' ')) block = {indent, nodes, names: leaves[0][0], deep: []}
     }
     if (block) finishBlock(block)
     return root
 }
 
 /**
- * Command (mutates the block's nodes). Joins a $ block into its value: the first lines from the $ line
- * itself, then the deeper lines with their common indentation removed (so relative indentation inside
- * code survives), trailing blank lines dropped. Written under every name the $ key stands for.
+ * Command (mutates the block's nodes). The lines under a `key word` line, trailing blank lines dropped,
+ * become the key's value: each loses the one tab that puts it under the key's line and is verbatim from
+ * there, so tabs and deeper indentation inside code survive. With no lines, the key keeps the word.
  *
- * @example const nodes = [{}]; finishBlock({nodes, names: ['q'], head: [], deep: ['\t\tSELECT *', '', '\t\t\tFROM t', '', '']}); nodes
+ * @example const nodes = [{q: 'sql'}]; finishBlock({indent: 0, nodes, names: ['q'], deep: ['\tSELECT *', '', '\t\tFROM t', '', '']}); nodes
  *   // [{q: 'SELECT *\n\n\tFROM t'}]
- * @example const nodes = [{}]; finishBlock({nodes, names: ['c'], head: ['pip install rp'], deep: ['\techo done']}); nodes
- *   // [{c: 'pip install rp\necho done'}]
+ * @example const nodes = [{q: 'sql'}]; finishBlock({indent: 0, nodes, names: ['q'], deep: ['', '']}); nodes   // [{q: 'sql'}]
  */
 function finishBlock(block) {
     const deep = block.deep
     while (deep.length && !deep[deep.length - 1].trim()) deep.pop()
-    const indents = deep.filter(line => line.trim()).map(line => line.length - line.replace(/^\t+/, '').length)
-    const common = indents.length ? Math.min(...indents) : 0
-    const lines = block.head.concat(deep.map(line => line.trim() ? line.slice(common) : ''))
-    while (lines.length && !lines[lines.length - 1].trim()) lines.pop()
-    const value = lines.join('\n')
+    if (!deep.length) return
+    const base = '\t'.repeat(block.indent + 1)
+    const value = deep.map(line => line.startsWith(base) ? line.slice(base.length) : '').join('\n')
     for (const node of block.nodes) for (const name of block.names) node[name] = value
 }
 
 /**
  * Pure function. Writes nested plain objects as dtab, one key per line, tab-indented. Leaves are
- * written with String(); a leaf containing a newline or a tab is written as a $ block. Throws on a key
- * that breaks KEY_RULE. parse(stringify(tree)) deep-equals tree when every leaf is a string without
- * trailing newlines.
+ * written with String(); a leaf containing a newline or a tab is written as a multiline string tagged
+ * TEXT_TAG. Throws on a key that breaks KEY_RULE. parse(stringify(tree)) deep-equals tree when every
+ * leaf is a string without trailing newlines.
  *
  * @param {object} tree - Nested plain objects
  * @returns {string}
  *
  * @example stringify({objects: {l1: 'light'}, deltas: {l1: {x: 1, name: 'a b'}}})
  *   // 'objects\n\tl1 light\ndeltas\n\tl1\n\t\tx 1\n\t\tname a b'
- * @example stringify({query: 'SELECT *\nFROM t'})   // '$query\n\tSELECT *\n\tFROM t'
+ * @example stringify({query: 'SELECT *\nFROM t', table: 'a\tb'})   // 'query txt\n\tSELECT *\n\tFROM t\ntable txt\n\ta\tb'
  */
 function stringify(tree) {
     const lines = []
@@ -194,8 +194,8 @@ function stringifyInto(node, depth, lines) {
             stringifyInto(rawValue, depth + 1, lines)
         } else {
             const value = String(rawValue)
-            if (value.includes('\n') || value.includes('\t')) {  // a $ block holds any text; a one-line value cannot hold a tab
-                lines.push(indent + BLOCK_PREFIX + key)
+            if (value.includes('\n') || value.includes('\t')) {  // a multiline string holds any text; a one-line value cannot hold a tab
+                lines.push(indent + key + ' ' + TEXT_TAG)
                 for (const part of value.split('\n')) lines.push(indent + '\t' + part)
             } else {
                 lines.push(indent + key + ' ' + value)
@@ -204,7 +204,7 @@ function stringifyInto(node, depth, lines) {
     }
 }
 
-const dtab = {parse, stringify, KEY_SEPARATOR, BLOCK_PREFIX, KEY_PUNCTUATION, KEY, KEY_RULE}
+const dtab = {parse, stringify, KEY_SEPARATOR, TEXT_TAG, KEY_PUNCTUATION, KEY, KEY_RULE}
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = dtab
