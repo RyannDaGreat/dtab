@@ -17,7 +17,7 @@ const indentOf = line => line.length - line.replace(/^\t+/, '').length
 // A key list within a line: runs of non-blanks, where a run ending in a comma goes on past spaces, then tabs
 const KEYS = '[^\\t ]+(?:(?<=,) *\\t*[^\\t ]+)*'
 // A header line: tabs, comments, the keys (group 1, with its indices), a space, the tag, comments
-const HEADER_LINE = new RegExp('^\\t*(?: [^\\t]*\\t+)*(' + KEYS + ') [^\\t]*(?:\\t+ [^\\t]*)*$', 'd')
+const HEADER_LINE = new RegExp('^\\t*(?: [^\\t]*\\t+)*(' + KEYS + ')(?<!,) [^\\t]*(?:\\t+ [^\\t]*)*$', 'd')
 
 /**
  * Pure function. Whether a line has the shape that opens a multiline string once a deeper line follows:
@@ -26,6 +26,7 @@ const HEADER_LINE = new RegExp('^\\t*(?: [^\\t]*\\t+)*(' + KEYS + ') [^\\t]*(?:\
  * @example isHeaderLine('\tprompt \t note')      // true (empty tag, a comment after it)
  * @example isHeaderLine('hello big world')      // true (the tag is "big world")
  * @example isHeaderLine('x, y sql')             // true (one leaf with two keys)
+ * @example isHeaderLine('x, y')                 // false (two object keys, the space continues the list)
  * @example isHeaderLine('a\tb sql')             // false (steps into a)
  * @example isHeaderLine('x 1\ty 2')             // false (two leaves)
  */

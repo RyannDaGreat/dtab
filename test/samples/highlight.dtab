@@ -22,6 +22,7 @@ config	db
 dialect sql
 after 1
 spaced	l1, l2, l3 light
+both	a, b	c, d 1
 tabbed	x,	y 1
 list	alpha,
 	beta,

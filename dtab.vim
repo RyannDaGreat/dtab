@@ -47,8 +47,8 @@ function! s:DtabSyntax() abort
     " may be followed by whitespace (s:keys). No space in the entry: object key. Space in the entry: leaf
     " `key value`. Leading space: comment.
     execute 'syntax match dtabObjectKey   /\%(^\t*\|\t\)\zs' . s:keys . '\ze\%(\t\|$\)/ contains=@dtabKeyParts'
-    execute 'syntax match dtabLeaf        /\%(^\t*\|\t\)\zs' . s:keys . ' [^\t]*/         contains=dtabLeafKey,dtabLeafValue'
-    execute 'syntax match dtabLeafKey     /' . s:keys . '\ze /                             contained contains=@dtabKeyParts'
+    execute 'syntax match dtabLeaf        /\%(^\t*\|\t\)\zs' . s:keys . ',\@<! [^\t]*/   contains=dtabLeafKey,dtabLeafValue'
+    execute 'syntax match dtabLeafKey     /' . s:keys . '\ze,\@<! /                       contained contains=@dtabKeyParts'
     syntax match dtabLeafValue   / \zs[^\t]*/                                 contained
     syntax match dtabComment     /\%(^\t*\|\t\)\zs [^\t]*/
     syntax match dtabTrailingTab /\t\+$/
@@ -67,9 +67,9 @@ function! s:DtabSyntax() abort
     " and runs over every following line indented deeper, or blank. Comment entries may precede the key and
     " follow the tag. Defined after the entry matches so the key wins at the same column. keepend: when the
     " string ends, an embedded-language region inside it ends too.
-    execute 'syntax match  dtabBlockKey /^\(\t*\)\%( [^\t]*\t\+\)*\zs' . s:keys . '\ze [^\t]*\%(\t\+ [^\t]*\)*\n\%(\s*\n\)*\1\t/ contains=@dtabKeyParts nextgroup=dtabBlock'
-    execute 'syntax region dtabBlock matchgroup=dtabBlockTag start=/\%(^\z(\t*\)\%( [^\t]*\t\+\)*' . s:keys . '\)\@<= [^\t]*/ end=/^\%(\z1\t\|\s*$\)\@!/ contained keepend contains=dtabHeaderComment,@dtabShebangs'
-    execute 'syntax match  dtabHeaderComment /\%(^\t*\%( [^\t]*\t\+\)*' . s:keys . ' [^\t]*\%(\t\+ [^\t]*\)*\t\+\)\@<= [^\t]*/ contained'
+    execute 'syntax match  dtabBlockKey /^\(\t*\)\%( [^\t]*\t\+\)*\zs' . s:keys . '\ze,\@<! [^\t]*\%(\t\+ [^\t]*\)*\n\%(\s*\n\)*\1\t/ contains=@dtabKeyParts nextgroup=dtabBlock'
+    execute 'syntax region dtabBlock matchgroup=dtabBlockTag start=/\%(^\z(\t*\)\%( [^\t]*\t\+\)*' . s:keys . '\)\@<=,\@<! [^\t]*/ end=/^\%(\z1\t\|\s*$\)\@!/ contained keepend contains=dtabHeaderComment,@dtabShebangs'
+    execute 'syntax match  dtabHeaderComment /\%(^\t*\%( [^\t]*\t\+\)*' . s:keys . ',\@<! [^\t]*\%(\t\+ [^\t]*\)*\t\+\)\@<= [^\t]*/ contained'
     call s:DtabEmbedded()
     syntax sync fromstart
     call s:DtabHighlight()
@@ -99,7 +99,7 @@ function! s:DtabEmbedded() abort
             let l:included[l:syntax] = 1
         endif
         execute 'syntax region dtabBlock matchgroup=dtabBlockTag'
-            \ . ' start=/\%(^\z(\t*\)\%( [^\t]*\t\+\)*' . s:keys . '\)\@<= ' . l:tag . '\ze\%(\t\|$\)/'
+            \ . ' start=/\%(^\z(\t*\)\%( [^\t]*\t\+\)*' . s:keys . '\)\@<=,\@<! ' . l:tag . '\ze\%(\t\|$\)/'
             \ . ' end=/^\%(\z1\t\|\s*$\)\@!/ contained keepend contains=dtabHeaderComment,@dtabLang_' . l:syntax
     endfor
     for [l:word, l:tag] in items(s:dtab_shebangs)
@@ -115,7 +115,8 @@ let s:block_indent = '    '
 " Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
 let s:key_punctuation = '_.-/'
 " A key list: runs of non-blank characters, where a run ending in a comma may go on past spaces, then tabs
-" or line breaks. Any character goes in; dtabBadKey and dtabBadComma flag the wrong ones.
+" or line breaks. Any character goes in; dtabBadKey and dtabBadComma flag the wrong ones. The space before a
+" value must not follow a comma (,\@<! after the keys), or `l1, l2, l3` could be the leaf `l1, l2,` with value `l3`.
 let s:keys = '[^\t ]\+\%(,\@<= *[\t\n]*[^\t ]\+\)*'
 " The same within one line, for the functions that look at a line
 let s:line_keys = '[^\t ]\+\%(,\@<= *\t*[^\t ]\+\)*'
@@ -123,7 +124,7 @@ let s:line_keys = '[^\t ]\+\%(,\@<= *\t*[^\t ]\+\)*'
 function! s:IsHeaderLine(line) abort
     " Whether a line has the shape that opens a multiline string once a deeper line follows: exactly one leaf
     " and otherwise only comments. The parser's rule.
-    return a:line =~ '^\t*\%( [^\t]*\t\+\)*' . s:line_keys . ' [^\t]*\%(\t\+ [^\t]*\)*$'
+    return a:line =~ '^\t*\%( [^\t]*\t\+\)*' . s:line_keys . ',\@<! [^\t]*\%(\t\+ [^\t]*\)*$'
 endfunction
 
 function! s:Deeper(lnum, depth) abort

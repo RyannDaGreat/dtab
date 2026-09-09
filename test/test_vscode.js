@@ -167,8 +167,9 @@ async function main() {
     assert.strictEqual(insideBlock(['x 1\ty 2', '\tz'], 1), false, 'two leaves are no header')
     assert.strictEqual(insideBlock(['code ', '\tx'], 0), false, 'the header itself is not inside the string')
     const {isHeaderLine, headers} = require(path.join(EXTENSION, manifest.main))
-    assert.deepStrictEqual(['query sql', 'prompt ', '\tinit sql\t note', ' note\tq sql', 'hello big world', 'x, y sql', 'x,\ty sql', 'a\tb sql', 'x 1\ty 2', 'k', 'q sql\t'].map(isHeaderLine),
-        [true, true, true, true, true, true, true, false, false, false, false], 'header shape: one leaf, comments around it, whitespace after a comma inside the keys')
+    assert.deepStrictEqual(['query sql', 'prompt ', '\tinit sql\t note', ' note\tq sql', 'hello big world', 'x, y sql', 'x,\ty sql', 'a\tb sql', 'x 1\ty 2', 'k', 'q sql\t', 'key, fill'].map(isHeaderLine),
+        [true, true, true, true, true, true, true, false, false, false, false, false], 'header shape: one leaf, comments around it, whitespace after a comma inside the keys')
+    assert.strictEqual(insideBlock(['key, fill', '\ton true'], 1), false, 'a space after a comma continues the keys, it does not start a tag')
     assert.deepStrictEqual(headers(['query sql\t note', '\tSELECT 1', 'dialect sql', 'after 1', 'x', '\tp ', '', '\t\ttext', ' note\tx, y sql', '\tSELECT 2']),
         [{line: 0, key: [0, 5], tag: [6, 9]}, {line: 5, key: [1, 2], tag: [3, 3]}, {line: 8, key: [6, 10], tag: [11, 14]}], 'headers are the shaped lines followed by a deeper line, blank lines skipped')
     const {shiftLine} = require(path.join(EXTENSION, manifest.main))

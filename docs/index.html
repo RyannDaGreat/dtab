@@ -238,13 +238,14 @@ function shebangTag(line) {
 /** Pure function. Number of leading tabs of a line. @example lineIndent('\t\tx') // 2 */
 const lineIndent = line => line.length - line.replace(/^\t+/, '').length
 
-const HEADER_LINE = new RegExp('^\\t*(?: [^\\t]*\\t+)*' + KEYS + ' [^\\t]*(?:\\t+ [^\\t]*)*$')
+const HEADER_LINE = new RegExp('^\\t*(?: [^\\t]*\\t+)*' + KEYS + '(?<!,) [^\\t]*(?:\\t+ [^\\t]*)*$')
 
 /**
  * Pure function. Whether a line has the shape that opens a multiline string once a deeper line follows:
  * exactly one leaf and otherwise only comments. The parser's rule.
  * @example isHeaderLine('query sql\t note')   // true
  * @example isHeaderLine('x, y sql')           // true (one leaf with two keys)
+ * @example isHeaderLine('x, y')               // false (two object keys, the space continues the list)
  * @example isHeaderLine('x 1\ty 2')           // false
  */
 const isHeaderLine = line => HEADER_LINE.test(line)
