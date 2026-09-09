@@ -158,12 +158,13 @@ const EXAMPLE = [
     ' Every value is a string. Cast the ones you need.',
     'debug\tenabled false\tlevel 2',
     '',
-    ' $key is a multiline string. A word after it picks the highlighting; it is not part of the value.',
-    '$query sql',
+    ' A key with a one-word tag and lines under it is a multiline string. The tag picks the highlighting',
+    ' and is not part of the value; an empty tag is plain text (a shebang inside still picks a language).',
+    'query sql',
     '\tSELECT name, age',
     '\tFROM users',
     '\tWHERE age > 30',
-    '$setup',
+    'setup ',
     '\t#!/bin/bash',
     '\tpip install rp',
 ].join('\n')
@@ -185,7 +186,7 @@ function entryClass(key, isLeaf) {
     return isLeaf ? 'dtab-leaf-key' : 'dtab-object-key'
 }
 
-// Language tag on a $ line -> CodeMirror mode. Missing tags: a shebang on the block's first line, else plain.
+// Language tag of a multiline string's header -> CodeMirror mode. No tag: a shebang on the first line, else plain.
 const TAG_MODES = {
     sql: 'text/x-sql', python: 'python', py: 'python', javascript: 'javascript', js: 'javascript',
     typescript: 'text/typescript', ts: 'text/typescript', html: 'htmlmixed', css: 'css', json: 'application/json',
@@ -211,8 +212,28 @@ function shebangTag(line) {
 const lineIndent = line => line.length - line.replace(/^\t+/, '').length
 
 /**
- * Near-pure function (looks up a CodeMirror mode). The state of a $ block whose text is highlighted as
- * `tag`'s language: plain text when the tag is null or not in TAG_MODES.
+ * Pure function. Whether a line has the shape that opens a multiline string once a deeper line follows:
+ * exactly one leaf, whose value is one word or nothing, and otherwise only comments. The parser's rule.
+ * @example isHeaderLine('query sql\t note')   // true
+ * @example isHeaderLine('hello big world')    // false
+ */
+const isHeaderLine = line => /^\t*(?: [^\t]*\t+)*[^\t ]+ [^\t ]*(?:\t+ [^\t]*)*$/.test(line)
+
+/**
+ * Query (reads the lines after the stream's). Whether the next non-blank line is deeper than the stream's line.
+ * @example deeperFollows(stream)   // true when the stream is on 'query sql' and the next line is '\tSELECT 1'
+ */
+function deeperFollows(stream) {
+    for (let n = 1; ; n++) {
+        const next = stream.lookAhead(n)
+        if (next === undefined) return false
+        if (next.trim()) return lineIndent(next) > lineIndent(stream.string)
+    }
+}
+
+/**
+ * Near-pure function (looks up a CodeMirror mode). The state of a multiline string whose text is highlighted
+ * as `tag`'s language: plain text when the tag is null or not in TAG_MODES.
  *
  * @example blockState(config, 0, 'sql')   // {indent: 0, tag: 'sql', mode: <the sql mode>, state: <its start state>}
  * @example blockState(config, 1, null)    // {indent: 1, tag: null, mode: null, state: null}
@@ -223,27 +244,31 @@ function blockState(config, indent, tag) {
 }
 
 // A line is entries separated by tab runs. Each entry is a comment (starts with a space), a leaf
-// (key, one space, value) or an object key. `$key [tag]` opens a block: the rest of that line and every
-// following line indented deeper than the $ line is value text, handed to the tag's language mode if there is one.
+// (key, one space, value) or an object key. A `key word` line with a deeper line after it is a multiline
+// string's header: the lines under it are value text, handed to the word's language mode if there is one.
 CodeMirror.defineMode('dtab', config => ({
-    // block: the $ block the text from here on belongs to (a blockState), from its $ key onward.
-    // tagPending: the word after `$key` is next.
-    startState: () => ({inValue: false, block: null, tagPending: false}),
+    // block: the multiline string the text from here on belongs to (a blockState); pending: one whose header
+    // is the current line, so it starts on the next; header: the current line is a header; tagPending: the
+    // tag is next.
+    startState: () => ({inValue: false, block: null, pending: null, header: false, tagPending: false}),
     copyState: s => ({
-        inValue: s.inValue, tagPending: s.tagPending,
+        inValue: s.inValue, header: s.header, tagPending: s.tagPending,
         block: s.block && {...s.block, state: s.block.mode ? CodeMirror.copyState(s.block.mode, s.block.state) : null},
+        pending: s.pending && {...s.pending, state: s.pending.mode ? CodeMirror.copyState(s.pending.mode, s.pending.state) : null},
     }),
     blankLine(state) { if (state.block && state.block.mode && state.block.mode.blankLine) state.block.mode.blankLine(state.block.state) },
     token(stream, state) {
         if (stream.sol()) {
             state.inValue = false
             state.tagPending = false
-            if (state.block && stream.string.trim() && lineIndent(stream.string) <= state.block.indent) state.block = null   // block over
+            if (state.pending) { state.block = state.pending; state.pending = null }
+            if (state.block && stream.string.trim() && lineIndent(stream.string) <= state.block.indent) state.block = null   // string over
+            state.header = !state.block && isHeaderLine(stream.string) && deeperFollows(stream)
         }
         if (state.tagPending) { state.tagPending = false; stream.skipTo('\t') || stream.skipToEnd(); return 'dtab-block-tag' }
         if (state.block) {
             if (stream.eatWhile('\t')) return 'tab'
-            if (!state.block.tag && stream.string.slice(stream.pos).trim())   // an untagged block's first text: a shebang picks its language
+            if (!state.block.tag && stream.string.slice(stream.pos).trim())   // an untagged string's first text: a shebang picks its language
                 state.block = blockState(config, state.block.indent, shebangTag(stream.string.slice(stream.pos).trim()) || 'text')
             if (state.block.mode) return state.block.mode.token(stream, state.block.state)
             stream.skipToEnd(); return 'dtab-block-text'
@@ -259,11 +284,11 @@ CodeMirror.defineMode('dtab', config => ({
         while (!stream.eol() && stream.peek() !== '\t' && stream.peek() !== ' ') stream.next()
         const key = stream.string.slice(start, stream.pos)
         const isLeaf = stream.peek() === ' '
-        if (key.startsWith('$')) {                                     // $key [tag]: the block is the rest of this line and the lines below
-            const tag = isLeaf ? stream.string.slice(stream.pos + 1).split('\t')[0].trim() : ''
-            state.block = blockState(config, lineIndent(stream.string), tag || null)
-            state.tagPending = isLeaf
-            return entryClass(key.slice(1), true) === 'dtab-bad-key' ? 'dtab-bad-key' : 'dtab-block-key'
+        if (state.header && isLeaf) {                                   // the header's key, then its tag; the string starts on the next line
+            const tag = stream.string.slice(stream.pos + 1).split('\t')[0]
+            state.pending = blockState(config, lineIndent(stream.string), tag || null)
+            state.tagPending = true
+            return entryClass(key, true) === 'dtab-bad-key' ? 'dtab-bad-key' : 'dtab-block-key'
         }
         if (isLeaf) { stream.next(); state.inValue = !stream.eol() }
         return entryClass(key, isLeaf)
@@ -271,19 +296,20 @@ CodeMirror.defineMode('dtab', config => ({
 }))
 
 const output = document.getElementById('output')
-const BLOCK_INDENT = '    '   // what the Tab key inserts inside a $ block: code indents with spaces, tabs are dtab structure
+const BLOCK_INDENT = '    '   // what the Tab key inserts inside a multiline string: code indents with spaces, tabs are dtab structure
 
 /**
- * Query (reads editor state). Whether a line is inside a $ block: the previous line ended in a block (the
- * $ line itself does), and this line is indented deeper than that block's $ line. A line of only whitespace
- * counts by its tabs too, so at the $ line's depth (or empty) it is structure and Tab gives a tab.
+ * Query (reads editor state). Whether a line is inside a multiline string: the previous line ended in one
+ * (a header does, its string pending), and this line is indented deeper than the header. A line of only
+ * whitespace counts by its tabs too, so at the header's depth (or empty) it is structure and Tab gives a tab.
  *
- * @example insideBlock(cm, 2)   // true for line 2 of '$code python\n\tdef f():\n\t    return 1'
- * @example insideBlock(cm, 0)   // false: the $ line itself is a dtab line
+ * @example insideBlock(cm, 2)   // true for line 2 of 'code python\n\tdef f():\n\t    return 1'
+ * @example insideBlock(cm, 0)   // false: the header itself is a dtab line
  */
 function insideBlock(cm, lineNumber) {
     if (lineNumber === 0) return false
-    const block = cm.getStateAfter(lineNumber - 1, true).block   // precise: the cached state is stale for ~400 ms after an edit above
+    const state = cm.getStateAfter(lineNumber - 1, true)   // precise: the cached state is stale for ~400 ms after an edit above
+    const block = state.block || state.pending
     if (!block) return false
     return lineIndent(cm.getLine(lineNumber)) > block.indent
 }
@@ -334,8 +360,8 @@ function lineEdit(line, shifted) {
 
 /**
  * Command. Shifts every line the selection touches. Lines all inside $ blocks (blank ones aside) are code
- * and shift by spaces; a range touching structure (a $ line, or any line outside a block) shifts by tabs,
- * so a block moves with its $ line.
+ * and shift by spaces; a range touching structure (a header, or any line outside a string) shifts by tabs,
+ * so a string moves with its header.
  */
 function shiftSelection(cm, direction) {
     const [first, last] = selectedLines(cm.getCursor('from'), cm.getCursor('to'))
@@ -363,7 +389,7 @@ const editor = CodeMirror.fromTextArea(document.getElementById('source'), {
     indentWithTabs: true,
     tabSize: 4,
     lineWrapping: false,
-    maxHighlightLength: Infinity,   // a $ line with a very long value would otherwise hide its block from the mode
+    maxHighlightLength: Infinity,   // a very long line would otherwise hide its multiline string from the mode
     extraKeys: {
         Tab: insertTab, 'Shift-Tab': cm => shiftSelection(cm, -1),
         'Cmd-]': cm => shiftSelection(cm, 1), 'Cmd-[': cm => shiftSelection(cm, -1),

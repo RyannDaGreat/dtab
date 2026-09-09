@@ -181,14 +181,14 @@ def test_vim_shift_keys():
     """>> and << (and visual > <) shift block lines by four spaces, other lines by a tab."""
     with tempfile.TemporaryDirectory() as directory:
         sample = Path(directory) / "shift.dtab"
-        sample.write_text("before 1\ncode python\n\tdef f():\n\t    return 1\n")
+        sample.write_text("before\ncode python\n\tdef f():\n\t    return 1\n")
         out = Path(directory) / "lines.txt"
         vim("syntax on", "source dtab.vim", "edit " + str(sample),
             "execute '1normal >>' | execute '1normal <<' | execute '3normal >>' | execute '4normal <<' | execute '2normal Vjj>'",
             "execute '3normal 2>j' | execute '3normal <j' | execute '3normal >2j'",
             "call writefile(getline(1, '$'), '%s')" % out)
         lines = out.read_text().split("\n")
-    assert lines[0] == "before 1", repr(lines[0])                 # >> gave it a tab, << took it away
+    assert lines[0] == "before", repr(lines[0])                 # >> gave it a tab, << took it away
     assert lines[1] == "\tcode python", repr(lines[1])          # visual > over the header and its string: tabs for all
     assert lines[2] == "\t\t        def f():", repr(lines[2])   # >> inside the block: spaces; the block's tab; then 2>j, <j, >2j: net one more level
     assert lines[3] == "\t\t    return 1", repr(lines[3])       # << removed the spaces; 2>j <j >2j: net one level

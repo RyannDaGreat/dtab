@@ -73,23 +73,25 @@ async function main() {
         const error = await page.$eval('#output', element => element.textContent)
         assert.ok(error.includes('line 3') && error.includes('bad|key'), 'error not shown: ' + error)
 
-        // 2b. $ blocks: the tag picks an embedded language, a shebang picks one too, no tag means plain value text,
+        // 2b. Multiline strings: the tag picks an embedded language, a shebang picks one too, no tag means plain text,
         //     and the block ends at the first line that is not deeper. The JSON pane shows the joined value.
-        await setEditorText(page, '$query sql\n\tSELECT * FROM t\n$plain\n\tjust text\n$s\n\t#!/bin/bash\n\techo hi\nafter 1\n')
+        await setEditorText(page, 'query sql\n\tSELECT * FROM t\nplain txt\n\tjust text\ns \n\t#!/bin/bash\n\techo hi\nafter 1\n')
         assert.deepStrictEqual((await lineTokens(page, 1)).map(t => t[0]), ['dtab-block-key', 'dtab-block-tag'])
         const italic = await page.evaluate(() => getComputedStyle(document.querySelector('.cm-dtab-block-tag')).fontStyle)
         assert.strictEqual(italic, 'italic', 'the language tag should be italic')
-        assert.ok((await lineTokens(page, 2)).some(t => t[0] === 'keyword' && t[1] === 'SELECT'), 'sql keyword not highlighted in a $query sql block')
+        assert.ok((await lineTokens(page, 2)).some(t => t[0] === 'keyword' && t[1] === 'SELECT'), 'sql keyword not highlighted in a sql string')
         assert.deepStrictEqual(await lineTokens(page, 4), [['tab', '\t'], ['dtab-block-text', 'just text']])
         assert.strictEqual(await page.evaluate(() => getComputedStyle(document.querySelector('.cm-dtab-block-text')).fontStyle), 'italic', 'plain block text should be italic')
         assert.ok((await lineTokens(page, 7)).some(t => t[0] === 'builtin' && t[1] === 'echo'), 'shebang did not select shell highlighting')
         assert.deepStrictEqual((await lineTokens(page, 8)).map(t => t[0]), ['dtab-leaf-key', 'dtab-value'])
         assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)),
             {query: 'SELECT * FROM t', plain: 'just text', s: '#!/bin/bash\necho hi', after: '1'})
-        // The wide form: text after the tag on the $ line is the value's first line, so it is highlighted as the language too.
-        await setEditorText(page, '$command bash\techo hi\t$plain\ttext\nafter 1\n')
-        assert.ok((await lineTokens(page, 1)).some(t => t[0] === 'builtin' && t[1] === 'echo'), 'the rest of a tagged $ line was not handed to the language')
-        assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), {command: 'echo hi\n$plain\ntext', after: '1'})
+        // A comment may follow the tag on the header line; a one-word leaf with nothing deeper is a plain leaf.
+        await setEditorText(page, 'command bash\t note\n\techo hi\ndialect sql\nafter 1\n')
+        assert.deepStrictEqual((await lineTokens(page, 1)).map(t => t[0]), ['dtab-block-key', 'dtab-block-tag', 'tab', 'dtab-comment'])
+        assert.ok((await lineTokens(page, 2)).some(t => t[0] === 'builtin' && t[1] === 'echo'), 'the string under a bash header was not handed to the shell mode')
+        assert.deepStrictEqual((await lineTokens(page, 3)).map(t => t[0]), ['dtab-leaf-key', 'dtab-value'], 'a one-word leaf without deeper lines stays a leaf')
+        assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), {command: 'echo hi', dialect: 'sql', after: '1'})
 
         // 3. The toggles: unchecking removes the colors and the tab glyphs, and the choice survives a reload.
         const valueColor = () => page.evaluate(() => getComputedStyle(document.querySelector('.cm-dtab-value')).color)
@@ -107,9 +109,9 @@ async function main() {
         await setEditorText(page, ' a comment\ncamera\tposition\tx 0\ty 5\nbad|key 1\n')
         assert.strictEqual(await glyph(), '"→"', 'tabs back on should draw the arrows')
 
-        // 4a. Inside a $ block, past the line's indent, the Tab key inserts spaces (code indents with spaces);
+        // 4a. Inside a multiline string, past the line's indent, the Tab key inserts spaces (code indents with spaces);
         //     at the start of a block line, and anywhere outside a block, it inserts a tab.
-        await setEditorText(page, '$code python\n\tdef f():\n\t\nafter 1')
+        await setEditorText(page, 'code python\n\tdef f():\n\t\nafter 1')
         const cm = () => page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror)
         await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.focus(); c.setCursor({line: 2, ch: 1}) })
         await page.keyboard.press('Tab'); await page.keyboard.type('return 1')
@@ -117,11 +119,11 @@ async function main() {
         await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.setCursor({line: 2, ch: 0}) })
         await page.keyboard.press('Tab')
         assert.strictEqual(await page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror.getLine(2)), '\t\t    return 1', 'Tab at the start of a block line should insert a tab')
-        await setEditorText(page, 'a\n\t$code\n\t\tbody\n\t\nafter 1')
+        await setEditorText(page, 'a\n\tcode \n\t\tbody\n\t\nafter 1')
         await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.focus(); c.setCursor({line: 3, ch: 1}) })
         await page.keyboard.press('Tab')
-        assert.strictEqual(await page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror.getLine(3)), '\t\t', 'a whitespace line at the $ line\'s depth is structure: Tab should insert a tab')
-        await setEditorText(page, '$code python\n\tdef f():\n\t\nafter 1')
+        assert.strictEqual(await page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror.getLine(3)), '\t\t', 'a whitespace line at the header\'s depth is structure: Tab should insert a tab')
+        await setEditorText(page, 'code python\n\tdef f():\n\t\nafter 1')
         await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.focus(); c.setCursor({line: 2, ch: 1}) })
         await page.keyboard.press('Tab'); await page.keyboard.type('return 1')
         await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.setCursor({line: 2, ch: 0}) })
@@ -134,25 +136,25 @@ async function main() {
         const value = () => page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror.getValue().split('\n'))
         const select = (a, b) => page.evaluate((a, b) => { const c = document.querySelector('.CodeMirror').CodeMirror; c.focus(); c.setSelection({line: a, ch: 0}, {line: b, ch: c.getLine(b).length}) }, a, b)   // through the end of line b
         const shiftTab = async () => { await page.keyboard.down('Shift'); await page.keyboard.press('Tab'); await page.keyboard.up('Shift') }
-        await setEditorText(page, 'before 1\n$code python\n\tdef f():\n\t    return 1')
+        await setEditorText(page, 'before\ncode python\n\tdef f():\n\t    return 1')
         await select(2, 3); await page.keyboard.press('Tab')
-        assert.deepStrictEqual(await value(), ['before 1', '$code python', '\t    def f():', '\t        return 1'], 'a selection inside the block shifts by spaces')
+        assert.deepStrictEqual(await value(), ['before', 'code python', '\t    def f():', '\t        return 1'], 'a selection inside the block shifts by spaces')
         await shiftTab()
-        assert.deepStrictEqual(await value(), ['before 1', '$code python', '\tdef f():', '\t    return 1'], 'Shift-Tab takes the spaces back')
+        assert.deepStrictEqual(await value(), ['before', 'code python', '\tdef f():', '\t    return 1'], 'Shift-Tab takes the spaces back')
         await select(1, 3); await page.keyboard.press('Tab')
-        assert.deepStrictEqual(await value(), ['before 1', '\t$code python', '\t\tdef f():', '\t\t    return 1'], 'a selection touching the $ line shifts everything by tabs')
+        assert.deepStrictEqual(await value(), ['before', '\tcode python', '\t\tdef f():', '\t\t    return 1'], 'a selection touching the header shifts everything by tabs')
         await shiftTab()
-        assert.deepStrictEqual(await value(), ['before 1', '$code python', '\tdef f():', '\t    return 1'], 'and Shift-Tab undoes it')
+        assert.deepStrictEqual(await value(), ['before', 'code python', '\tdef f():', '\t    return 1'], 'and Shift-Tab undoes it')
         // A Shift+Down selection ends at column 0 of the next line, which is not part of it.
-        await setEditorText(page, '$code\n\tx\n\ty\nafter 1\n')
+        await setEditorText(page, 'code \n\tx\n\ty\nafter 1\n')
         await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.focus(); c.setSelection({line: 1, ch: 0}, {line: 3, ch: 0}) })
         await page.keyboard.press('Tab')
-        assert.deepStrictEqual(await value(), ['$code', '\t    x', '\t    y', 'after 1', ''], 'a selection ending at column 0 must not touch that line')
+        assert.deepStrictEqual(await value(), ['code ', '\t    x', '\t    y', 'after 1', ''], 'a selection ending at column 0 must not touch that line')
         // Right after an edit above, the answer must come from the current text, not a stale highlight cache.
         await setEditorText(page, 'code\n\tx\n\ty\nafter 1\n')
-        await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.focus(); c.replaceRange('$', {line: 0, ch: 0}); c.setCursor({line: 2, ch: 2}) })
+        await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.focus(); c.replaceRange(' ', {line: 0, ch: 4}); c.setCursor({line: 2, ch: 2}) })
         await page.keyboard.press('Tab')
-        assert.deepStrictEqual(await value(), ['$code', '\tx', '\ty    ', 'after 1', ''], 'Tab right after typing the $ above should already give spaces')
+        assert.deepStrictEqual(await value(), ['code ', '\tx', '\ty    ', 'after 1', ''], 'Tab right after turning the line above into a header should already give spaces')
 
         // 4. The Tab key inserts a tab character instead of leaving the editor.
         await setEditorText(page, 'a')
