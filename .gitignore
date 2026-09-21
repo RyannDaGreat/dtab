@@ -27,3 +27,4 @@ node_modules/
 .claude_todo.md
 *.vsix
 /.claude/worktrees/multiline-without-dollar
+/.scratchpad
