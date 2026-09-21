@@ -77,9 +77,10 @@ function! s:DtabSyntax() abort
 endfunction
 
 " Languages a multiline string can be tagged with (the README's table), and the vim syntax file for each.
+" Vim has no syntax file for jsonl; json.vim colors a value per line just as well.
 let s:dtab_languages = {
     \ 'sql': 'sql', 'python': 'python', 'py': 'python', 'javascript': 'javascript', 'js': 'javascript',
-    \ 'typescript': 'typescript', 'ts': 'typescript', 'html': 'html', 'css': 'css', 'json': 'json',
+    \ 'typescript': 'typescript', 'ts': 'typescript', 'html': 'html', 'css': 'css', 'json': 'json', 'jsonl': 'json',
     \ 'yaml': 'yaml', 'yml': 'yaml', 'markdown': 'markdown', 'md': 'markdown',
     \ 'bash': 'sh', 'sh': 'sh', 'shell': 'sh', 'zsh': 'zsh',
     \ 'c': 'c', 'cpp': 'cpp', 'rust': 'rust', 'go': 'go', 'java': 'java', 'swift': 'swift',

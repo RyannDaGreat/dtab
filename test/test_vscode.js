@@ -17,6 +17,7 @@ const VSCODE_EXTENSIONS = '/Applications/Visual Studio Code.app/Contents/Resourc
 const BUNDLED_GRAMMARS = {
     'source.sql': path.join(VSCODE_EXTENSIONS, 'sql/syntaxes/sql.tmLanguage.json'),
     'source.shell': path.join(VSCODE_EXTENSIONS, 'shellscript/syntaxes/shell-unix-bash.tmLanguage.json'),
+    'source.json.lines': path.join(VSCODE_EXTENSIONS, 'json/syntaxes/JSONL.tmLanguage.json'),
 }
 
 // vim group letter (test/expected/highlight.txt) -> the TextMate scope fragment that must cover the same text
@@ -118,6 +119,13 @@ async function main() {
     stack = textmate.INITIAL
     for (const line of ['config\tdb', '\tinit sql']) stack = grammar.tokenizeLine(line, stack).ruleStack
     assert.ok(inLanguage(grammar.tokenizeLine('\t\tCREATE TABLE t', stack), 'sql', '.sql'), 'a nested sql string was not handed to sql')
+    // jsonl is its own tag with its own grammar (a value per line), not the json tag with a letter after it
+    stack = grammar.tokenizeLine('log jsonl', textmate.INITIAL).ruleStack
+    for (const line of ['\t{"a": 1}', '\t{"a": 2}']) {
+        const jsonlLine = grammar.tokenizeLine(line, stack)
+        assert.ok(inLanguage(jsonlLine, 'jsonl', '.json.lines'), 'jsonl string not handed to the JSON Lines grammar: ' + line)
+        stack = jsonlLine.ruleStack
+    }
     stack = textmate.INITIAL
     for (const line of ['s ', '\t#!/bin/bash']) stack = grammar.tokenizeLine(line, stack).ruleStack
     const shLine = grammar.tokenizeLine('\techo hi', stack)

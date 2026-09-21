@@ -92,7 +92,7 @@ error, since no leaf can claim it.
 | `python` | `py` |
 | `javascript` | `js` |
 | `typescript` | `ts` |
-| `html`, `css`, `json`, `yaml`, `markdown` | `yml`, `md` |
+| `html`, `css`, `json`, `jsonl`, `yaml`, `markdown` | `yml`, `md` |
 | `bash` | `sh`, `shell`, `zsh` |
 | `c`, `cpp`, `rust`, `go`, `java`, `swift` | |
 | `dtab` | |

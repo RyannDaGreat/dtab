@@ -23,7 +23,7 @@ WHILE = "^(?=\\1\\t|\\s*$)"
 EMBEDDED = [
     ("sql", "source.sql", "sql"), ("python|py", "source.python", "python"), ("javascript|js", "source.js", "javascript"),
     ("typescript|ts", "source.ts", "typescript"), ("html", "text.html.basic", "html"), ("css", "source.css", "css"),
-    ("json", "source.json", "json"), ("yaml|yml", "source.yaml", "yaml"), ("markdown|md", "text.html.markdown", "markdown"),
+    ("json", "source.json", "json"), ("jsonl", "source.json.lines", "jsonl"), ("yaml|yml", "source.yaml", "yaml"), ("markdown|md", "text.html.markdown", "markdown"),
     ("bash|sh|shell|zsh", "source.shell", "shellscript"), ("c", "source.c", "c"), ("cpp", "source.cpp", "cpp"),
     ("rust", "source.rust", "rust"), ("go", "source.go", "go"), ("java", "source.java", "java"), ("swift", "source.swift", "swift"),
     ("dtab", "source.dtab", "dtab"),

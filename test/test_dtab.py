@@ -226,15 +226,20 @@ def test_vim_highlighting():
 
 
 def test_vim_embedded_languages():
-    """A tagged multiline string (at the top level or nested) and a shebang string get the language's own groups."""
+    """
+    A tagged multiline string (at the top level or nested) and a shebang string get the language's own groups.
+    A jsonl string is a JSON value per line, and each line is colored.
+    """
     with tempfile.TemporaryDirectory() as directory:
         sample = Path(directory) / "embedded.dtab"
-        sample.write_text("query sql\n\tSELECT name FROM t\nconfig\tdb\n\tinit sql\n\t\tCREATE TABLE t\ns \n\t#!/bin/bash\n\techo hi\nafter 1\n")
+        sample.write_text("query sql\n\tSELECT name FROM t\nconfig\tdb\n\tinit sql\n\t\tCREATE TABLE t\ns \n\t#!/bin/bash\n\techo hi\nafter 1\n"
+                          "log jsonl\n\t{\"a\": 1}\n\t{\"a\": true}\n")
         out = Path(directory) / "groups.txt"
         vim("syntax on", "source dtab.vim", "edit " + str(sample),
-            "call writefile([synIDattr(synID(2,2,1),'name'), synIDattr(synID(4,2,1),'name'), synIDattr(synID(5,3,1),'name'), synIDattr(synID(8,2,1),'name'), synIDattr(synID(9,1,1),'name')], '%s')" % out)
+            "call writefile([synIDattr(synID(2,2,1),'name'), synIDattr(synID(4,2,1),'name'), synIDattr(synID(5,3,1),'name'), synIDattr(synID(8,2,1),'name'), synIDattr(synID(9,1,1),'name'),"
+            " synIDattr(synID(10,5,1),'name'), synIDattr(synID(11,8,1),'name'), synIDattr(synID(12,8,1),'name')], '%s')" % out)
         groups = out.read_text().split()
-    assert groups == ["sqlStatement", "dtabBlockKey", "sqlStatement", "shStatement", "dtabLeafKey"], groups
+    assert groups == ["sqlStatement", "dtabBlockKey", "sqlStatement", "shStatement", "dtabLeafKey", "dtabBlockTag", "jsonNumber", "jsonBoolean"], groups
 
 
 def test_vim_tab_key():

@@ -217,6 +217,7 @@ function continuation(stream) {
 const TAG_MODES = {
     sql: 'text/x-sql', python: 'python', py: 'python', javascript: 'javascript', js: 'javascript',
     typescript: 'text/typescript', ts: 'text/typescript', html: 'htmlmixed', css: 'css', json: 'application/json',
+    jsonl: 'application/json',   // CodeMirror has no JSON Lines mode; its JSON mode colors a value per line just as well
     yaml: 'yaml', yml: 'yaml', markdown: 'markdown', md: 'markdown',
     bash: 'shell', sh: 'shell', shell: 'shell', zsh: 'shell',
     c: 'text/x-csrc', cpp: 'text/x-c++src', rust: 'rust', go: 'go', java: 'text/x-java', swift: 'swift', dtab: 'dtab',

@@ -92,6 +92,12 @@ async function main() {
         assert.ok((await lineTokens(page, 2)).some(t => t[0] === 'builtin' && t[1] === 'echo'), 'the string under a bash header was not handed to the shell mode')
         assert.deepStrictEqual((await lineTokens(page, 3)).map(t => t[0]), ['dtab-leaf-key', 'dtab-value'], 'a one-word leaf without deeper lines stays a leaf')
         assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), {command: 'echo hi', dialect: 'sql', after: '1'})
+        // jsonl: a JSON value per line, each line colored
+        await setEditorText(page, 'log jsonl\n\t{"a": 1}\n\t{"a": true}\n')
+        assert.deepStrictEqual((await lineTokens(page, 1)).map(t => t[0]), ['dtab-block-key', 'dtab-block-tag'])
+        assert.ok((await lineTokens(page, 2)).some(t => t[0] === 'number' && t[1] === '1'), 'first line of a jsonl string not highlighted as JSON')
+        assert.ok((await lineTokens(page, 3)).some(t => t[0] === 'atom' && t[1] === 'true'), 'second line of a jsonl string not highlighted as JSON')
+        assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), {log: '{"a": 1}\n{"a": true}'})
 
         // 2c. Whitespace after a comma in a key: spaces and tabs within the line, or a line break with the list
         //     going on on the next line, where the mode looks ahead to color the dangling keys as what the list

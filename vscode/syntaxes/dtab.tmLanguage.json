@@ -289,6 +289,46 @@
             ]
         },
         {
+            "comment": "key jsonl: the lines under it are highlighted as jsonl",
+            "begin": "^(\\t*)((?: [^\\t\\n]*\\t+)*)([\\p{L}\\p{N}_\\.\\-/]+(?:, *\\t*[\\p{L}\\p{N}_\\.\\-/]+)*) (jsonl)((?:\\t+ [^\\t\\n]*)*)$",
+            "beginCaptures": {
+                "2": {
+                    "name": "meta.entries-before-block.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                },
+                "3": {
+                    "name": "entity.name.tag.leaf-key.dtab",
+                    "patterns": [
+                        {
+                            "include": "#comma"
+                        }
+                    ]
+                },
+                "4": {
+                    "name": "string.unquoted.value.dtab"
+                },
+                "5": {
+                    "name": "meta.entries-after-header.dtab",
+                    "patterns": [
+                        {
+                            "include": "#entry"
+                        }
+                    ]
+                }
+            },
+            "while": "^(?=\\1\\t|\\s*$)",
+            "contentName": "meta.embedded.block.jsonl",
+            "patterns": [
+                {
+                    "include": "source.json.lines"
+                }
+            ]
+        },
+        {
             "comment": "key yaml: the lines under it are highlighted as yaml",
             "begin": "^(\\t*)((?: [^\\t\\n]*\\t+)*)([\\p{L}\\p{N}_\\.\\-/]+(?:, *\\t*[\\p{L}\\p{N}_\\.\\-/]+)*) (yaml|yml)((?:\\t+ [^\\t\\n]*)*)$",
             "beginCaptures": {
