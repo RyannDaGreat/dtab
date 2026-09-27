@@ -19,11 +19,13 @@ Rules:
   - `a,b` writes the same value under a and under b. After the comma, spaces, then tabs or line breaks, are
     skipped, so `a, b` and `a,` at the end of a line with `b` on the next are the same. What follows the comma
     must be a key: a comment there (a space after a tab or a line break), or nothing, is an error.
-  - An entry starting with a space is a comment. A trailing tab is an empty key that swallows the lines under it.
-  - A leaf with lines indented under it is a multiline string: those lines are the value, one tab deeper
-    than the key's line and verbatim from there, tabs included (the only way to put a tab in a value). The
-    leaf's own text is a tag for editors, `sql` or `python` or `txt` or nothing, and is not part of the value.
-  - A line indented under a line of several leaves is an error, since no leaf can claim it.
+  - An entry starting with a space is a comment. Trailing tabs outside string bodies are ignored.
+  - A line ending in its only leaf, with lines indented under it, is a multiline string. Object keys may
+    precede the leaf; comments may surround it. The deeper lines are the value, one tab deeper than the
+    header line's leading tabs and verbatim from there, tabs included (the only way to put a tab in a value).
+    The leaf's own text is a tag for editors, `sql` or `python` or `txt` or nothing, not part of the value.
+  - Several leaves do not open a string. Deeper lines continue the line's object path; without one, they
+    are an error, since no leaf can claim them.
   - Keys are one or more letters, digits, or KEY_PUNCTUATION (`_.-/`), so `file.json`, `a/b` and `123aa` are keys. Keys that
     are also Python identifiers work as attributes (config.deltas.l1). Every value is a string.
 
@@ -49,7 +51,7 @@ _DANGLING = re.compile(r"(?:^|\t)[^\t\n ]*,\Z")  # a key list ending in a comma:
 def parse(text):
     """
     Pure function. Parses dtab text into nested dicts of strings. Raises ValueError, with the line
-    number, on a key that breaks KEY_RULE or on a line indented under several leaves.
+    number, on a key that breaks KEY_RULE or ambiguous indentation under several leaves.
 
     Args:
         text (str): dtab source. Whitespace-only lines are ignored outside multiline strings.
@@ -68,6 +70,10 @@ def parse(text):
         {'table': 'name\\tage\\nryan\\t30', 'prompt': 'Look here.'}
         >>> parse('dialect sql')
         {'dialect': 'sql'}
+        >>> parse('A\\tB\\tcode py\\n\\tSome Code Here')
+        {'A': {'B': {'code': 'Some Code Here'}}}
+        >>> parse('A\\tB\\t\\n\\tcode py\\n\\t\\tSome Code Here')
+        {'A': {'B': {'code': 'Some Code Here'}}}
         >>> parse('a\\tb 1\\nfile.json\\tsize 2\\n123aa 3')
         {'a': {'b': '1'}, 'file.json': {'size': '2'}, '123aa': '3'}
         >>> parse('a\\tb 1\\nc|d\\te 2')
@@ -85,8 +91,8 @@ def parse(text):
         ValueError: dtab line 1: invalid key 'a,': a comma needs a key on both sides; a comment does not count
     """
     root = {}
-    stack = [(-1, [root], False)]  # (indent, nodes that deeper lines nest into, whether the line is several leaves)
-    block = None  # after a line of one leaf: (its indent, nodes, names, raw lines under it)
+    stack = [(-1, [root], False)]  # (indent, nodes that deeper lines nest into, whether indentation is ambiguous)
+    block = None  # after a path ending in its only leaf: (header indent, nodes, names, raw lines under it)
     numbered = enumerate(text.split("\n"), 1)
     for line_number, line in numbered:
         indent = len(line) - len(line.lstrip("\t"))
@@ -106,27 +112,24 @@ def parse(text):
         if stack[-1][2]:
             raise ValueError("dtab line %d: indented under several leaves; a multiline string has one" % line_number)
         nodes = stack[-1][1]
-        leaves = []  # (names, value) of the line's leaves; a line of exactly one may be a multiline string's header
+        leaves = []  # (parent nodes, names); a sole leaf at the end of the path may open a multiline string
         steps_in = False
         for entry in _TAB_RUN.split(line[indent:]):
             key, space, value = entry.partition(" ")
             if not key:
-                if not space:
-                    nodes = [{}]  # Empty key (trailing tab): everything under it is discarded
-                    steps_in = True
-                continue
+                continue  # Comment or trailing tabs; neither changes the path
             names = _key_names(key, line_number, allow_commas=True)
             if space:
                 for node in nodes:
                     for name in names:
                         node[name] = value
-                leaves.append((names, value))
+                leaves.append((nodes, names))
             else:
                 nodes = [_child(node, name) for node in nodes for name in names]
                 steps_in = True
         stack.append((indent, nodes, len(leaves) > 1 and not steps_in))
-        if len(leaves) == 1 and not steps_in:
-            block = (indent, nodes, leaves[0][0], [])
+        if len(leaves) == 1 and leaves[0][0] is nodes:
+            block = (indent, nodes, leaves[0][1], [])
     if block is not None:
         _finish_block(block)
     return root

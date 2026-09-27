@@ -55,7 +55,7 @@ dtab.parse(open("scene.dtab").read())
 
 ## Rules
 
-- Tabs separate the steps of a path. `deltas	l1	position` walks three keys down. Several tabs in a row count as one, so you can align columns.
+- Tabs separate the steps of a path. `deltas	l1	position` walks three keys down. Several tabs in a row count as one, so you can align columns. Trailing tabs outside string bodies are ignored.
 - An entry with a space is `key value`. It sets the key and stays at the same level, so `x 1	y .5` sets two keys.
 - An indented line continues the path of the line above it.
 - Writing a key again replaces it. Writing into an object merges.
@@ -69,10 +69,11 @@ so `file.json`, `2026-09-07`, `assets/logo` and `0` are keys. Keys that happen t
 
 ## Multiline strings
 
-A leaf with lines indented under it is a multiline string. The lines under it are the value: each
-starts one tab deeper than the key's line and is taken verbatim from there, so tabs and deeper
-indentation inside are part of the value. This is the only way to put a tab in a value. Blank lines
-inside are kept, trailing ones dropped.
+A line ending in its only leaf, with lines indented under it, is a multiline string. Object keys may
+precede the leaf, and comments may surround it. The lines under it are the value: each starts one tab
+deeper than the header line's **leading indentation**, regardless of how many object keys precede the
+leaf, and is taken verbatim from there. Tabs and deeper indentation inside are part of the value.
+This is the only way to put a tab in a value. Blank lines inside are kept, trailing ones dropped.
 
 ```
 query sql	 a comment may follow the tag
@@ -83,8 +84,23 @@ query sql	 a comment may follow the tag
 
 The leaf's own text is a tag that tells editors which language to highlight, and it is not part of the
 value. Any text will do, `txt` or nothing at all (`prompt ` with a trailing space) for plain text.
-Unknown tags are plain text, never an error. A line indented under a line of several leaves is an
-error, since no leaf can claim it.
+Unknown tags are plain text, never an error. Several leaves do not open a string: deeper lines continue
+the line's object path, or are an error if there is no object path, since no leaf can claim them.
+
+These forms both give `{"A": {"B": {"code": "Some Code Here"}}}`:
+
+```
+A	B	code py
+	Some Code Here
+```
+```
+A	B
+	code py
+		Some Code Here
+```
+
+Trailing tabs after `B` or `code py` change nothing. A space is different: `B ` is an empty leaf,
+not an object key.
 
 | Tag | Also |
 |---|---|
@@ -101,7 +117,7 @@ error, since no leaf can claim it.
 
 - **Python**: `pip install dtab` then `import dtab`
 - **JavaScript**: `npm install deltatab` then `const dtab = require('deltatab')`, or `<script src="https://cdn.jsdelivr.net/npm/deltatab/dtab.js">` for `window.dtab`
-- **Vim**: `Plugin 'RyannDaGreat/dtab'` (Vundle) or `Plug 'RyannDaGreat/dtab'` (vim-plug), or paste `dtab.vim` into your vimrc. Highlights `*.dtab`, flags bad keys and trailing tabs, gives the file a Δ icon in NERDTree if vim-devicons is installed, `:DtabPreview` opens a split showing the tree as JSON that follows your edits (needs `+python3`), and `J` joins the line below with a tab (deep form to wide form), or with a space after a comma, whenever that keeps the tree the same.
+- **Vim**: `Plugin 'RyannDaGreat/dtab'` (Vundle) or `Plug 'RyannDaGreat/dtab'` (vim-plug), or paste `dtab.vim` into your vimrc. Highlights `*.dtab`, flags bad keys, gives the file a Δ icon in NERDTree if vim-devicons is installed, `:DtabPreview` opens a split showing the tree as JSON that follows your edits (needs `+python3`), and `J` joins the line below with a tab (deep form to wide form), or with a space after a comma, whenever that keeps the tree the same.
 - **VS Code**: search "dtab" in Extensions, or `code --install-extension RyannDaGreat.dtab`. Highlighting, a Δ file icon, and a live JSON preview of the file beside it (the preview button in the title bar, or Cmd+K V).
 - **Claude Code, Codex, Cursor and other agents**: `npx skills add RyannDaGreat/dtab` installs a skill that teaches the agent the rules ([`skills/dtab/SKILL.md`](skills/dtab/SKILL.md), in the Agent Skills format they all read).
 

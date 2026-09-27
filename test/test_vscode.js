@@ -81,13 +81,13 @@ async function main() {
         if (!sample[i]) continue
         // Differences that are fine: vim paints only the offending character of a bad key red, the grammar
         // paints the whole key (so X is accepted wherever vim has a key letter in an entry that contains an X);
-        // the space after a leaf key is K in vim and uncaptured here; a trailing tab is E in vim, '.' here.
+        // the space after a leaf key is K in vim and uncaptured here.
         // A key list that ends its line with a comma goes on on the next line: vim's match spans both lines,
         // so it knows whether the list ends as a leaf (K) and paints the next line's leading tabs as part of
         // the key, while the grammar sees one line at a time: object keys (O), indent ('.'), and a comma it
         // cannot tell is bad (',') because only a comment follows it.
         const got = letters(sample[i], result.tokens)
-        const want = expected[i].replace(/E/g, '.')
+        const want = expected[i]
         const bytes = Buffer.from(sample[i])   // both maps are per byte
         const dangling = /,$/.test(sample[i])
         const entryHasBadKey = c => {
@@ -119,6 +119,14 @@ async function main() {
     stack = textmate.INITIAL
     for (const line of ['config\tdb', '\tinit sql']) stack = grammar.tokenizeLine(line, stack).ruleStack
     assert.ok(inLanguage(grammar.tokenizeLine('\t\tCREATE TABLE t', stack), 'sql', '.sql'), 'a nested sql string was not handed to sql')
+    for (const header of ['A\tB\tcode sql', 'A\tB\tcode sql\t', '\tA\tB\tcode sql\t note\t']) {
+        const result = grammar.tokenizeLine(header, textmate.INITIAL)
+        assert.ok(result.tokens.some(tok => tok.scopes.includes('entity.name.type.object-key.dtab')), 'inline path lost its object scope')
+        const body = grammar.tokenizeLine('\t\tSELECT * FROM t', result.ruleStack)
+        assert.ok(inLanguage(body, 'sql', '.sql'), 'inline sql block not handed to sql: ' + header)
+        const next = grammar.tokenizeLine('after 1', body.ruleStack)
+        assert.ok(next.tokens.some(tok => tok.scopes.includes('entity.name.tag.leaf-key.dtab')), 'inline block did not end')
+    }
     // jsonl is its own tag with its own grammar (a value per line), not the json tag with a letter after it
     stack = grammar.tokenizeLine('log jsonl', textmate.INITIAL).ruleStack
     for (const line of ['\t{"a": 1}', '\t{"a": 2}']) {
@@ -175,11 +183,16 @@ async function main() {
     assert.strictEqual(insideBlock(['x 1\ty 2', '\tz'], 1), false, 'two leaves are no header')
     assert.strictEqual(insideBlock(['code ', '\tx'], 0), false, 'the header itself is not inside the string')
     const {isHeaderLine, headers} = require(path.join(EXTENSION, manifest.main))
-    assert.deepStrictEqual(['query sql', 'prompt ', '\tinit sql\t note', ' note\tq sql', 'hello big world', 'x, y sql', 'x,\ty sql', 'a\tb sql', 'x 1\ty 2', 'k', 'q sql\t', 'key, fill'].map(isHeaderLine),
-        [true, true, true, true, true, true, true, false, false, false, false, false], 'header shape: one leaf, comments around it, whitespace after a comma inside the keys')
+    assert.deepStrictEqual(['query sql', 'prompt ', '\tinit sql\t note', ' note\tq sql', 'hello big world', 'x, y sql', 'x,\ty sql', 'a\tb sql', 'x 1\ty 2', 'k', 'q sql\t', 'key, fill', 'b sql\ta', 'A\tx 1\ty 2\t', 'A\tB\tcode py\t', 'A\tB\t'].map(isHeaderLine),
+        [true, true, true, true, true, true, true, true, false, false, true, false, false, false, true, false], 'header shape: an optional object path ending in its only leaf; comments and trailing tabs allowed')
+    assert.strictEqual(insideBlock(['A\tB\tcode py\t', '\tdef f():', '\t\treturn 1'], 2), true, 'inline path baseline is the header indentation')
+    assert.strictEqual(insideBlock(['A\tB\t', '\tcode py', '\t\treturn 1'], 2), true, 'trailing tabs keep the deeper header')
+    assert.strictEqual(insideBlock(['A\tx 1\ty 2\t', '\tz 3'], 1), false, 'multiple leaves keep structure')
     assert.strictEqual(insideBlock(['key, fill', '\ton true'], 1), false, 'a space after a comma continues the keys, it does not start a tag')
     assert.deepStrictEqual(headers(['query sql\t note', '\tSELECT 1', 'dialect sql', 'after 1', 'x', '\tp ', '', '\t\ttext', ' note\tx, y sql', '\tSELECT 2']),
         [{line: 0, key: [0, 5], tag: [6, 9]}, {line: 5, key: [1, 2], tag: [3, 3]}, {line: 8, key: [6, 10], tag: [11, 14]}], 'headers are the shaped lines followed by a deeper line, blank lines skipped')
+    assert.deepStrictEqual(headers(['A\tB\tcode py\t note\t', '\tprint(1)', 'A\tB\t', '\tcode py\t', '\t\tprint(2)']),
+        [{line: 0, key: [4, 8], tag: [9, 11]}, {line: 3, key: [1, 5], tag: [6, 8]}], 'only the final leaf is a semantic header token')
     const {shiftLine} = require(path.join(EXTENSION, manifest.main))
     assert.strictEqual(shiftLine('\tdef f():', true, 1), '\t    def f():')
     assert.strictEqual(shiftLine('\t    return', true, -1), '\treturn')
@@ -203,6 +216,7 @@ async function main() {
     // The JSON preview: the parser's tree, or its message while the text does not parse. It uses the repo's own parser.
     const {previewText} = require(path.join(EXTENSION, manifest.main))
     assert.strictEqual(previewText('a\tb 1\nq sql\n\tSELECT 1'), JSON.stringify({a: {b: '1'}, q: 'SELECT 1'}, null, 4))
+    assert.strictEqual(previewText('A\tB\tcode py\n\tSome Code Here'), JSON.stringify({A: {B: {code: 'Some Code Here'}}}, null, 4))
     assert.ok(manifest.contributes.semanticTokenScopes[0].scopes.dtabBlockKey[0].includes('block-key'), 'header tokens map onto the block-key scope')
     assert.ok(previewText('a|b 1').startsWith('dtab line 1: invalid key'), 'the preview should show the parser error')
     assert.strictEqual(fs.realpathSync(path.join(EXTENSION, 'dtab.js')), fs.realpathSync(path.join(ROOT, 'dtab.js')), 'vscode/dtab.js must be the repo parser')

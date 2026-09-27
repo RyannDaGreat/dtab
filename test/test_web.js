@@ -99,6 +99,20 @@ async function main() {
         assert.ok((await lineTokens(page, 3)).some(t => t[0] === 'atom' && t[1] === 'true'), 'second line of a jsonl string not highlighted as JSON')
         assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), {log: '{"a": 1}\n{"a": true}'})
 
+        // Inline object paths and trailing tabs keep the sole final leaf's language and indentation baseline.
+        for (const header of ['A\tB\tcode sql', 'A\tB\tcode sql\t', 'A\tB\tcode sql\t note\t']) {
+            await setEditorText(page, header + '\n\tSELECT * FROM t\nafter 1\n')
+            const tokens = await lineTokens(page, 1)
+            assert.ok(tokens.some(t => t[0] === 'dtab-object-key' && t[1] === 'A'), 'object prefix lost its highlighting')
+            assert.ok(tokens.some(t => t[0] === 'dtab-block-key' && t[1] === 'code'), 'inline block key not highlighted')
+            assert.ok((await lineTokens(page, 2)).some(t => t[0] === 'keyword' && t[1] === 'SELECT'), 'inline sql string not highlighted')
+            assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), {A: {B: {code: 'SELECT * FROM t'}}, after: '1'})
+        }
+        for (const header of ['A\tB', 'A\tB\t']) {
+            await setEditorText(page, header + '\n\tcode sql\n\t\tSELECT * FROM t')
+            assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), {A: {B: {code: 'SELECT * FROM t'}}})
+        }
+
         // 2c. Whitespace after a comma in a key: spaces and tabs within the line, or a line break with the list
         //     going on on the next line, where the mode looks ahead to color the dangling keys as what the list
         //     turns out to be. A comma that only a comment follows is an error.
@@ -132,7 +146,7 @@ async function main() {
 
         // 4a. Inside a multiline string, past the line's indent, the Tab key inserts spaces (code indents with spaces);
         //     at the start of a block line, and anywhere outside a block, it inserts a tab.
-        await setEditorText(page, 'code python\n\tdef f():\n\t\nafter 1')
+        await setEditorText(page, 'A\tB\tcode python\t\n\tdef f():\n\t\nafter 1')
         const cm = () => page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror)
         await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.focus(); c.setCursor({line: 2, ch: 1}) })
         await page.keyboard.press('Tab'); await page.keyboard.type('return 1')

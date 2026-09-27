@@ -1,0 +1,34 @@
+wide	A	B	code py
+	Some Code Here
+deep	A	B
+	code py
+		Some Code Here
+trailing	A	B		
+	code py		
+		Some Code Here
+nested
+	A		B	code py	 note	
+
+		def f():
+			return 1	
+		source	with tabs	
+	end done
+fanout	A, B	code, copy txt	
+	Shared text
+commented	 before	A	 between	code 	 after	
+	Plain text
+objects	A	B		
+	child value
+not_header	leaf value	child	
+	x 1
+multi	A	x 1	y 2	
+	z 3
+multi_before	x 1	A	code py
+	child value
+standalone	A	code py	
+blank	A	code py	
+	
+next done
+split	A,
+	B	code py	
+	Some Code Here

@@ -3,8 +3,8 @@
 " after `syntax on`.
 "
 " Object keys purple, leaf keys cyan, leaf values blue, comments (entries starting with a space) as
-" Comment. Errors: trailing tabs (an empty key that silently swallows the following indented lines),
-" characters a key may not contain (letters, digits, _ . - / only), and a comma with no key on one side.
+" Comment. Errors: characters a key may not contain (letters, digits, _ . - / only), and a comma with no
+" key on one side. Trailing tabs are harmless separators.
 " A leaf with lines indented under it is a multiline string: the key yellow, the leaf's text (a tag for
 " editors) orange, and the lines colored as text, or by the tagged language's own syntax file (sql, python,
 " bash, ...), or by a shebang.
@@ -51,7 +51,6 @@ function! s:DtabSyntax() abort
     execute 'syntax match dtabLeafKey     /' . s:keys . '\ze,\@<! /                       contained contains=@dtabKeyParts'
     syntax match dtabLeafValue   / \zs[^\t]*/                                 contained
     syntax match dtabComment     /\%(^\t*\|\t\)\zs [^\t]*/
-    syntax match dtabTrailingTab /\t\+$/
     " A comma needs a key on both sides: the one before it right there, the one after it past the whitespace
     " it allows. Any other comma is an error (dtabComma is defined last, so it wins where both match).
     syntax match dtabBadComma    /,/                                                    contained
@@ -61,15 +60,16 @@ function! s:DtabSyntax() abort
     execute 'syntax match dtabBadKey /\%(\k\|[,' . escape(s:key_punctuation, ']^-\/') . ' \t\n]\)\@!./ contained'
     syntax cluster dtabKeyParts contains=dtabBadComma,dtabComma,dtabBadKey
 
-    " A line of one leaf whose next non-blank line is deeper opens a multiline string. The key match looks ahead
-    " for that deeper line (\1 is the line's own tabs), and only from the key can the string's region start,
+    " A line of one leaf whose next non-blank line is deeper opens a multiline string. The key match looks
+    " behind for the path (already colored as entries), then ahead for a deeper line (\1 is the line's own tabs).
+    " Only from the key can the string's region start,
     " through nextgroup: it begins at the tag, whose lookbehind captures the tabs (\z1) that bound the region,
-    " and runs over every following line indented deeper, or blank. Comment entries may precede the key and
-    " follow the tag. Defined after the entry matches so the key wins at the same column. keepend: when the
+    " and runs over every following line indented deeper, or blank. Object keys and comments may precede
+    " the leaf; comments and trailing tabs may follow it. Defined after entries so the key wins. keepend: when the
     " string ends, an embedded-language region inside it ends too.
-    execute 'syntax match  dtabBlockKey /^\(\t*\)\%( [^\t]*\t\+\)*\zs' . s:keys . '\ze,\@<! [^\t]*\%(\t\+ [^\t]*\)*\n\%(\s*\n\)*\1\t/ contains=@dtabKeyParts nextgroup=dtabBlock'
-    execute 'syntax region dtabBlock matchgroup=dtabBlockTag start=/\%(^\z(\t*\)\%( [^\t]*\t\+\)*' . s:keys . '\)\@<=,\@<! [^\t]*/ end=/^\%(\z1\t\|\s*$\)\@!/ contained keepend contains=dtabHeaderComment,@dtabShebangs'
-    execute 'syntax match  dtabHeaderComment /\%(^\t*\%( [^\t]*\t\+\)*' . s:keys . ',\@<! [^\t]*\%(\t\+ [^\t]*\)*\t\+\)\@<= [^\t]*/ contained'
+    execute 'syntax match  dtabBlockKey /\%(^\(\t*\)' . s:header_prefix . '\)\@<=' . s:keys . '\ze,\@<! [^\t]*\%(\t\+ [^\t]*\)*\t*\n\%(\s*\n\)*\1\t/ contains=@dtabKeyParts nextgroup=dtabBlock'
+    execute 'syntax region dtabBlock matchgroup=dtabBlockTag start=/\%(^\z(\t*\)' . s:header_prefix . s:keys . '\)\@<=,\@<! [^\t]*/ end=/^\%(\z1\t\|\s*$\)\@!/ contained keepend contains=dtabHeaderComment,@dtabShebangs'
+    execute 'syntax match  dtabHeaderComment /\%(^\t*' . s:header_prefix . s:keys . ',\@<! [^\t]*\%(\t\+ [^\t]*\)*\t\+\)\@<= [^\t]*/ contained'
     call s:DtabEmbedded()
     syntax sync fromstart
     call s:DtabHighlight()
@@ -100,7 +100,7 @@ function! s:DtabEmbedded() abort
             let l:included[l:syntax] = 1
         endif
         execute 'syntax region dtabBlock matchgroup=dtabBlockTag'
-            \ . ' start=/\%(^\z(\t*\)\%( [^\t]*\t\+\)*' . s:keys . '\)\@<=,\@<! ' . l:tag . '\ze\%(\t\|$\)/'
+            \ . ' start=/\%(^\z(\t*\)' . s:header_prefix . s:keys . '\)\@<=,\@<! ' . l:tag . '\ze\%(\t\|$\)/'
             \ . ' end=/^\%(\z1\t\|\s*$\)\@!/ contained keepend contains=dtabHeaderComment,@dtabLang_' . l:syntax
     endfor
     for [l:word, l:tag] in items(s:dtab_shebangs)
@@ -121,11 +121,13 @@ let s:key_punctuation = '_.-/'
 let s:keys = '[^\t ]\+\%(,\@<= *[\t\n]*[^\t ]\+\)*'
 " The same within one line, for the functions that look at a line
 let s:line_keys = '[^\t ]\+\%(,\@<= *\t*[^\t ]\+\)*'
+" Object keys and comments before the sole leaf of a multiline string's header
+let s:header_prefix = '\%(\%( [^\t]*\|' . s:keys . ',\@<!\)\t\+\)*'
 
 function! s:IsHeaderLine(line) abort
-    " Whether a line has the shape that opens a multiline string once a deeper line follows: exactly one leaf
-    " and otherwise only comments. The parser's rule.
-    return a:line =~ '^\t*\%( [^\t]*\t\+\)*' . s:line_keys . ',\@<! [^\t]*\%(\t\+ [^\t]*\)*$'
+    " Pure function. Whether a line ends an optional object path in its only leaf (comments/tabs allowed).
+    " Args: line (string). Returns: boolean. Example: s:IsHeaderLine("A\tB\tcode py\t") -> 1.
+    return a:line =~ '^\t*' . s:header_prefix . s:line_keys . ',\@<! [^\t]*\%(\t\+ [^\t]*\)*\t*$'
 endfunction
 
 function! s:Deeper(lnum, depth) abort
@@ -210,9 +212,9 @@ function! s:OutdentOperator(type) abort
 endfunction
 
 function! s:Entries(line) abort
-    " A line's entries after its indentation, tab runs being one separator; a trailing tab gives a last empty
-    " entry. The whitespace a key's comma allows is closed up first, so `a, b` and `a,	b` are one entry `a,b`.
-    return split(substitute(substitute(a:line, '^\t*', '', ''), ',\zs *\t*', '', 'g'), '\t\+', 1)
+    " Pure function. Entries after indentation; tab runs separate entries and trailing tabs are ignored.
+    " Args: line (string). Returns: list of strings. Example: s:Entries("a, b\tc 1\t") -> ['a,b', 'c 1'].
+    return split(substitute(substitute(a:line, '^\t*', '', ''), ',\zs *\t*', '', 'g'), '\t\+')
 endfunction
 
 function! s:Dangling(line) abort
@@ -221,9 +223,8 @@ function! s:Dangling(line) abort
 endfunction
 
 function! s:StepsIn(line) abort
-    " Whether a structure line steps into something, so that a line joined onto it would nest under it:
-    " an entry with no space (an object key, or the empty key of a trailing tab). Comments (entries
-    " starting with a space) do not count.
+    " Pure function. Whether a structure line steps into an object key. Comments and trailing tabs do not count.
+    " Args: line (string). Returns: boolean. Example: s:StepsIn("A\tB\t") -> 1; s:StepsIn("x 1\t") -> 0.
     for l:entry in s:Entries(a:line)
         if l:entry[0] !=# ' ' && l:entry !~ ' '
             return 1
@@ -281,11 +282,10 @@ function! s:Join(first, last) abort
     " the same tree, but only when the tree does stay the same: the lower line is deeper, or at the same
     " depth under a line that steps into nothing (or is a comment that nothing deeper follows), and no
     " later line of the subtree changes parent (s:Reparents). Otherwise nothing happens but a message. A
-    " multiline string's header keeps its text below it, and a header joined onto anything would stop being
-    " one, so joins involving a header are refused, as is a join whose result would become one (a comment
-    " joined onto `v 1` with a deeper line below would turn that line into text). So is an upper line ending
-    " in a tab, whose empty key would vanish into the tab run. An upper line ending in a comma continues on
-    " the lower one already: they join with a space, `a,` and `b` to `a, b`. Two lines inside a string are
+    " multiline string's header keeps its text below it. Header joins are refused to avoid changing the
+    " string's indentation baseline, as is a join whose result would become a header (a comment joined
+    " onto `v 1` with a deeper line below would turn that line into text). An upper line ending in a comma
+    " continues on the lower one already: they join with a space, `a,` and `b` to `a, b`. Two lines inside a string are
     " text and join like vim's J. A blank line is dropped, as vim's J drops it.
     for l:step in range(a:first, a:last - 1)
         if a:first >= line('$')
@@ -306,7 +306,7 @@ function! s:Join(first, last) abort
             normal! J
         elseif s:Dangling(l:upper)
             call s:JoinWith(a:first, ' ')
-        elseif s:IsHeader(a:first) || s:IsHeader(a:first + 1) || l:upper =~ '\t$'
+        elseif s:IsHeader(a:first) || s:IsHeader(a:first + 1)
             \ || (s:IsHeaderLine(l:upper . "\t" . substitute(l:lower, '^\t*', '', '')) && s:Deeper(a:first + 1, l:upper_depth))
             \ || l:lower_depth < l:upper_depth
             \ || (l:lower_depth == l:upper_depth && s:StepsIn(l:upper) && !s:IsComment(l:lower))
@@ -371,6 +371,5 @@ function! s:DtabHighlight() abort
     highlight default link dtabHeaderComment Comment
     highlight default link dtabComma       Delimiter
     highlight default link dtabBadComma    Error
-    highlight default link dtabTrailingTab Error
     highlight default link dtabBadKey      Error
 endfunction

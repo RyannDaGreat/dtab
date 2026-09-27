@@ -31,8 +31,9 @@ EMBEDDED = [
 # (interpreter regex in a shebang, scope, name)
 SHEBANGS = [("bash|zsh|sh", "source.shell", "shellscript"), ("python\\d*", "source.python", "python"), ("node", "source.js", "javascript")]
 
-# A header is a line with one leaf, comments allowed before and after, with lines indented under it. A TextMate grammar cannot look at the next line, so every such line opens a region that
-# ends at once when nothing deeper follows, and the header itself is colored as the ordinary leaf it may be.
+# A header ends an optional object path in its only leaf; comments and trailing tabs are allowed.
+# TextMate cannot look at the next line, so each candidate opens a region that ends at once when nothing
+# deeper follows, and the header itself is colored as the ordinary leaf it may be.
 # The extension paints real headers (key yellow, tag orange) through semantic tokens, which can look ahead.
 BLOCK_CAPTURES = {
     "2": {"name": "meta.entries-before-block.dtab", "patterns": [{"include": "#entry"}]},
@@ -40,7 +41,7 @@ BLOCK_CAPTURES = {
     "4": {"name": "string.unquoted.value.dtab"},
     "5": {"name": "meta.entries-after-header.dtab", "patterns": [{"include": "#entry"}]},
 }
-HEADER = "^(\\t*)((?: [^\\t\\n]*\\t+)*)(%s) (%s)((?:\\t+ [^\\t\\n]*)*)$"  # tabs, comments, key(s), the tag, comments
+HEADER = ("^(\\t*)((?:(?: [^\\t\\n]*|" + KEYS + ")\\t+)*)(%s) (%s)((?:\\t+ [^\\t\\n]*)*\\t*)$")  # tabs, path/comments, leaf keys, tag, comments/tabs
 
 
 def block_rule(tag_regex, scope, name):

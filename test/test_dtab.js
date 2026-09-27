@@ -20,7 +20,15 @@ function testDocumentedExamples() {
     assert.deepStrictEqual(dtab.parse('table txt\n\tname\tage\nprompt \n\tLook here.\ndialect sql'), {table: 'name\tage', prompt: 'Look here.', dialect: 'sql'})
     assert.deepStrictEqual(dtab.parse('config\tdb\n\tinit sql\t schema\n\t\tCREATE\n\tport 1'), {config: {db: {init: 'CREATE', port: '1'}}}, 'a comment may follow the tag')
     assert.deepStrictEqual(dtab.parse('hello big world\n\tkey value'), {hello: 'key value'}, 'any leaf text is a tag')
+    for (const text of [
+        'A\tB\tcode py\n\tSome Code Here',
+        'A\tB\n\tcode py\n\t\tSome Code Here',
+        'A\tB\t\n\tcode py\n\t\tSome Code Here',
+        'A\t\tB\t\tcode py\t\t\n\tSome Code Here',
+    ]) assert.deepStrictEqual(dtab.parse(text), {A: {B: {code: 'Some Code Here'}}}, text)
+    assert.deepStrictEqual(dtab.parse('A\tB \n\tcode py'), {A: {B: 'code py'}}, 'a trailing space still marks a leaf')
     assert.throws(() => dtab.parse('x 1\ty 2\n\tz 3'), /line 2: indented under several leaves/)
+    assert.throws(() => dtab.parse('x 1\ty 2\t\n\tz 3'), /line 2: indented under several leaves/)
     assert.deepStrictEqual(dtab.parse('x, y 1\nservers\talpha,\n\tbeta,\tgamma\tport 80'),
         {x: '1', y: '1', servers: {alpha: {port: '80'}, beta: {port: '80'}, gamma: {port: '80'}}}, 'whitespace after a comma is skipped, line breaks included')
     assert.throws(() => dtab.parse('a,\n comment\nb 1'), /line 1: invalid key "a,": a comma needs a key on both sides/)

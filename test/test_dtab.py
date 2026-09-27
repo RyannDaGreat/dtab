@@ -12,8 +12,8 @@ Checks:
      in test/expected/, which were diffed against the original when written. The differences are exactly:
      blank lines are ignored, an object can overwrite a leaf, comma keys respect line order (in game_config
      that is one leaf, deltas.initial.l1.intensity, where the original ignored the later `l1	intensity 1`),
-     multiline strings (`key word` with lines under it), and whitespace after a comma in a key
-     (comma_whitespace.dtab), which the original did not have.
+     multiline strings (`key word` with lines under it, including inline paths), ignored trailing tabs,
+     and whitespace after a comma in a key (comma_whitespace.dtab), which the original did not have.
   4. parse(stringify(parse(text))) == parse(text) for every sample.
   5. The key rule (letters, digits, _ . -): bad keys are rejected with a line number in parse and in
      stringify, and the Python and JS character classes agree on a set of Unicode probes. Whitespace after
@@ -49,7 +49,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SKILL = ROOT / "skills" / "dtab" / "SKILL.md"
 HIGHLIGHT_SAMPLE = ROOT / "test" / "samples" / "highlight.dtab"
 SAMPLES = sorted(path for path in (ROOT / "test" / "samples").glob("*.dtab") if path != HIGHLIGHT_SAMPLE)
-DEVIATING = {"deviations.dtab", "game_config.dtab", "multiline.dtab", "comma_whitespace.dtab"}  # multiline strings and whitespace after commas did not exist in the original
+DEVIATING = {"deviations.dtab", "game_config.dtab", "multiline.dtab", "comma_whitespace.dtab", "edge_cases.dtab", "path_blocks.dtab"}  # multiline strings, ignored trailing tabs and whitespace after commas differ from the original
 IDENTIFIER_PROBES = ["café", "变量", "x²", "_x", "0x", "a-b", "ok_1", "ª", "Ⅻ", "℘", "ℕ", "𝔸", "a.b", "é1", "1é", "a/b", "a:b", "ä-ö.ü", "١٢٣", "a~b"]   # the key rule, py vs js
 
 sys.path.insert(0, str(ROOT))
@@ -132,6 +132,7 @@ def test_key_rule():
         ("a,b#c\tx 1", ["'a,b#c'"]),
         ("\"quoted\" 1", ["'\"quoted\"'"]),
         ("x 1\ty 2\n\tz 3", ["line 2", "indented under several leaves"]),   # no leaf can claim the line
+        ("x 1\ty 2\t\n\tz 3", ["line 2", "indented under several leaves"]),   # trailing tabs do not hide ambiguity
     ]:
         raises_value_error(lambda: dtab.parse(text), *fragments)
     assert dtab.parse("a sql\nb 1\nc \n\tline\n\t\ttabbed\nd any tag at all\n\ttext") == {"a": "sql", "b": "1", "c": "line\n\ttabbed", "d": "text"}, "a leaf is a leaf until lines follow; then its text is the tag and the lines, verbatim past one tab, the value"
@@ -203,6 +204,23 @@ def test_comma_whitespace():
             assert isinstance(js_result, str) and expected in js_result, "%r: dtab.js gives %r" % (text, js_result)
 
 
+def test_path_blocks():
+    """Command (runs Node). Inline/deep headers agree; trailing tabs are harmless outside string bodies."""
+    expected = {"A": {"B": {"code": "Some Code Here"}}}
+    variants = [
+        "A\tB\tcode py\n\tSome Code Here",
+        "A\tB\n\tcode py\n\t\tSome Code Here",
+        "A\tB\t\n\tcode py\n\t\tSome Code Here",
+        "A\t\tB\t\tcode py\t\t\n\tSome Code Here",
+        "A\tB\t \n\tcode py\t note\t\n\t\tSome Code Here",
+    ]
+    js_trees = json.loads(run("node", "-e", "console.log(JSON.stringify(%s.map(require('./dtab.js').parse)))" % json.dumps(variants)))
+    for text, js_tree in zip(variants, js_trees):
+        assert dtab.parse(text) == expected, repr(text)
+        assert js_tree == expected, repr(text)
+    assert dtab.parse("A\tB \n\tcode py") == {"A": {"B": "code py"}}, "a trailing space still marks a leaf"
+
+
 def test_js_suite():
     subprocess.run(["node", "test/test_dtab.js"], check=True, cwd=ROOT)
 
@@ -233,20 +251,21 @@ def test_vim_embedded_languages():
     with tempfile.TemporaryDirectory() as directory:
         sample = Path(directory) / "embedded.dtab"
         sample.write_text("query sql\n\tSELECT name FROM t\nconfig\tdb\n\tinit sql\n\t\tCREATE TABLE t\ns \n\t#!/bin/bash\n\techo hi\nafter 1\n"
-                          "log jsonl\n\t{\"a\": 1}\n\t{\"a\": true}\n")
+                          "log jsonl\n\t{\"a\": 1}\n\t{\"a\": true}\nA\tB\tcode sql\t note\t\n\tSELECT name FROM t\n")
         out = Path(directory) / "groups.txt"
         vim("syntax on", "source dtab.vim", "edit " + str(sample),
             "call writefile([synIDattr(synID(2,2,1),'name'), synIDattr(synID(4,2,1),'name'), synIDattr(synID(5,3,1),'name'), synIDattr(synID(8,2,1),'name'), synIDattr(synID(9,1,1),'name'),"
-            " synIDattr(synID(10,5,1),'name'), synIDattr(synID(11,8,1),'name'), synIDattr(synID(12,8,1),'name')], '%s')" % out)
+            " synIDattr(synID(10,5,1),'name'), synIDattr(synID(11,8,1),'name'), synIDattr(synID(12,8,1),'name'),"
+            " synIDattr(synID(13,5,1),'name'), synIDattr(synID(14,2,1),'name')], '%s')" % out)
         groups = out.read_text().split()
-    assert groups == ["sqlStatement", "dtabBlockKey", "sqlStatement", "shStatement", "dtabLeafKey", "dtabBlockTag", "jsonNumber", "jsonBoolean"], groups
+    assert groups == ["sqlStatement", "dtabBlockKey", "sqlStatement", "shStatement", "dtabLeafKey", "dtabBlockTag", "jsonNumber", "jsonBoolean", "dtabBlockKey", "sqlStatement"], groups
 
 
 def test_vim_tab_key():
     """In insert mode, Tab inside a multiline string (past the line's tabs) inserts spaces; elsewhere a tab."""
     with tempfile.TemporaryDirectory() as directory:
         sample = Path(directory) / "tab.dtab"
-        sample.write_text("code python\n\tdef f():\n\t\nafter 1\nx\n\tcode \n\t\tbody\n\t\n\n")
+        sample.write_text("A\tB\tcode python\t\n\tdef f():\n\t\nafter 1\nx\n\tcode \n\t\tbody\n\t\n\n")
         out = Path(directory) / "lines.txt"
         vim("syntax on", "source dtab.vim", "edit " + str(sample),
             "call cursor(3, 2) | execute \"normal a\\<Tab>return 1\" | call cursor(3, 1) | execute \"normal i\\<Tab>\" | call cursor(4, 6) | execute \"normal i\\<Tab>\"",
@@ -279,23 +298,24 @@ def test_vim_shift_keys():
 def test_vim_join():
     """J joins structure lines with a tab when the tree stays the same, refuses when a line would change parent, joins block text like vim, drops blanks, takes counts and visual ranges."""
     text = ("deltas\n\tl1\n\t\tposition\n\t\t\tx 1\n\t\t\ty .5\nafter 1\nl1\nl2\ncode python\n\tdef f():\n\t    return 1\nz 1\n\nend 1\n"
-            "u\n\tobj\n\tsib 2\nlast 1\nt 1\t\n\tswallowed 2\nk\tleaf 1\n note\nv 1\n note\n\tw 2\n")
+            "u\n\tobj\n\tsib 2\nlast 1\nt 1\t\n\tbody 2\nk\tleaf 1\n note\nv 1\n note\n\tw 2\n")
     with tempfile.TemporaryDirectory() as directory:
         sample = Path(directory) / "join.dtab"
         sample.write_text(text)
         out = Path(directory) / "lines.txt"
         vim("syntax on", "source dtab.vim", "edit " + str(sample),
-            # 3J: deep to wide; J J: the two leaves; J: refused (after 1 is a sibling of deltas); after 1 + l1: allowed, the upper
+            # 3J: object path deep to wide; join the two leaves before joining them to the path (one leaf would open a block);
+            # J: refused (after 1 is a sibling of deltas); after 1 + l1: allowed, the upper
             # steps into nothing; + l2: refused, l1 steps in; string text joins like vim's J; a header keeps its text below it: refused
-            "execute '1normal 3J' | execute '1normal J' | execute '1normal J' | execute '1normal J' | execute '2normal J' | execute '2normal J' | execute '5normal J' | execute '4normal J'",
+            "execute '1normal 3J' | execute '2normal J' | execute '1normal J' | execute '1normal J' | execute '2normal J' | execute '2normal J' | execute '5normal J' | execute '4normal J'",
             # a blank line is dropped; visual J; u + obj: refused, obj would capture sib; obj + sib: refused, obj steps in;
-            # t 1<Tab> + deeper: refused, the empty key would vanish; k<Tab>leaf 1 + a comment: allowed; v 1 + a comment that a
+            # t 1<Tab> + deeper: refused, it is a block header; k<Tab>leaf 1 + a comment: allowed; v 1 + a comment that a
             # deeper line follows: refused, the joined line would be a header and w 2 its text
             "execute '6normal J' | execute '6normal VjJ' | execute '7normal J' | execute '8normal J' | execute '11normal J' | execute '13normal J' | execute '14normal J'",
             "call writefile(getline(1, '$'), '%s')" % out)
         lines = out.read_text().split("\n")[:-1]
     assert lines == ["deltas\tl1\tposition\tx 1\ty .5", "after 1\tl1", "l2", "code python", "\tdef f(): return 1", "z 1\tend 1",
-                     "u", "\tobj", "\tsib 2", "last 1", "t 1\t", "\tswallowed 2", "k\tleaf 1\t note", "v 1", " note", "\tw 2"], lines
+                     "u", "\tobj", "\tsib 2", "last 1", "t 1\t", "\tbody 2", "k\tleaf 1\t note", "v 1", " note", "\tw 2"], lines
     joined = dtab.parse("\n".join(lines))
     expected = dtab.parse(text)
     expected["code"] = "def f(): return 1"   # the one join that changes a value: two lines of block text, joined like vim does
@@ -371,7 +391,7 @@ def test_vscode_live():
 
 
 if __name__ == "__main__":
-    for test in [test_doctests, test_skill_examples, test_readers_agree, test_round_trips, test_key_rule, test_comma_whitespace, test_js_suite,
+    for test in [test_doctests, test_skill_examples, test_readers_agree, test_round_trips, test_key_rule, test_comma_whitespace, test_path_blocks, test_js_suite,
                  test_vim_highlighting, test_vim_embedded_languages, test_vim_tab_key, test_vim_shift_keys, test_vim_join, test_vim_join_after_comma,
                  test_vim_preview, test_vim_plugin_shim, test_web_demo, test_vscode_grammar, test_vscode_live]:
         test()

@@ -20,11 +20,13 @@
  *   - `a,b` writes the same value under a and under b. After the comma, spaces, then tabs or line breaks, are
  *     skipped, so `a, b` and `a,` at the end of a line with `b` on the next are the same. What follows the comma
  *     must be a key: a comment there (a space after a tab or a line break), or nothing, is an error.
- *   - An entry starting with a space is a comment. A trailing tab is an empty key that swallows the lines under it.
- *   - A leaf with lines indented under it is a multiline string: those lines are the value, one tab deeper
- *     than the key's line and verbatim from there, tabs included (the only way to put a tab in a value). The
- *     leaf's own text is a tag for editors, `sql` or `python` or `txt` or nothing, and is not part of the value.
- *   - A line indented under a line of several leaves is an error, since no leaf can claim it.
+ *   - An entry starting with a space is a comment. Trailing tabs outside string bodies are ignored.
+ *   - A line ending in its only leaf, with lines indented under it, is a multiline string. Object keys may
+ *     precede the leaf; comments may surround it. The deeper lines are the value, one tab deeper than the
+ *     header line's leading tabs and verbatim from there, tabs included (the only way to put a tab in a value).
+ *     The leaf's own text is a tag for editors, `sql` or `python` or `txt` or nothing, not part of the value.
+ *   - Several leaves do not open a string. Deeper lines continue the line's object path; without one, they
+ *     are an error, since no leaf can claim them.
  *   - Keys are one or more letters, digits, or KEY_PUNCTUATION (`_.-/`), so `file.json`, `a/b` and `123aa` are keys. Keys that
  *     are also identifiers work as attributes (config.deltas.l1). Every value is a string.
  *
@@ -45,7 +47,7 @@ const DANGLING = /(?:^|\t)[^\t\n ]*,$/  // a key list ending in a comma: it goes
 
 /**
  * Pure function. Parses dtab text into nested plain objects of strings. Throws, with the line number,
- * on a key that breaks KEY_RULE or on a line indented under several leaves.
+ * on a key that breaks KEY_RULE or ambiguous indentation under several leaves.
  *
  * @param {string} text - dtab source. Whitespace-only lines are ignored outside multiline strings.
  * @returns {object}
@@ -56,6 +58,8 @@ const DANGLING = /(?:^|\t)[^\t\n ]*,$/  // a key list ending in a comma: it goes
  * @example parse('query sql\n\tSELECT *\n\n\t\tFROM users\n\nnext 1')   // {query: 'SELECT *\n\n\tFROM users', next: '1'}
  * @example parse('table txt\n\tname\tage\n\tryan\t30\nprompt \n\tLook here.')   // {table: 'name\tage\nryan\t30', prompt: 'Look here.'}
  * @example parse('dialect sql')                        // {dialect: 'sql'}
+ * @example parse('A\tB\tcode py\n\tSome Code Here')       // {A: {B: {code: 'Some Code Here'}}}
+ * @example parse('A\tB\t\n\tcode py\n\t\tSome Code Here') // {A: {B: {code: 'Some Code Here'}}}
  * @example parse('a\tb 1\nfile.json\tsize 2\n123aa 3')   // {a: {b: '1'}, 'file.json': {size: '2'}, '123aa': '3'}
  * @example parse('a\tb 1\nc|d\te 2')              // throws: dtab line 2: invalid key "c|d": keys may contain only letters, digits and _ . - /
  * @example parse('hello big world\n\tkey value')   // {hello: 'key value'}
@@ -66,8 +70,8 @@ const DANGLING = /(?:^|\t)[^\t\n ]*,$/  // a key list ending in a comma: it goes
  */
 function parse(text) {
     const root = {}
-    const stack = [[-1, [root], false]]  // [indent, nodes that deeper lines nest into, whether the line is several leaves]
-    let block = null  // after a line of one leaf: {indent, nodes, names, deep: raw lines under it}
+    const stack = [[-1, [root], false]]  // [indent, nodes that deeper lines nest into, whether indentation is ambiguous]
+    let block = null  // after a path ending in its only leaf: {indent, nodes, names, deep: raw lines under it}
     const lines = text.split('\n')
     for (let index = 0; index < lines.length; index++) {
         let line = lines[index]
@@ -87,27 +91,24 @@ function parse(text) {
         while (stack[stack.length - 1][0] >= indent) stack.pop()
         if (stack[stack.length - 1][2]) throw new Error('dtab line ' + lineNumber + ': indented under several leaves; a multiline string has one')
         let nodes = stack[stack.length - 1][1]
-        const leaves = []  // [names, value] of the line's leaves; a line of exactly one may be a multiline string's header
+        const leaves = []  // [parent nodes, names]; a sole leaf at the end of the path may open a multiline string
         let stepsIn = false
         for (const entry of line.slice(indent).split(TAB_RUN)) {
             const spaceAt = entry.indexOf(' ')
             const key = spaceAt === -1 ? entry : entry.slice(0, spaceAt)
-            if (!key) {
-                if (spaceAt === -1) { nodes = [{}]; stepsIn = true }  // Empty key (trailing tab): everything under it is discarded
-                continue
-            }
+            if (!key) continue  // Comment or trailing tabs; neither changes the path
             const names = keyNames(key, lineNumber, true)
             if (spaceAt !== -1) {
                 const value = entry.slice(spaceAt + 1)
                 for (const node of nodes) for (const name of names) node[name] = value
-                leaves.push([names, value])
+                leaves.push([nodes, names])
             } else {
                 nodes = nodes.flatMap(node => names.map(name => child(node, name)))
                 stepsIn = true
             }
         }
         stack.push([indent, nodes, leaves.length > 1 && !stepsIn])
-        if (leaves.length === 1 && !stepsIn) block = {indent, nodes, names: leaves[0][0], deep: []}
+        if (leaves.length === 1 && leaves[0][0] === nodes) block = {indent, nodes, names: leaves[0][1], deep: []}
     }
     if (block) finishBlock(block)
     return root
