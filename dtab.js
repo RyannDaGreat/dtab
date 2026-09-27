@@ -4,8 +4,8 @@
  * and later lines are deltas on top of earlier ones.
  *
  *     objects	l1,l2 light                ->  {"objects": {"l1": "light", "l2": "light"}}
- *     deltas	l1	position	x 1	y .5     ->  {"deltas": {"l1": {"position": {"x": "1", "y": ".5"}}}}
- *     	z -2                              ->  continues the path of the line above
+ *     deltas	l1	position               ->  {"deltas": {"l1": {"position": {}}}}
+ *     	x 1	y .5	z -2                 ->  continues inside position
  *     	 this entry starts with a space, so it is a comment
  *     query sql                             ->  {"query": "SELECT *\nFROM users"}: a multiline string, tagged sql for editors
  *     	SELECT *
@@ -15,18 +15,16 @@
  *   - Tabs indent, and separate the steps of a path (several in a row count as one, for alignment).
  *     An entry without a space is a key to step into.
  *   - An entry with a space is `key value`, split at the first space. It sets the key and stays put.
- *   - An indented line continues the path of the line above it.
+ *   - Deeper lines belong to the last non-comment entry: children for an object, text for a leaf.
  *   - Writing a key again replaces it; writing into an object merges. Last line wins.
  *   - `a,b` writes the same value under a and under b. After the comma, spaces, then tabs or line breaks, are
  *     skipped, so `a, b` and `a,` at the end of a line with `b` on the next are the same. What follows the comma
  *     must be a key: a comment there (a space after a tab or a line break), or nothing, is an error.
  *   - An entry starting with a space is a comment. Trailing tabs outside string bodies are ignored.
- *   - A line ending in its only leaf, with lines indented under it, is a multiline string. Object keys may
- *     precede the leaf; comments may surround it. The deeper lines are the value, one tab deeper than the
- *     header line's leading tabs and verbatim from there, tabs included (the only way to put a tab in a value).
- *     The leaf's own text is a tag for editors, `sql` or `python` or `txt` or nothing, not part of the value.
- *   - Several leaves do not open a string. Deeper lines continue the line's object path; without one, they
- *     are an error, since no leaf can claim them.
+ *   - When the last non-comment entry is a leaf, deeper lines replace its value with a multiline string.
+ *     The body starts one tab past the header line's leading tabs and is verbatim from there, tabs included
+ *     (the only way to put a tab in a value). Earlier entries keep their values. The leaf's own text is a
+ *     tag for editors, `sql` or `python` or `txt` or nothing, not part of the value.
  *   - Keys are one or more letters, digits, or KEY_PUNCTUATION (`_.-/`), so `file.json`, `a/b` and `123aa` are keys. Keys that
  *     are also identifiers work as attributes (config.deltas.l1). Every value is a string.
  *
@@ -47,12 +45,12 @@ const DANGLING = /(?:^|\t)[^\t\n ]*,$/  // a key list ending in a comma: it goes
 
 /**
  * Pure function. Parses dtab text into nested plain objects of strings. Throws, with the line number,
- * on a key that breaks KEY_RULE or ambiguous indentation under several leaves.
+ * on a key that breaks KEY_RULE.
  *
  * @param {string} text - dtab source. Whitespace-only lines are ignored outside multiline strings.
  * @returns {object}
  *
- * @example parse('objects\tl1,l2 light\ndeltas\tl1\tposition\tx 1\ty .5\n\tz -2')
+ * @example parse('objects\tl1,l2 light\ndeltas\tl1\tposition\n\tx 1\ty .5\tz -2')
  *   // {objects: {l1: 'light', l2: 'light'}, deltas: {l1: {position: {x: '1', y: '.5', z: '-2'}}}}
  * @example parse('a\tb 1\n\t comment\na\tb 2')   // {a: {b: '2'}}
  * @example parse('query sql\n\tSELECT *\n\n\t\tFROM users\n\nnext 1')   // {query: 'SELECT *\n\n\tFROM users', next: '1'}
@@ -63,15 +61,15 @@ const DANGLING = /(?:^|\t)[^\t\n ]*,$/  // a key list ending in a comma: it goes
  * @example parse('a\tb 1\nfile.json\tsize 2\n123aa 3')   // {a: {b: '1'}, 'file.json': {size: '2'}, '123aa': '3'}
  * @example parse('a\tb 1\nc|d\te 2')              // throws: dtab line 2: invalid key "c|d": keys may contain only letters, digits and _ . - /
  * @example parse('hello big world\n\tkey value')   // {hello: 'key value'}
- * @example parse('x 1\ty 2\n\tz 3')                 // throws: dtab line 2: indented under several leaves; a multiline string has one
+ * @example parse('hello world\tmoose meat\n\tworld happy')   // {hello: 'world', moose: 'world happy'}
  * @example parse('x, y 1\nservers\talpha,\n\tbeta,\tgamma\tport 80')
  *   // {x: '1', y: '1', servers: {alpha: {port: '80'}, beta: {port: '80'}, gamma: {port: '80'}}}
  * @example parse('a,\n comment\nb 1')   // throws: dtab line 1: invalid key "a,": a comma needs a key on both sides; a comment does not count
  */
 function parse(text) {
     const root = {}
-    const stack = [[-1, [root], false]]  // [indent, nodes that deeper lines nest into, whether indentation is ambiguous]
-    let block = null  // after a path ending in its only leaf: {indent, nodes, names, deep: raw lines under it}
+    const stack = [[-1, [root]]]  // [indent, nodes that deeper lines nest into]
+    let block = null  // last entry is a leaf: {indent, nodes, names, deep: raw lines under it}
     const lines = text.split('\n')
     for (let index = 0; index < lines.length; index++) {
         let line = lines[index]
@@ -89,10 +87,7 @@ function parse(text) {
         line = closeUp(line)
         while (DANGLING.test(line) && index + 1 < lines.length) line = closeUp(line + '\n' + lines[++index])  // the key list goes on on the next line
         while (stack[stack.length - 1][0] >= indent) stack.pop()
-        if (stack[stack.length - 1][2]) throw new Error('dtab line ' + lineNumber + ': indented under several leaves; a multiline string has one')
         let nodes = stack[stack.length - 1][1]
-        const leaves = []  // [parent nodes, names]; a sole leaf at the end of the path may open a multiline string
-        let stepsIn = false
         for (const entry of line.slice(indent).split(TAB_RUN)) {
             const spaceAt = entry.indexOf(' ')
             const key = spaceAt === -1 ? entry : entry.slice(0, spaceAt)
@@ -101,14 +96,13 @@ function parse(text) {
             if (spaceAt !== -1) {
                 const value = entry.slice(spaceAt + 1)
                 for (const node of nodes) for (const name of names) node[name] = value
-                leaves.push([nodes, names])
+                block = {indent, nodes, names, deep: []}
             } else {
                 nodes = nodes.flatMap(node => names.map(name => child(node, name)))
-                stepsIn = true
+                block = null
             }
         }
-        stack.push([indent, nodes, leaves.length > 1 && !stepsIn])
-        if (leaves.length === 1 && leaves[0][0] === nodes) block = {indent, nodes, names: leaves[0][1], deep: []}
+        stack.push([indent, nodes])
     }
     if (block) finishBlock(block)
     return root

@@ -13,8 +13,8 @@
 
 ```
 objects	l1,l2 light
-deltas	l1	position	x 1	y .5
-	z -2
+deltas	l1	position
+	x 1	y .5	z -2
 ```
 
 ```python
@@ -57,7 +57,7 @@ dtab.parse(open("scene.dtab").read())
 
 - Tabs separate the steps of a path. `deltas	l1	position` walks three keys down. Several tabs in a row count as one, so you can align columns. Trailing tabs outside string bodies are ignored.
 - An entry with a space is `key value`. It sets the key and stays at the same level, so `x 1	y .5` sets two keys.
-- An indented line continues the path of the line above it.
+- Deeper lines belong to the last non-comment entry: children for an object, text for a leaf.
 - Writing a key again replaces it. Writing into an object merges.
 - `a,b` writes the same value under `a` and under `b`. Spaces, tabs or a line break may follow the comma, so `a, b`, and `a,` at the end of a line with `b` on the next, are the same list. A key must follow the comma: a comment cannot stand there.
 - An entry that starts with a space is a comment.
@@ -69,10 +69,9 @@ so `file.json`, `2026-09-07`, `assets/logo` and `0` are keys. Keys that happen t
 
 ## Multiline strings
 
-A line ending in its only leaf, with lines indented under it, is a multiline string. Object keys may
-precede the leaf, and comments may surround it. The lines under it are the value: each starts one tab
-deeper than the header line's **leading indentation**, regardless of how many object keys precede the
-leaf, and is taken verbatim from there. Tabs and deeper indentation inside are part of the value.
+When the last non-comment entry is a leaf, deeper lines replace its value with a multiline string.
+Earlier entries keep their values. The body starts one tab past the header line's **leading indentation**
+and is taken verbatim from there. Tabs and deeper indentation inside are part of the value.
 This is the only way to put a tab in a value. Blank lines inside are kept, trailing ones dropped.
 
 ```
@@ -84,8 +83,14 @@ query sql	 a comment may follow the tag
 
 The leaf's own text is a tag that tells editors which language to highlight, and it is not part of the
 value. Any text will do, `txt` or nothing at all (`prompt ` with a trailing space) for plain text.
-Unknown tags are plain text, never an error. Several leaves do not open a string: deeper lines continue
-the line's object path, or are an error if there is no object path, since no leaf can claim them.
+Unknown tags are plain text, never an error. For example:
+
+```
+hello world	moose meat
+	world happy
+```
+
+This gives `{"hello": "world", "moose": "world happy"}`: `moose` is last, so the text belongs to it.
 
 These forms both give `{"A": {"B": {"code": "Some Code Here"}}}`:
 

@@ -13,7 +13,7 @@ nested
 			return 1	
 		source	with tabs	
 	end done
-fanout	A, B	code, copy txt	
+fanout	A, B	label kept	code, copy txt	
 	Shared text
 commented	 before	A	 between	code 	 after	
 	Plain text
@@ -32,3 +32,5 @@ next done
 split	A,
 	B	code py	
 	Some Code Here
+hello world	moose meat
+	world happy

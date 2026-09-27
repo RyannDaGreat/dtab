@@ -7,7 +7,7 @@ Checks:
   1. dtab.py doctests.
   2. dtab.py and dtab.js agree with the ORIGINAL Lab-In-A-Cube djson.js (vendored untouched in
      test/original/, run under node by test/run_original.js with its raw-string leaf option) on every
-     sample except deviations.dtab.
+     sample except those in DEVIATING.
   3. dtab.py and dtab.js agree with each other on every sample; the deviating samples match their goldens
      in test/expected/, which were diffed against the original when written. The differences are exactly:
      blank lines are ignored, an object can overwrite a leaf, comma keys respect line order (in game_config
@@ -131,8 +131,6 @@ def test_key_rule():
         ("log\t@ e", ["'@'"]),
         ("a,b#c\tx 1", ["'a,b#c'"]),
         ("\"quoted\" 1", ["'\"quoted\"'"]),
-        ("x 1\ty 2\n\tz 3", ["line 2", "indented under several leaves"]),   # no leaf can claim the line
-        ("x 1\ty 2\t\n\tz 3", ["line 2", "indented under several leaves"]),   # trailing tabs do not hide ambiguity
     ]:
         raises_value_error(lambda: dtab.parse(text), *fragments)
     assert dtab.parse("a sql\nb 1\nc \n\tline\n\t\ttabbed\nd any tag at all\n\ttext") == {"a": "sql", "b": "1", "c": "line\n\ttabbed", "d": "text"}, "a leaf is a leaf until lines follow; then its text is the tag and the lines, verbatim past one tab, the value"
@@ -184,7 +182,7 @@ COMMA_CASES = {   # text -> the tree, or the fragment of the error; the same in 
     "a,,b 1": "invalid key 'a,,b'",
     "a, ,b 1": "invalid key 'a,,b'",
     "a,\nb|c 1": "line 1: invalid key 'a,b|c': keys may contain",
-    "a,\n\tb x\ty 2\n\tz 3": "line 3: indented under several leaves",
+    "a,\n\tb x\ty 2\n\tz 3": {"a": "x", "b": "x", "y": "z 3"},
 }
 
 
@@ -219,6 +217,11 @@ def test_path_blocks():
         assert dtab.parse(text) == expected, repr(text)
         assert js_tree == expected, repr(text)
     assert dtab.parse("A\tB \n\tcode py") == {"A": {"B": "code py"}}, "a trailing space still marks a leaf"
+    for suffix in ["", "\t", "\t note\t"]:
+        text = "hello world\tmoose meat" + suffix + "\n\tworld happy"
+        expected = {"hello": "world", "moose": "world happy"}
+        assert dtab.parse(text) == expected, repr(text)
+        assert json.loads(run("node", "-e", "console.log(JSON.stringify(require('./dtab.js').parse(%s)))" % json.dumps(text))) == expected
 
 
 def test_js_suite():
@@ -251,21 +254,22 @@ def test_vim_embedded_languages():
     with tempfile.TemporaryDirectory() as directory:
         sample = Path(directory) / "embedded.dtab"
         sample.write_text("query sql\n\tSELECT name FROM t\nconfig\tdb\n\tinit sql\n\t\tCREATE TABLE t\ns \n\t#!/bin/bash\n\techo hi\nafter 1\n"
-                          "log jsonl\n\t{\"a\": 1}\n\t{\"a\": true}\nA\tB\tcode sql\t note\t\n\tSELECT name FROM t\n")
+                          "log jsonl\n\t{\"a\": 1}\n\t{\"a\": true}\nA\tB\tcode sql\t note\t\n\tSELECT name FROM t\nhello world\tmoose sql\t note\t\n\tSELECT name FROM t\n")
         out = Path(directory) / "groups.txt"
         vim("syntax on", "source dtab.vim", "edit " + str(sample),
             "call writefile([synIDattr(synID(2,2,1),'name'), synIDattr(synID(4,2,1),'name'), synIDattr(synID(5,3,1),'name'), synIDattr(synID(8,2,1),'name'), synIDattr(synID(9,1,1),'name'),"
             " synIDattr(synID(10,5,1),'name'), synIDattr(synID(11,8,1),'name'), synIDattr(synID(12,8,1),'name'),"
-            " synIDattr(synID(13,5,1),'name'), synIDattr(synID(14,2,1),'name')], '%s')" % out)
+            " synIDattr(synID(13,5,1),'name'), synIDattr(synID(14,2,1),'name'),"
+            " synIDattr(synID(15,1,1),'name'), synIDattr(synID(15,13,1),'name'), synIDattr(synID(16,2,1),'name')], '%s')" % out)
         groups = out.read_text().split()
-    assert groups == ["sqlStatement", "dtabBlockKey", "sqlStatement", "shStatement", "dtabLeafKey", "dtabBlockTag", "jsonNumber", "jsonBoolean", "dtabBlockKey", "sqlStatement"], groups
+    assert groups == ["sqlStatement", "dtabBlockKey", "sqlStatement", "shStatement", "dtabLeafKey", "dtabBlockTag", "jsonNumber", "jsonBoolean", "dtabBlockKey", "sqlStatement", "dtabLeafKey", "dtabBlockKey", "sqlStatement"], groups
 
 
 def test_vim_tab_key():
     """In insert mode, Tab inside a multiline string (past the line's tabs) inserts spaces; elsewhere a tab."""
     with tempfile.TemporaryDirectory() as directory:
         sample = Path(directory) / "tab.dtab"
-        sample.write_text("A\tB\tcode python\t\n\tdef f():\n\t\nafter 1\nx\n\tcode \n\t\tbody\n\t\n\n")
+        sample.write_text("A\tB\thello world\tcode python\t\n\tdef f():\n\t\nafter 1\nx\n\tcode \n\t\tbody\n\t\n\n")
         out = Path(directory) / "lines.txt"
         vim("syntax on", "source dtab.vim", "edit " + str(sample),
             "call cursor(3, 2) | execute \"normal a\\<Tab>return 1\" | call cursor(3, 1) | execute \"normal i\\<Tab>\" | call cursor(4, 6) | execute \"normal i\\<Tab>\"",
@@ -304,7 +308,7 @@ def test_vim_join():
         sample.write_text(text)
         out = Path(directory) / "lines.txt"
         vim("syntax on", "source dtab.vim", "edit " + str(sample),
-            # 3J: object path deep to wide; join the two leaves before joining them to the path (one leaf would open a block);
+            # 3J: object path deep to wide; join the two leaves before joining them to the path (the last leaf owns deeper lines);
             # J: refused (after 1 is a sibling of deltas); after 1 + l1: allowed, the upper
             # steps into nothing; + l2: refused, l1 steps in; string text joins like vim's J; a header keeps its text below it: refused
             "execute '1normal 3J' | execute '2normal J' | execute '1normal J' | execute '1normal J' | execute '2normal J' | execute '2normal J' | execute '5normal J' | execute '4normal J'",

@@ -3,14 +3,16 @@
     "deep": {"A": {"B": {"code": "Some Code Here"}}},
     "trailing": {"A": {"B": {"code": "Some Code Here"}}},
     "nested": {"A": {"B": {"code": "\ndef f():\n\treturn 1\t\nsource\twith tabs\t"}}, "end": "done"},
-    "fanout": {"A": {"code": "Shared text", "copy": "Shared text"}, "B": {"code": "Shared text", "copy": "Shared text"}},
+    "fanout": {"A": {"label": "kept", "code": "Shared text", "copy": "Shared text"}, "B": {"label": "kept", "code": "Shared text", "copy": "Shared text"}},
     "commented": {"A": {"code": "Plain text"}},
     "objects": {"A": {"B": {"child": "value"}}},
     "not_header": {"leaf": "value", "child": {"x": "1"}},
-    "multi": {"A": {"x": "1", "y": "2", "z": "3"}},
-    "multi_before": {"x": "1", "A": {"code": "py", "child": "value"}},
+    "multi": {"A": {"x": "1", "y": "z 3"}},
+    "multi_before": {"x": "1", "A": {"code": "child value"}},
     "standalone": {"A": {"code": "py"}},
     "blank": {"A": {"code": "py"}},
     "next": "done",
-    "split": {"A": {"code": "Some Code Here"}, "B": {"code": "Some Code Here"}}
+    "split": {"A": {"code": "Some Code Here"}, "B": {"code": "Some Code Here"}},
+    "hello": "world",
+    "moose": "world happy"
 }

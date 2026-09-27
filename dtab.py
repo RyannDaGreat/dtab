@@ -3,8 +3,8 @@ dtab (Delta Tab): config files made of tab-separated paths. One line is one path
 and later lines are deltas on top of earlier ones.
 
     objects	l1,l2 light                ->  {"objects": {"l1": "light", "l2": "light"}}
-    deltas	l1	position	x 1	y .5     ->  {"deltas": {"l1": {"position": {"x": "1", "y": ".5"}}}}
-    	z -2                              ->  continues the path of the line above
+    deltas	l1	position               ->  {"deltas": {"l1": {"position": {}}}}
+    	x 1	y .5	z -2                 ->  continues inside position
     	 this entry starts with a space, so it is a comment
     query sql                             ->  {"query": "SELECT *\nFROM users"}: a multiline string, tagged sql for editors
     	SELECT *
@@ -14,18 +14,16 @@ Rules:
   - Tabs indent, and separate the steps of a path (several in a row count as one, for alignment).
     An entry without a space is a key to step into.
   - An entry with a space is `key value`, split at the first space. It sets the key and stays put.
-  - An indented line continues the path of the line above it.
+  - Deeper lines belong to the last non-comment entry: children for an object, text for a leaf.
   - Writing a key again replaces it; writing into an object merges. Last line wins.
   - `a,b` writes the same value under a and under b. After the comma, spaces, then tabs or line breaks, are
     skipped, so `a, b` and `a,` at the end of a line with `b` on the next are the same. What follows the comma
     must be a key: a comment there (a space after a tab or a line break), or nothing, is an error.
   - An entry starting with a space is a comment. Trailing tabs outside string bodies are ignored.
-  - A line ending in its only leaf, with lines indented under it, is a multiline string. Object keys may
-    precede the leaf; comments may surround it. The deeper lines are the value, one tab deeper than the
-    header line's leading tabs and verbatim from there, tabs included (the only way to put a tab in a value).
-    The leaf's own text is a tag for editors, `sql` or `python` or `txt` or nothing, not part of the value.
-  - Several leaves do not open a string. Deeper lines continue the line's object path; without one, they
-    are an error, since no leaf can claim them.
+  - When the last non-comment entry is a leaf, deeper lines replace its value with a multiline string.
+    The body starts one tab past the header line's leading tabs and is verbatim from there, tabs included
+    (the only way to put a tab in a value). Earlier entries keep their values. The leaf's own text is a
+    tag for editors, `sql` or `python` or `txt` or nothing, not part of the value.
   - Keys are one or more letters, digits, or KEY_PUNCTUATION (`_.-/`), so `file.json`, `a/b` and `123aa` are keys. Keys that
     are also Python identifiers work as attributes (config.deltas.l1). Every value is a string.
 
@@ -51,7 +49,7 @@ _DANGLING = re.compile(r"(?:^|\t)[^\t\n ]*,\Z")  # a key list ending in a comma:
 def parse(text):
     """
     Pure function. Parses dtab text into nested dicts of strings. Raises ValueError, with the line
-    number, on a key that breaks KEY_RULE or ambiguous indentation under several leaves.
+    number, on a key that breaks KEY_RULE.
 
     Args:
         text (str): dtab source. Whitespace-only lines are ignored outside multiline strings.
@@ -60,7 +58,7 @@ def parse(text):
         dict
 
     Examples:
-        >>> parse('objects\\tl1,l2 light\\ndeltas\\tl1\\tposition\\tx 1\\ty .5\\n\\tz -2')
+        >>> parse('objects\\tl1,l2 light\\ndeltas\\tl1\\tposition\\n\\tx 1\\ty .5\\tz -2')
         {'objects': {'l1': 'light', 'l2': 'light'}, 'deltas': {'l1': {'position': {'x': '1', 'y': '.5', 'z': '-2'}}}}
         >>> parse('a\\tb 1\\n\\t comment\\na\\tb 2')
         {'a': {'b': '2'}}
@@ -81,9 +79,8 @@ def parse(text):
         ValueError: dtab line 2: invalid key 'c|d': keys may contain only letters, digits and _ . - /
         >>> parse('hello big world\\n\\tkey value')
         {'hello': 'key value'}
-        >>> parse('x 1\\ty 2\\n\\tz 3')
-        Traceback (most recent call last):
-        ValueError: dtab line 2: indented under several leaves; a multiline string has one
+        >>> parse('hello world\\tmoose meat\\n\\tworld happy')
+        {'hello': 'world', 'moose': 'world happy'}
         >>> parse('x, y 1\\nservers\\talpha,\\n\\tbeta,\\tgamma\\tport 80')
         {'x': '1', 'y': '1', 'servers': {'alpha': {'port': '80'}, 'beta': {'port': '80'}, 'gamma': {'port': '80'}}}
         >>> parse('a,\\n comment\\nb 1')
@@ -91,8 +88,8 @@ def parse(text):
         ValueError: dtab line 1: invalid key 'a,': a comma needs a key on both sides; a comment does not count
     """
     root = {}
-    stack = [(-1, [root], False)]  # (indent, nodes that deeper lines nest into, whether indentation is ambiguous)
-    block = None  # after a path ending in its only leaf: (header indent, nodes, names, raw lines under it)
+    stack = [(-1, [root])]  # (indent, nodes that deeper lines nest into)
+    block = None  # last entry is a leaf: (header indent, nodes, names, raw lines under it)
     numbered = enumerate(text.split("\n"), 1)
     for line_number, line in numbered:
         indent = len(line) - len(line.lstrip("\t"))
@@ -109,11 +106,7 @@ def parse(text):
             line = _SPACED_KEYS.sub(_close_up, line + "\n" + pulled[1])
         while stack[-1][0] >= indent:
             stack.pop()
-        if stack[-1][2]:
-            raise ValueError("dtab line %d: indented under several leaves; a multiline string has one" % line_number)
         nodes = stack[-1][1]
-        leaves = []  # (parent nodes, names); a sole leaf at the end of the path may open a multiline string
-        steps_in = False
         for entry in _TAB_RUN.split(line[indent:]):
             key, space, value = entry.partition(" ")
             if not key:
@@ -123,13 +116,11 @@ def parse(text):
                 for node in nodes:
                     for name in names:
                         node[name] = value
-                leaves.append((nodes, names))
+                block = (indent, nodes, names, [])
             else:
                 nodes = [_child(node, name) for node in nodes for name in names]
-                steps_in = True
-        stack.append((indent, nodes, len(leaves) > 1 and not steps_in))
-        if len(leaves) == 1 and leaves[0][0] is nodes:
-            block = (indent, nodes, leaves[0][1], [])
+                block = None
+        stack.append((indent, nodes))
     if block is not None:
         _finish_block(block)
     return root

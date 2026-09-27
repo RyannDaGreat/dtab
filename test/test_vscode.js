@@ -119,7 +119,7 @@ async function main() {
     stack = textmate.INITIAL
     for (const line of ['config\tdb', '\tinit sql']) stack = grammar.tokenizeLine(line, stack).ruleStack
     assert.ok(inLanguage(grammar.tokenizeLine('\t\tCREATE TABLE t', stack), 'sql', '.sql'), 'a nested sql string was not handed to sql')
-    for (const header of ['A\tB\tcode sql', 'A\tB\tcode sql\t', '\tA\tB\tcode sql\t note\t']) {
+    for (const header of ['A\tB\tcode sql', 'A\tB\tcode sql\t', '\tA\tB\tcode sql\t note\t', 'A\thello world\tmoose sql\t note\t']) {
         const result = grammar.tokenizeLine(header, textmate.INITIAL)
         assert.ok(result.tokens.some(tok => tok.scopes.includes('entity.name.type.object-key.dtab')), 'inline path lost its object scope')
         const body = grammar.tokenizeLine('\t\tSELECT * FROM t', result.ruleStack)
@@ -180,19 +180,23 @@ async function main() {
     assert.strictEqual(insideBlock(['code ', '\tx', ''], 2), false, 'an empty line is structure: Tab gives the tab first')
     assert.strictEqual(insideBlock(['a', '\tcode ', '\t\tx', '\tnext 1'], 3), false, 'shallower line ends the string')
     assert.strictEqual(insideBlock(['config\tdb', '\tinit sql', '\t\tCREATE'], 2), true, 'a nested header')
-    assert.strictEqual(insideBlock(['x 1\ty 2', '\tz'], 1), false, 'two leaves are no header')
+    assert.strictEqual(insideBlock(['x 1\ty 2', '\tz'], 1), true, 'the last leaf owns deeper text')
     assert.strictEqual(insideBlock(['code ', '\tx'], 0), false, 'the header itself is not inside the string')
     const {isHeaderLine, headers} = require(path.join(EXTENSION, manifest.main))
     assert.deepStrictEqual(['query sql', 'prompt ', '\tinit sql\t note', ' note\tq sql', 'hello big world', 'x, y sql', 'x,\ty sql', 'a\tb sql', 'x 1\ty 2', 'k', 'q sql\t', 'key, fill', 'b sql\ta', 'A\tx 1\ty 2\t', 'A\tB\tcode py\t', 'A\tB\t'].map(isHeaderLine),
-        [true, true, true, true, true, true, true, true, false, false, true, false, false, false, true, false], 'header shape: an optional object path ending in its only leaf; comments and trailing tabs allowed')
+        [true, true, true, true, true, true, true, true, true, false, true, false, false, true, true, false], 'header shape: the last non-comment entry is a leaf; trailing tabs are ignored')
     assert.strictEqual(insideBlock(['A\tB\tcode py\t', '\tdef f():', '\t\treturn 1'], 2), true, 'inline path baseline is the header indentation')
     assert.strictEqual(insideBlock(['A\tB\t', '\tcode py', '\t\treturn 1'], 2), true, 'trailing tabs keep the deeper header')
-    assert.strictEqual(insideBlock(['A\tx 1\ty 2\t', '\tz 3'], 1), false, 'multiple leaves keep structure')
+    assert.strictEqual(insideBlock(['A\tx 1\ty 2\t', '\tz 3'], 1), true, 'earlier leaves do not change the last entry rule')
     assert.strictEqual(insideBlock(['key, fill', '\ton true'], 1), false, 'a space after a comma continues the keys, it does not start a tag')
     assert.deepStrictEqual(headers(['query sql\t note', '\tSELECT 1', 'dialect sql', 'after 1', 'x', '\tp ', '', '\t\ttext', ' note\tx, y sql', '\tSELECT 2']),
         [{line: 0, key: [0, 5], tag: [6, 9]}, {line: 5, key: [1, 2], tag: [3, 3]}, {line: 8, key: [6, 10], tag: [11, 14]}], 'headers are the shaped lines followed by a deeper line, blank lines skipped')
     assert.deepStrictEqual(headers(['A\tB\tcode py\t note\t', '\tprint(1)', 'A\tB\t', '\tcode py\t', '\t\tprint(2)']),
         [{line: 0, key: [4, 8], tag: [9, 11]}, {line: 3, key: [1, 5], tag: [6, 8]}], 'only the final leaf is a semantic header token')
+    assert.deepStrictEqual(headers(['hello world\tmoose meat\t note\t', '\tworld happy']),
+        [{line: 0, key: [12, 17], tag: [18, 22]}], 'earlier leaves are not header tokens')
+    assert.deepStrictEqual(headers(['hello world\tmoose,\telk meat', '\tworld happy']),
+        [{line: 0, key: [12, 22], tag: [23, 27]}], 'the complete final comma key list is the header')
     const {shiftLine} = require(path.join(EXTENSION, manifest.main))
     assert.strictEqual(shiftLine('\tdef f():', true, 1), '\t    def f():')
     assert.strictEqual(shiftLine('\t    return', true, -1), '\treturn')

@@ -16,21 +16,21 @@ const indentOf = line => line.length - line.replace(/^\t+/, '').length
 
 // A key list within a line: runs of non-blanks, where a run ending in a comma goes on past spaces, then tabs
 const KEYS = '[^\\t ]+(?:(?<=,) *\\t*[^\\t ]+)*'
-// A header line: tabs, object path/comments, leaf keys (group 1, with indices), tag, comments, trailing tabs
-const HEADER_LINE = new RegExp('^\\t*(?:(?: [^\\t]*|' + KEYS + '(?<!,))\\t+)*(' + KEYS + ')(?<!,) [^\\t]*(?:\\t+ [^\\t]*)*\\t*$', 'd')
+// A header line: tabs, earlier entries, final leaf keys (group 1, with indices), tag, comments, trailing tabs
+const HEADER_LINE = new RegExp('^\\t*(?:(?: [^\\t]*|' + KEYS + '(?<!,)(?: [^\\t]*)?)\\t+)*(' + KEYS + ')(?<!,) [^\\t]*(?:\\t+ [^\\t]*)*\\t*$', 'd')
 
 /**
  * Pure function. Whether a line has the shape that opens a multiline string once a deeper line follows:
- * exactly one leaf at the end of an optional object path, with comments and trailing tabs allowed.
+ * the last non-comment entry is a leaf. Earlier entries and trailing tabs do not affect that.
  * @example isHeaderLine('query sql')            // true
  * @example isHeaderLine('\tprompt \t note')      // true (empty tag, a comment after it)
  * @example isHeaderLine('hello big world')      // true (the tag is "big world")
  * @example isHeaderLine('x, y sql')             // true (one leaf with two keys)
  * @example isHeaderLine('x, y')                 // false (two object keys, the space continues the list)
- * @example isHeaderLine('a\tb sql')             // true (the path ends in its only leaf)
+ * @example isHeaderLine('a\tb sql')             // true (the last entry is a leaf)
  * @example isHeaderLine('a\tb sql\t\t')         // true (trailing tabs are ignored)
  * @example isHeaderLine('b sql\ta')             // false (the path continues after the leaf)
- * @example isHeaderLine('x 1\ty 2')             // false (two leaves)
+ * @example isHeaderLine('x 1\ty 2')             // true (y owns deeper lines)
  */
 const isHeaderLine = line => HEADER_LINE.test(line)
 

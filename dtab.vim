@@ -60,13 +60,11 @@ function! s:DtabSyntax() abort
     execute 'syntax match dtabBadKey /\%(\k\|[,' . escape(s:key_punctuation, ']^-\/') . ' \t\n]\)\@!./ contained'
     syntax cluster dtabKeyParts contains=dtabBadComma,dtabComma,dtabBadKey
 
-    " A line of one leaf whose next non-blank line is deeper opens a multiline string. The key match looks
-    " behind for the path (already colored as entries), then ahead for a deeper line (\1 is the line's own tabs).
-    " Only from the key can the string's region start,
-    " through nextgroup: it begins at the tag, whose lookbehind captures the tabs (\z1) that bound the region,
-    " and runs over every following line indented deeper, or blank. Object keys and comments may precede
-    " the leaf; comments and trailing tabs may follow it. Defined after entries so the key wins. keepend: when the
-    " string ends, an embedded-language region inside it ends too.
+    " The last non-comment leaf opens a multiline string when the next non-blank line is deeper.
+    " Look behind for earlier entries (already colored), then ahead for a deeper line (\1 is the header's tabs).
+    " nextgroup lets only that leaf start the region: the tag's lookbehind captures its indent (\z1), and
+    " the region covers deeper or blank lines. Comments and trailing tabs after the leaf are allowed.
+    " Defined after entries so the key wins. keepend closes embedded-language regions with the string.
     execute 'syntax match  dtabBlockKey /\%(^\(\t*\)' . s:header_prefix . '\)\@<=' . s:keys . '\ze,\@<! [^\t]*\%(\t\+ [^\t]*\)*\t*\n\%(\s*\n\)*\1\t/ contains=@dtabKeyParts nextgroup=dtabBlock'
     execute 'syntax region dtabBlock matchgroup=dtabBlockTag start=/\%(^\z(\t*\)' . s:header_prefix . s:keys . '\)\@<=,\@<! [^\t]*/ end=/^\%(\z1\t\|\s*$\)\@!/ contained keepend contains=dtabHeaderComment,@dtabShebangs'
     execute 'syntax match  dtabHeaderComment /\%(^\t*' . s:header_prefix . s:keys . ',\@<! [^\t]*\%(\t\+ [^\t]*\)*\t\+\)\@<= [^\t]*/ contained'
@@ -121,11 +119,11 @@ let s:key_punctuation = '_.-/'
 let s:keys = '[^\t ]\+\%(,\@<= *[\t\n]*[^\t ]\+\)*'
 " The same within one line, for the functions that look at a line
 let s:line_keys = '[^\t ]\+\%(,\@<= *\t*[^\t ]\+\)*'
-" Object keys and comments before the sole leaf of a multiline string's header
-let s:header_prefix = '\%(\%( [^\t]*\|' . s:keys . ',\@<!\)\t\+\)*'
+" Earlier entries before the last leaf of a multiline string's header
+let s:header_prefix = '\%(\%( [^\t]*\|' . s:keys . ',\@<!\%( [^\t]*\)\?\)\t\+\)*'
 
 function! s:IsHeaderLine(line) abort
-    " Pure function. Whether a line ends an optional object path in its only leaf (comments/tabs allowed).
+    " Pure function. Whether the last non-comment entry is a leaf (trailing tabs allowed).
     " Args: line (string). Returns: boolean. Example: s:IsHeaderLine("A\tB\tcode py\t") -> 1.
     return a:line =~ '^\t*' . s:header_prefix . s:line_keys . ',\@<! [^\t]*\%(\t\+ [^\t]*\)*\t*$'
 endfunction

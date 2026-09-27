@@ -38,9 +38,10 @@ const setEditorText = (page, text) => page.evaluate(t => document.querySelector(
 /**
  * Query (reads the page). The [class, text] of every highlighted span on a 1-based editor line.
  * CodeMirror draws each tab as nested spans of padding spaces, so a tab is reported once as ['tab', '\t'].
+ * Its tab-wrap-hack span is layout bookkeeping, not a syntax token.
  */
 const lineTokens = (page, line) => page.evaluate(n =>
-    [...document.querySelectorAll('.CodeMirror-line')[n - 1].querySelectorAll('span[class*="cm-"]')]
+    [...document.querySelectorAll('.CodeMirror-line')[n - 1].querySelectorAll('span[class*="cm-"]:not(.cm-tab-wrap-hack)')]
         .map(s => { const cls = s.className.replace(/\s*cm-/g, ' ').trim(); return [cls, cls === 'tab' ? '\t' : s.textContent] })
         .filter((token, i, all) => !(token[0] === 'tab' && i > 0 && all[i - 1][0] === 'tab')), line)
 
@@ -99,7 +100,7 @@ async function main() {
         assert.ok((await lineTokens(page, 3)).some(t => t[0] === 'atom' && t[1] === 'true'), 'second line of a jsonl string not highlighted as JSON')
         assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), {log: '{"a": 1}\n{"a": true}'})
 
-        // Inline object paths and trailing tabs keep the sole final leaf's language and indentation baseline.
+        // Inline object paths and trailing tabs keep the final leaf's language and indentation baseline.
         for (const header of ['A\tB\tcode sql', 'A\tB\tcode sql\t', 'A\tB\tcode sql\t note\t']) {
             await setEditorText(page, header + '\n\tSELECT * FROM t\nafter 1\n')
             const tokens = await lineTokens(page, 1)
@@ -112,6 +113,14 @@ async function main() {
             await setEditorText(page, header + '\n\tcode sql\n\t\tSELECT * FROM t')
             assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), {A: {B: {code: 'SELECT * FROM t'}}})
         }
+
+        await setEditorText(page, 'hello world\tmoose meat\t note\t\n\tworld happy')
+        assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), {hello: 'world', moose: 'world happy'})
+        assert.deepStrictEqual((await lineTokens(page, 1)).map(t => t[0]),
+            ['dtab-leaf-key', 'dtab-value', 'tab', 'dtab-block-key', 'dtab-block-tag', 'tab', 'dtab-comment', 'tab'])
+        await setEditorText(page, 'hello world\tmoose,\telk sql\n\tSELECT 1')
+        assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), {hello: 'world', moose: 'SELECT 1', elk: 'SELECT 1'})
+        assert.ok((await lineTokens(page, 2)).some(t => t[0] === 'keyword' && t[1] === 'SELECT'), 'only the last leaf selects the embedded language')
 
         // 2c. Whitespace after a comma in a key: spaces and tabs within the line, or a line break with the list
         //     going on on the next line, where the mode looks ahead to color the dangling keys as what the list
@@ -146,7 +155,7 @@ async function main() {
 
         // 4a. Inside a multiline string, past the line's indent, the Tab key inserts spaces (code indents with spaces);
         //     at the start of a block line, and anywhere outside a block, it inserts a tab.
-        await setEditorText(page, 'A\tB\tcode python\t\n\tdef f():\n\t\nafter 1')
+        await setEditorText(page, 'A\tB\thello world\tcode python\t\n\tdef f():\n\t\nafter 1')
         const cm = () => page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror)
         await page.evaluate(() => { const c = document.querySelector('.CodeMirror').CodeMirror; c.focus(); c.setCursor({line: 2, ch: 1}) })
         await page.keyboard.press('Tab'); await page.keyboard.type('return 1')

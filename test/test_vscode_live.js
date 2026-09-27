@@ -20,8 +20,8 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 /** Command (drives the editor). The suite VS Code runs; rejects on the first failed check. */
 async function run() {
     const vscode = require('vscode')
-    const tree = JSON.stringify({a: {b: '1'}, A: {B: {code: 'SELECT 1'}}}, null, 4)
-    const source = await vscode.workspace.openTextDocument({language: 'dtab', content: 'a\tb 1\nA\tB\tcode sql\t\n\tSELECT 1\n'})
+    const tree = JSON.stringify({a: {b: '1'}, A: {B: {hello: 'world', code: 'SELECT 1'}}}, null, 4)
+    const source = await vscode.workspace.openTextDocument({language: 'dtab', content: 'a\tb 1\nA\tB\thello world\tcode sql\t\n\tSELECT 1\n'})
     const editor = await vscode.window.showTextDocument(source)
     await vscode.commands.executeCommand('dtab.preview')
     await sleep(SETTLE_MS)
@@ -40,7 +40,7 @@ async function run() {
     // The inline header's final key and tag are painted by semantic tokens (the grammar cannot look ahead).
     const semantic = await vscode.commands.executeCommand('vscode.provideDocumentSemanticTokens', source.uri)
     assert.ok(semantic && semantic.data.length === 10, 'expected two semantic tokens on the one header line, got ' + (semantic ? semantic.data.length / 5 : 'none'))
-    assert.deepStrictEqual(Array.from(semantic.data), [1, 4, 4, 0, 0, 0, 5, 3, 1, 0], 'only code and sql should be header tokens')
+    assert.deepStrictEqual(Array.from(semantic.data), [1, 16, 4, 0, 0, 0, 5, 3, 1, 0], 'only code and sql should be header tokens')
 
     // The Tab and indent commands, each on a fresh document with the selections set first.
     const P = (line, ch) => new vscode.Position(line, ch)
@@ -63,8 +63,8 @@ async function run() {
     assert.strictEqual(r.selections[0].active.character, 7, 'the caret should ride along with the indented text')
     r = await run('code \n\t    abcdef\n', [S(P(1, 7))], 'dtab.outdent')
     assert.strictEqual(r.selections[0].active.character, 3, 'the caret should ride along with the outdented text')
-    r = await run('A\tB\tcode py\t\n\tx\n\ty\n', [S(P(1, 2)), S(P(2, 2))], 'dtab.tab')
-    assert.strictEqual(r.text, 'A\tB\tcode py\t\n\tx    \n\ty    \n', 'every cursor inside an inline block gets its spaces')
+    r = await run('hello world\tmoose meat\t\n\tx\n\ty\n', [S(P(1, 2)), S(P(2, 2))], 'dtab.tab')
+    assert.strictEqual(r.text, 'hello world\tmoose meat\t\n\tx    \n\ty    \n', 'every cursor inside a last-leaf block gets its spaces')
     r = await run('a\nb 1\nc 2\n', [S(P(0, 0), P(0, 1)), S(P(2, 0), P(2, 1))], 'dtab.indent')
     assert.strictEqual(r.text, '\ta\nb 1\n\tc 2\n', 'every selection gets indented')
     console.log('test_vscode_live.js: all checks passed')

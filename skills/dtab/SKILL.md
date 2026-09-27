@@ -21,22 +21,17 @@ dtab FILE.dtab    # prints the tree as JSON, or the error with its line number (
   Trailing tabs outside string bodies are ignored. A space is different: `key ` is an empty leaf.
 - An entry with a space is `key value`, split at the first space. It sets the key and stays at the
   same level, so `x 1	y .5` sets two keys.
-- An indented line continues the path of the line above it.
+- Deeper lines belong to the last non-comment entry: children for an object, text for a leaf.
 - Writing a key again replaces it. Writing into an object merges. The last line wins.
 - `a,b` writes the same value under `a` and under `b`. Spaces, tabs or a line break may follow the
   comma, so `a, b`, and `a,` at the end of a line with `b` on the next, are the same list. A key must
   follow the comma: a comment cannot stand there.
 - An entry that starts with a space is a comment.
 - A key is a run of letters, digits, `_`, `.`, `-` and `/`. Anything else is an error, with the line number.
-- A line ending in its only `key tag` leaf, with deeper lines under it, is a multiline string. Object
-  keys may precede the leaf; comments may surround it. The body is verbatim from one tab past the
-  header line's leading indentation, regardless of the inline path length. The tag (`sql`, `python`,
-  `txt`, or nothing) tells editors what to highlight and is not part of the value. Trailing blank lines
-  are dropped. This is the only way to put a tab in a value.
-- Several leaves do not open a string. Deeper lines continue the line's object path; without one, they
-  are an error, since no leaf can claim them.
-- A key holds a value or children, never both: a `key value` line with deeper lines under it is a
-  multiline string.
+- When the last non-comment entry is a leaf, deeper lines replace its value with a multiline string.
+  Earlier entries keep their values. The body is verbatim from one tab past the header line's leading
+  indentation. The leaf's text (`sql`, `python`, `txt`, or nothing) is an editor tag, not part of the value.
+  Trailing blank lines are dropped. This is the only way to put a tab in a value.
 
 ## Examples
 
@@ -44,8 +39,8 @@ Each dtab block is followed by the tree it parses to.
 
 ```dtab
 objects	l1,l2 light
-deltas	l1	position	x 1	y .5
-	z -2
+deltas	l1	position
+	x 1	y .5	z -2
 ```
 ```json
 {"objects": {"l1": "light", "l2": "light"},
@@ -109,6 +104,16 @@ notes txt
 {"query": "SELECT name\nFROM users\nWHERE age > 30", "notes": "Plain text. A tab\tinside is kept."}
 ```
 
+The last entry owns the deeper text, regardless of earlier leaves:
+
+```dtab
+hello world	moose meat
+	world happy
+```
+```json
+{"hello": "world", "moose": "world happy"}
+```
+
 Inline paths work too. These three forms are equivalent (the third has a trailing tab after `B`):
 
 ```dtab
@@ -140,7 +145,7 @@ A	B
 - Python: `pip install dtab`, then `dtab.parse(text)` returns nested dicts and `dtab.stringify(tree)`
   writes them back.
 - JavaScript: `npm install deltatab`, then `require('deltatab').parse(text)` and `.stringify(tree)`.
-- Both raise on an invalid key or ambiguous indentation under several leaves, naming the line.
+- Both raise on an invalid key, naming the line.
 - Values are strings: cast numbers and booleans yourself after parsing. For a list, use keys
   (`0`, `1`, ...) or one value with a separator, split when reading.
 

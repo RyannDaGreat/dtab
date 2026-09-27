@@ -31,7 +31,7 @@ EMBEDDED = [
 # (interpreter regex in a shebang, scope, name)
 SHEBANGS = [("bash|zsh|sh", "source.shell", "shellscript"), ("python\\d*", "source.python", "python"), ("node", "source.js", "javascript")]
 
-# A header ends an optional object path in its only leaf; comments and trailing tabs are allowed.
+# A header's last non-comment entry is a leaf; earlier entries and trailing tabs do not affect that.
 # TextMate cannot look at the next line, so each candidate opens a region that ends at once when nothing
 # deeper follows, and the header itself is colored as the ordinary leaf it may be.
 # The extension paints real headers (key yellow, tag orange) through semantic tokens, which can look ahead.
@@ -41,7 +41,7 @@ BLOCK_CAPTURES = {
     "4": {"name": "string.unquoted.value.dtab"},
     "5": {"name": "meta.entries-after-header.dtab", "patterns": [{"include": "#entry"}]},
 }
-HEADER = ("^(\\t*)((?:(?: [^\\t\\n]*|" + KEYS + ")\\t+)*)(%s) (%s)((?:\\t+ [^\\t\\n]*)*\\t*)$")  # tabs, path/comments, leaf keys, tag, comments/tabs
+HEADER = ("^(\\t*)((?:(?: [^\\t\\n]*|" + KEYS + "(?: [^\\t\\n]*)?)\\t+)*)(%s) (%s)((?:\\t+ [^\\t\\n]*)*\\t*)$")  # tabs, earlier entries, leaf keys, tag, comments/tabs
 
 
 def block_rule(tag_regex, scope, name):
@@ -76,7 +76,7 @@ def grammar():
         "scopeName": "source.dtab",
         "comment": "Same tokens as dtab.vim: an entry between tabs is a comment (leading space), a leaf (key value) or an "
                    "object key. Keys are letters, digits and " + " ".join(KEY_PUNCTUATION) + "; a comma between keys may be followed by "
-                   "whitespace, a line break included. A `key word` line with lines "
+                   "whitespace, a line break included. A line ending in a non-comment `key tag` entry with lines "
                    "indented under it (bound with a backreference to its tabs) is a multiline string: those lines are text, "
                    "highlighted as the word's language, or as the language named by a shebang as the first text. Generated "
                    "by make_grammar.py; do not edit by hand.",

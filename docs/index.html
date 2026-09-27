@@ -160,10 +160,11 @@ const EXAMPLE = [
     ' Every value is a string. Cast the ones you need.',
     'debug\tenabled false\tlevel 2',
     '',
-    ' A path ending in its only leaf opens a multiline string when deeper lines follow.',
-    ' The body starts one tab past the header line\'s leading tabs, regardless of the inline path length.',
+    ' Deeper lines belong to the last non-comment entry: children for an object, text for a leaf.',
+    ' The body starts one tab past the header line\'s leading tabs; earlier entries keep their values.',
     ' Its own text is a highlighting tag, not part of the value; an empty tag is plain text.',
-    ' Multiple leaves continue the object path instead; without an object path, deeper lines are an error.',
+    'hello world\tmoose meat',
+    '\tworld happy',
     'query sql',
     '\tSELECT name, age',
     '\tFROM users',
@@ -243,19 +244,8 @@ function shebangTag(line) {
 /** Pure function. Number of leading tabs of a line. @example lineIndent('\t\tx') // 2 */
 const lineIndent = line => line.length - line.replace(/^\t+/, '').length
 
-const HEADER_LINE = new RegExp('^\\t*(?:(?: [^\\t]*|' + KEYS + '(?<!,))\\t+)*' + KEYS + '(?<!,) [^\\t]*(?:\\t+ [^\\t]*)*\\t*$')
-
-/**
- * Pure function. Whether a line has the shape that opens a multiline string once a deeper line follows:
- * exactly one leaf at the end of an optional object path, with comments and trailing tabs allowed.
- * @example isHeaderLine('query sql\t note')   // true
- * @example isHeaderLine('x, y sql')           // true (one leaf with two keys)
- * @example isHeaderLine('x, y')               // false (two object keys, the space continues the list)
- * @example isHeaderLine('A\tB\tcode py\t')   // true
- * @example isHeaderLine('code py\tB')         // false (an object follows the leaf)
- * @example isHeaderLine('x 1\ty 2')           // false
- */
-const isHeaderLine = line => HEADER_LINE.test(line)
+// A header's last non-comment entry is a leaf; group 1 locates its keys, after any earlier entries.
+const HEADER_LINE = new RegExp('^\\t*(?:(?: [^\\t]*|' + KEYS + '(?<!,)(?: [^\\t]*)?)\\t+)*(' + KEYS + ')(?<!,) [^\\t]*(?:\\t+ [^\\t]*)*\\t*$', 'd')
 
 /**
  * Query (reads the lines after the stream's). Whether the next non-blank line is deeper than the stream's line.
@@ -282,13 +272,13 @@ function blockState(config, indent, tag) {
 }
 
 // A line is entries separated by tab runs. Each entry is a comment (starts with a space), a leaf
-// (key, one space, value) or an object key. A line of one leaf with a deeper line after it is a multiline
+// (key, one space, value) or an object key. A line ending in a leaf with a deeper line after it is a multiline
 // string's header: the lines under it are value text, handed to the tag's language mode if there is one.
 CodeMirror.defineMode('dtab', config => ({
     // block: the multiline string the text from here on belongs to (a blockState); pending: one whose header
-    // is the current line, so it starts on the next; header: the current line is a header; tagPending: the
-    // tag is next.
-    startState: () => ({inValue: false, block: null, pending: null, header: false, tagPending: false}),
+    // is the current line, so it starts on the next; header: start column of its final leaf (or undefined);
+    // tagPending: the tag is next.
+    startState: () => ({inValue: false, block: null, pending: null, header: undefined, tagPending: false}),
     copyState: s => ({
         inValue: s.inValue, header: s.header, tagPending: s.tagPending,
         block: s.block && {...s.block, state: s.block.mode ? CodeMirror.copyState(s.block.mode, s.block.state) : null},
@@ -301,7 +291,7 @@ CodeMirror.defineMode('dtab', config => ({
             state.tagPending = false
             if (state.pending) { state.block = state.pending; state.pending = null }
             if (state.block && stream.string.trim() && lineIndent(stream.string) <= state.block.indent) state.block = null   // string over
-            state.header = !state.block && isHeaderLine(stream.string) && deeperFollows(stream)
+            state.header = !state.block && deeperFollows(stream) ? HEADER_LINE.exec(stream.string)?.indices[1][0] : undefined
         }
         if (state.tagPending) { state.tagPending = false; stream.skipTo('\t') || stream.skipToEnd(); return 'dtab-block-tag' }
         if (state.block) {
@@ -325,7 +315,7 @@ CodeMirror.defineMode('dtab', config => ({
         const goesOn = key.endsWith(',') && stream.eol() ? continuation(stream) : null   // the list ends on a later line
         if (goesOn) key = key.slice(0, -1)
         const isLeaf = goesOn ? goesOn === 'leaf' : stream.peek() === ' '
-        if (state.header && isLeaf) {                                   // the header's key, then its tag; the string starts on the next line
+        if (start === state.header && isLeaf) {                         // the header's final key, then its tag; the string starts on the next line
             const tag = stream.string.slice(stream.pos + 1).split('\t')[0]
             state.pending = blockState(config, lineIndent(stream.string), tag || null)
             state.tagPending = true

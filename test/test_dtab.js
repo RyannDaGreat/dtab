@@ -12,7 +12,7 @@ const HIGHLIGHT_SAMPLE = 'highlight.dtab'  // deliberately contains invalid keys
 
 function testDocumentedExamples() {
     assert.deepStrictEqual(
-        dtab.parse('objects\tl1,l2 light\ndeltas\tl1\tposition\tx 1\ty .5\n\tz -2'),
+        dtab.parse('objects\tl1,l2 light\ndeltas\tl1\tposition\n\tx 1\ty .5\tz -2'),
         {objects: {l1: 'light', l2: 'light'}, deltas: {l1: {position: {x: '1', y: '.5', z: '-2'}}}})
     assert.deepStrictEqual(dtab.parse('a\tb 1\n\t comment\na\tb 2'), {a: {b: '2'}})
     assert.deepStrictEqual(dtab.parse('a\t\t\tb 1'), {a: {b: '1'}})
@@ -27,8 +27,10 @@ function testDocumentedExamples() {
         'A\t\tB\t\tcode py\t\t\n\tSome Code Here',
     ]) assert.deepStrictEqual(dtab.parse(text), {A: {B: {code: 'Some Code Here'}}}, text)
     assert.deepStrictEqual(dtab.parse('A\tB \n\tcode py'), {A: {B: 'code py'}}, 'a trailing space still marks a leaf')
-    assert.throws(() => dtab.parse('x 1\ty 2\n\tz 3'), /line 2: indented under several leaves/)
-    assert.throws(() => dtab.parse('x 1\ty 2\t\n\tz 3'), /line 2: indented under several leaves/)
+    for (const suffix of ['', '\t', '\t note\t']) {
+        assert.deepStrictEqual(dtab.parse('hello world\tmoose meat' + suffix + '\n\tworld happy'), {hello: 'world', moose: 'world happy'})
+        assert.deepStrictEqual(dtab.parse('x 1\ty 2' + suffix + '\n\tz 3'), {x: '1', y: 'z 3'})
+    }
     assert.deepStrictEqual(dtab.parse('x, y 1\nservers\talpha,\n\tbeta,\tgamma\tport 80'),
         {x: '1', y: '1', servers: {alpha: {port: '80'}, beta: {port: '80'}, gamma: {port: '80'}}}, 'whitespace after a comma is skipped, line breaks included')
     assert.throws(() => dtab.parse('a,\n comment\nb 1'), /line 1: invalid key "a,": a comma needs a key on both sides/)
