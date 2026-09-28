@@ -227,6 +227,21 @@ async function main() {
     assert.ok(manifest.contributes.commands.some(c => c.command === 'dtab.preview'))
     assert.ok(manifest.contributes.menus['editor/title'].some(m => m.command === 'dtab.preview'), 'no preview button in the editor title bar')
     assert.ok(manifest.contributes.keybindings.some(k => k.mac === 'cmd+k v' && k.command === 'dtab.preview'))
+
+    // monaco.mjs, through a stand-in for Monaco: the grammar as its tokens provider, carrying multiline strings across
+    // lines, and the headers as semantic tokens in the scopes the extension maps its own header tokens onto.
+    const providers = {}
+    await (await import(require('url').pathToFileURL(path.join(ROOT, 'monaco.mjs')))).highlight({languages: {
+        setTokensProvider: (language, provider) => { providers.tokens = provider },
+        registerDocumentSemanticTokensProvider: (language, provider) => { providers.headers = provider },
+    }}, {wasm: fs.readFileSync(path.join(ROOT, 'node_modules', 'vscode-oniguruma', 'release', 'onig.wasm'))})
+    const queryState = providers.tokens.tokenize('query sql', providers.tokens.getInitialState()).endState
+    const bodyLine = providers.tokens.tokenize('\tSELECT 1', queryState)
+    assert.ok(bodyLine.tokens.some(token => token.scopes === 'meta.embedded.block.sql'), 'Monaco: the string under a sql header is sql')
+    assert.ok(providers.tokens.tokenize('after 1', bodyLine.endState).tokens.some(token => token.scopes === 'entity.name.tag.leaf-key.dtab'), 'Monaco: the string ends')
+    assert.deepStrictEqual([...providers.headers.provideDocumentSemanticTokens({getLinesContent: () => ['query sql\t note', '\tSELECT 1', 'dialect sql', 'x', '\tp ', '\t\ttext']}).data],
+        [0, 0, 5, 0, 0, 0, 6, 3, 1, 0, 4, 1, 1, 0, 0, 0, 2, 0, 1, 0], 'Monaco: each header key and tag, positions relative to the previous token')
+    assert.deepStrictEqual(providers.headers.getLegend().tokenTypes, Object.values(manifest.contributes.semanticTokenScopes[0].scopes).flat())
     Module._load = realLoad
     console.log('test_vscode.js: all checks passed')
 }

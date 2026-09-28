@@ -7,7 +7,10 @@
         "dtab": "dtab.js"
     },
     "files": [
-        "dtab.js"
+        "dtab.js",
+        "monaco.mjs",
+        "vscode/headers.js",
+        "vscode/syntaxes/dtab.tmLanguage.json"
     ],
     "scripts": {
         "test": "node test/test_dtab.js"
