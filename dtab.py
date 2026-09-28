@@ -33,7 +33,7 @@ Single pass, one stack, O(total characters).
 import json
 import re
 
-__version__ = "0.5.2"  # SEMANTIC BINDING: dtab-version (also package.json "version")
+__version__ = "0.5.3"  # SEMANTIC BINDING: dtab-version (also package.json "version")
 
 KEY_SEPARATOR = ","  # a,b writes the same value under each key
 TEXT_TAG = "txt"  # the tag stringify gives a multiline string; any single word is a tag, editors color the ones they know
