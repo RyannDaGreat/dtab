@@ -226,7 +226,7 @@ const dtab = {parse, stringify, KEY_SEPARATOR, TEXT_TAG, KEY_PUNCTUATION, KEY, K
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = dtab
-    if (require.main === module) {
+    if (module.id === '.') {   // `node dtab.js FILE`; not require.main, which a browser bundle rewrites but cannot run
         // Command line: dtab FILE  ->  the tree as JSON on stdout
         const fs = require('fs')
         process.stdout.write(JSON.stringify(parse(fs.readFileSync(process.argv[2], 'utf8')), null, 4) + '\n')

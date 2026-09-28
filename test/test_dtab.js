@@ -67,7 +67,15 @@ function testRoundTrips() {
     }
 }
 
+function testLoadsInABrowserBundle() {
+    // A bundler wraps this CommonJS file with its own `module` and no `require`, and strips the shebang; monaco.mjs imports it that way.
+    const bundled = {exports: {}}
+    new Function('module', 'exports', fs.readFileSync(path.join(__dirname, '..', 'dtab.js'), 'utf8').replace(/^#!.*/, ''))(bundled, bundled.exports)
+    assert.deepStrictEqual(bundled.exports.parse('a 1'), {a: '1'})
+}
+
 testDocumentedExamples()
 testKeyRule()
 testRoundTrips()
+testLoadsInABrowserBundle()
 console.log('test_dtab.js: all checks passed')
