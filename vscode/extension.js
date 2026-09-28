@@ -2,12 +2,13 @@
 // while tabs are dtab structure (the parser strips the one tab that puts a line under its key), so inside a
 // string Tab inserts spaces, and indent/outdent (Cmd+] Cmd+[ Shift+Tab, selections too) shift by spaces;
 // elsewhere all of them work with tabs, like a plain dtab file wants. A live JSON preview of the file beside
-// it, like Markdown's, refreshed on every edit. And semantic tokens for the header line of every multiline
-// string, since the grammar cannot see that a deeper line follows.
+// it, like Markdown's, refreshed on every edit. And semantic tokens for what the grammar cannot color, since it
+// cannot see later lines: the header line of every multiline string, and a key list that ends its line with a
+// comma and ends as a leaf on a later line.
 'use strict'
 const vscode = require('vscode')
 const dtab = require('./dtab.js')   // the repo's parser; vscode/dtab.js is a symlink to it
-const {indentOf, isHeaderLine, headers} = require('./headers.js')   // header detection, shared with ../monaco.mjs
+const {indentOf, isHeaderLine, lookaheadTokens, TOKEN_TYPES} = require('./headers.js')   // shared with ../monaco.mjs
 
 const BLOCK_INDENT = '    '   // one level of code indentation inside a multiline string
 const PREVIEW_SCHEME = 'dtab-preview'   // uri scheme of the read-only JSON documents the preview shows
@@ -180,22 +181,18 @@ async function openPreview() {
     await vscode.window.showTextDocument(document, {viewColumn: vscode.ViewColumn.Beside, preserveFocus: true, preview: false})
 }
 
-const SEMANTIC_LEGEND = ['dtabBlockKey', 'dtabBlockTag']   // token types; package.json maps them to the grammar's scopes
-
-/** Query (reads the document). Semantic tokens for the key and tag of every multiline string's header line. */
-function headerTokens(document) {
+/** Query (reads the document). Semantic tokens for the spans the grammar cannot color; package.json maps TOKEN_TYPES to scopes. */
+function semanticTokens(document) {
     const builder = new vscode.SemanticTokensBuilder()
-    for (const header of headers(document.getText().split('\n'))) {
-        builder.push(header.line, header.key[0], header.key[1] - header.key[0], 0, 0)
-        builder.push(header.line, header.tag[0], header.tag[1] - header.tag[0], 1, 0)
-    }
+    for (const {line, start, end, type} of lookaheadTokens(document.getText().split('\n'), dtab.KEY))
+        builder.push(line, start, end - start, TOKEN_TYPES.indexOf(type), 0)
     return builder.build()
 }
 
 function activate(context) {
     const previewChanged = new vscode.EventEmitter()   // fired with a preview uri: VS Code then asks previewContent again
     context.subscriptions.push(
-        vscode.languages.registerDocumentSemanticTokensProvider({language: 'dtab'}, {provideDocumentSemanticTokens: headerTokens}, new vscode.SemanticTokensLegend(SEMANTIC_LEGEND)),
+        vscode.languages.registerDocumentSemanticTokensProvider({language: 'dtab'}, {provideDocumentSemanticTokens: semanticTokens}, new vscode.SemanticTokensLegend(TOKEN_TYPES)),
         vscode.commands.registerCommand('dtab.tab', tab),
         vscode.commands.registerCommand('dtab.indent', () => shiftSelection(1)),
         vscode.commands.registerCommand('dtab.outdent', () => shiftSelection(-1)),
@@ -205,4 +202,4 @@ function activate(context) {
     )
 }
 
-module.exports = {activate, isHeaderLine, headers, insideBlock, shiftLine, selectedLines, lineEdit, previewText}
+module.exports = {activate, isHeaderLine, lookaheadTokens, insideBlock, shiftLine, selectedLines, lineEdit, previewText}

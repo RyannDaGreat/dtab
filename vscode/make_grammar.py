@@ -108,7 +108,8 @@ def grammar():
                  "captures": {"1": {"name": "entity.name.tag.leaf-key.dtab", "patterns": [{"include": "#comma"}]},
                               "2": {"name": "string.unquoted.value.dtab"}}},
                 {"comment": "Object key: key(s) with no space. A comma at the end of the line continues the list on the next line, which a "
-                            "grammar cannot see, so the keys are object keys even when the list ends as a leaf there",
+                            "grammar cannot see, so the keys are object keys even when the list ends as a leaf there (the extension and monaco.mjs then repaint them "
+                            "as leaf keys through semantic tokens)",
                  "match": "%s(?:,$)?(?=\\t|$)" % KEYS,
                  "captures": {"0": {"name": "entity.name.type.object-key.dtab", "patterns": [{"include": "#comma"}]}}},
                 {"comment": "Anything else before a space: a bad key, with its value",

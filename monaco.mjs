@@ -1,16 +1,20 @@
-// dtab in the Monaco editor. The VS Code grammar colors each line through vscode-textmate, and the key and tag of
-// every multiline string's header get semantic tokens, as in the VS Code extension, since a grammar cannot see that
-// a deeper line follows. Needs vscode-textmate and vscode-oniguruma installed, 'semanticHighlighting.enabled': true
-// in the editor's options, and theme rules for the grammar's scopes, HEADER_SCOPES included.
+// dtab in the Monaco editor. The VS Code grammar colors each line through vscode-textmate, and what it cannot color,
+// since it cannot see later lines, gets semantic tokens, as in the VS Code extension: the key and tag of every
+// multiline string's header, and a key list that ends its line with a comma and ends as a leaf on a later line.
+// Needs vscode-textmate and vscode-oniguruma installed, 'semanticHighlighting.enabled': true in the editor's
+// options, and theme rules for the grammar's scopes, HEADER_SCOPES included.
 import textmate from 'vscode-textmate'
 import oniguruma from 'vscode-oniguruma'
 import grammar from './vscode/syntaxes/dtab.tmLanguage.json' with {type: 'json'}
-import headerDetection from './vscode/headers.js'
+import lookahead from './vscode/headers.js'
+import dtab from './dtab.js'
 
-const {headers} = headerDetection   // a CommonJS module reaches Node's ESM only as its default export
+const {lookaheadTokens, TOKEN_TYPES} = lookahead   // a CommonJS module reaches Node's ESM only as its default export
 
 // The scopes of a header's key and of its tag; vscode/package.json maps the extension's header tokens onto the same two
 export const HEADER_SCOPES = ['entity.name.function.block-key.dtab', 'entity.other.attribute-name.block-tag.dtab']
+// The legend: a scope for each of TOKEN_TYPES, as vscode/package.json maps them. The leaf-key scope is the grammar's own.
+const SCOPES = [...HEADER_SCOPES, 'entity.name.tag.leaf-key.dtab']
 
 /** Monaco's line state: a vscode-textmate rule stack, which is immutable, so the state is its own clone. */
 class State {
@@ -21,15 +25,17 @@ class State {
 
 /**
  * Pure function. Monaco's encoding of semantic tokens (line delta, start delta, length, type, modifiers) for the
- * key (type 0) and the tag (type 1) of each header.
- * @example headerTokens(['query sql', '\tSELECT 1'])   // Uint32Array [0, 0, 5, 0, 0, 0, 6, 3, 1, 0]
+ * spans the grammar cannot color, the start delta being from the previous token when it is on the same line.
+ * @example semanticTokens(['query sql', '\tSELECT 1'])   // Uint32Array [0, 0, 5, 0, 0, 0, 6, 3, 1, 0]
+ * @example semanticTokens(['x, y,', 'z 1'])            // Uint32Array [0, 0, 1, 2, 0, 0, 3, 1, 2, 0]
  */
-function headerTokens(lines) {
-    let previous = 0
-    return new Uint32Array(headers(lines).flatMap(({line, key, tag}) => {
-        const delta = line - previous
-        previous = line
-        return [delta, key[0], key[1] - key[0], 0, 0, 0, tag[0] - key[0], tag[1] - tag[0], 1, 0]
+function semanticTokens(lines) {
+    let previous = {line: 0, start: 0}
+    return new Uint32Array(lookaheadTokens(lines, dtab.KEY).flatMap(token => {
+        const delta = token.line - previous.line
+        const start = delta ? token.start : token.start - previous.start
+        previous = token
+        return [delta, start, token.end - token.start, TOKEN_TYPES.indexOf(token.type), 0]
     }))
 }
 
@@ -60,8 +66,8 @@ export async function highlight(monaco, {wasm, grammars = {}, language = 'dtab'}
         },
     })
     monaco.languages.registerDocumentSemanticTokensProvider(language, {
-        getLegend: () => ({tokenTypes: HEADER_SCOPES, tokenModifiers: []}),
-        provideDocumentSemanticTokens: model => ({data: headerTokens(model.getLinesContent())}),
+        getLegend: () => ({tokenTypes: SCOPES, tokenModifiers: []}),
+        provideDocumentSemanticTokens: model => ({data: semanticTokens(model.getLinesContent())}),
         releaseDocumentSemanticTokens: () => {},
     })
 }

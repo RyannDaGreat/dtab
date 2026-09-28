@@ -860,7 +860,7 @@
                     }
                 },
                 {
-                    "comment": "Object key: key(s) with no space. A comma at the end of the line continues the list on the next line, which a grammar cannot see, so the keys are object keys even when the list ends as a leaf there",
+                    "comment": "Object key: key(s) with no space. A comma at the end of the line continues the list on the next line, which a grammar cannot see, so the keys are object keys even when the list ends as a leaf there (the extension and monaco.mjs then repaint them as leaf keys through semantic tokens)",
                     "match": "[\\p{L}\\p{N}_\\.\\-/]+(?:, *\\t*[\\p{L}\\p{N}_\\.\\-/]+)*(?:,$)?(?=\\t|$)",
                     "captures": {
                         "0": {

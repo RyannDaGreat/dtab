@@ -187,6 +187,10 @@
             {
                 "id": "dtabBlockTag",
                 "description": "The language tag of a multiline string's header line"
+            },
+            {
+                "id": "dtabLeafKey",
+                "description": "A key of a list that ends its line with a comma and ends as a leaf on a later line (the grammar can only color it as an object key)"
             }
         ],
         "semanticTokenScopes": [
@@ -198,6 +202,9 @@
                     ],
                     "dtabBlockTag": [
                         "entity.other.attribute-name.block-tag.dtab"
+                    ],
+                    "dtabLeafKey": [
+                        "entity.name.tag.leaf-key.dtab"
                     ]
                 }
             }

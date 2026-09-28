@@ -182,23 +182,38 @@ async function main() {
     assert.strictEqual(insideBlock(['config\tdb', '\tinit sql', '\t\tCREATE'], 2), true, 'a nested header')
     assert.strictEqual(insideBlock(['x 1\ty 2', '\tz'], 1), true, 'the last leaf owns deeper text')
     assert.strictEqual(insideBlock(['code ', '\tx'], 0), false, 'the header itself is not inside the string')
-    const {isHeaderLine, headers} = require(path.join(EXTENSION, manifest.main))
+    const {isHeaderLine, lookaheadTokens} = require(path.join(EXTENSION, manifest.main))
     assert.deepStrictEqual(['query sql', 'prompt ', '\tinit sql\t note', ' note\tq sql', 'hello big world', 'x, y sql', 'x,\ty sql', 'a\tb sql', 'x 1\ty 2', 'k', 'q sql\t', 'key, fill', 'b sql\ta', 'A\tx 1\ty 2\t', 'A\tB\tcode py\t', 'A\tB\t'].map(isHeaderLine),
         [true, true, true, true, true, true, true, true, true, false, true, false, false, true, true, false], 'header shape: the last non-comment entry is a leaf; trailing tabs are ignored')
     assert.strictEqual(insideBlock(['A\tB\tcode py\t', '\tdef f():', '\t\treturn 1'], 2), true, 'inline path baseline is the header indentation')
     assert.strictEqual(insideBlock(['A\tB\t', '\tcode py', '\t\treturn 1'], 2), true, 'trailing tabs keep the deeper header')
     assert.strictEqual(insideBlock(['A\tx 1\ty 2\t', '\tz 3'], 1), true, 'earlier leaves do not change the last entry rule')
     assert.strictEqual(insideBlock(['key, fill', '\ton true'], 1), false, 'a space after a comma continues the keys, it does not start a tag')
-    assert.deepStrictEqual(headers(['query sql\t note', '\tSELECT 1', 'dialect sql', 'after 1', 'x', '\tp ', '', '\t\ttext', ' note\tx, y sql', '\tSELECT 2']),
-        [{line: 0, key: [0, 5], tag: [6, 9]}, {line: 5, key: [1, 2], tag: [3, 3]}, {line: 8, key: [6, 10], tag: [11, 14]}], 'headers are the shaped lines followed by a deeper line, blank lines skipped')
-    assert.deepStrictEqual(headers(['A\tB\tcode py\t note\t', '\tprint(1)', 'A\tB\t', '\tcode py\t', '\t\tprint(2)']),
-        [{line: 0, key: [4, 8], tag: [9, 11]}, {line: 3, key: [1, 5], tag: [6, 8]}], 'only the final leaf is a semantic header token')
-    assert.deepStrictEqual(headers(['hello world\tmoose meat\t note\t', '\tworld happy']),
-        [{line: 0, key: [12, 17], tag: [18, 22]}], 'earlier leaves are not header tokens')
-    assert.deepStrictEqual(headers(['hello world\tmoose,\telk meat', '\tworld happy']),
-        [{line: 0, key: [12, 22], tag: [23, 27]}], 'the complete final comma key list is the header')
-    assert.deepStrictEqual(headers(['stats\tjob da', '\tquery pending', '\tcommand bash', '\t\tuv run x.py', '', '\tcommit', 'after sql', '\tSELECT 1']),
-        [{line: 0, key: [6, 9], tag: [10, 12]}, {line: 6, key: [0, 5], tag: [6, 9]}], 'a header-shaped line inside a string body is text, not a header')
+    // The look-ahead tokens as [line, start, end, K|T|L]: a header's key and tag, and the names of a dangling key list that ends as a leaf
+    const TYPE_LETTERS = {dtabBlockKey: 'K', dtabBlockTag: 'T', dtabLeafKey: 'L'}
+    const spans = lines => lookaheadTokens(lines, require(path.join(ROOT, 'dtab.js')).KEY).map(t => [t.line, t.start, t.end, TYPE_LETTERS[t.type]])
+    assert.deepStrictEqual(spans(['query sql\t note', '\tSELECT 1', 'dialect sql', 'after 1', 'x', '\tp ', '', '\t\ttext', ' note\tx, y sql', '\tSELECT 2']),
+        [[0, 0, 5, 'K'], [0, 6, 9, 'T'], [5, 1, 2, 'K'], [5, 3, 3, 'T'], [8, 6, 10, 'K'], [8, 11, 14, 'T']], 'headers are the shaped lines followed by a deeper line, blank lines skipped')
+    assert.deepStrictEqual(spans(['A\tB\tcode py\t note\t', '\tprint(1)', 'A\tB\t', '\tcode py\t', '\t\tprint(2)']),
+        [[0, 4, 8, 'K'], [0, 9, 11, 'T'], [3, 1, 5, 'K'], [3, 6, 8, 'T']], 'only the final leaf is a semantic header token')
+    assert.deepStrictEqual(spans(['hello world\tmoose meat\t note\t', '\tworld happy']), [[0, 12, 17, 'K'], [0, 18, 22, 'T']], 'earlier leaves are not header tokens')
+    assert.deepStrictEqual(spans(['hello world\tmoose,\telk meat', '\tworld happy']), [[0, 12, 22, 'K'], [0, 23, 27, 'T']], 'the complete final comma key list is the header')
+    assert.deepStrictEqual(spans(['stats\tjob da', '\tquery pending', '\tcommand bash', '\t\tuv run x.py', '', '\tcommit', 'after sql', '\tSELECT 1']),
+        [[0, 6, 9, 'K'], [0, 10, 12, 'T'], [6, 0, 5, 'K'], [6, 6, 9, 'T']], 'a header-shaped line inside a string body is text, not a header')
+    assert.deepStrictEqual(spans(['a|b sql', '\tSELECT 1']), [], 'a header key the parser rejects is left to the grammar, which shows the error')
+    assert.deepStrictEqual(spans([' samples', 'covisibility_attempted_count,', 'covisibility_null_count,', 'covisibility_scored_count int64']),
+        [[1, 0, 28, 'L'], [2, 0, 23, 'L']], 'a key list that goes on over lines and ends as a leaf is leaf keys on every line')
+    assert.deepStrictEqual(spans(['hello world\tmoose, elk,', '', '\t\t', '\tdeer meat']), [[0, 12, 17, 'L'], [0, 19, 22, 'L']],
+        'only the dangling entry, each name without its comma; blank and tab-only lines are passed over')
+    assert.deepStrictEqual(spans(['a,\tb,', '\tc, d 1']), [[0, 0, 1, 'L'], [0, 3, 4, 'L']], 'a tab after a comma within the line')
+    assert.deepStrictEqual(spans(['a,', '\tb 1\tc,', '\td 2']), [[0, 0, 1, 'L'], [1, 5, 6, 'L']], 'the line a list ends on can start another')
+    assert.deepStrictEqual(spans(['x,', '\ty sql', '\t\tSELECT 1']), [[0, 0, 1, 'L'], [1, 1, 2, 'K'], [1, 3, 6, 'T']], 'a list that ends as a header')
+    assert.deepStrictEqual(spans(['list\talpha,', '\tbeta,', '\tgamma\tport 80']), [], 'a list that ends as an object is the grammar\'s object keys')
+    for (const lines of [['a,'], ['a,', ' a comment', 'b 1'], ['a,', '\tb,\t note'], ['a,', 'b|c 1'], ['a|x,', 'b 1'], ['a,,', 'b 1']]) {
+        assert.throws(() => require(path.join(ROOT, 'dtab.js')).parse(lines.join('\n')), /dtab line/, 'the parser should reject ' + JSON.stringify(lines))
+        assert.deepStrictEqual(spans(lines), [], 'a list the parser rejects is left to the grammar: ' + JSON.stringify(lines))
+    }
+    assert.deepStrictEqual(spans(['job ', '\tx,', '\ty 1']), [[0, 0, 3, 'K'], [0, 4, 4, 'T']], 'a dangling list inside a string body is text')
     const {shiftLine} = require(path.join(EXTENSION, manifest.main))
     assert.strictEqual(shiftLine('\tdef f():', true, 1), '\t    def f():')
     assert.strictEqual(shiftLine('\t    return', true, -1), '\treturn')
@@ -243,6 +258,8 @@ async function main() {
     assert.ok(providers.tokens.tokenize('after 1', bodyLine.endState).tokens.some(token => token.scopes === 'entity.name.tag.leaf-key.dtab'), 'Monaco: the string ends')
     assert.deepStrictEqual([...providers.headers.provideDocumentSemanticTokens({getLinesContent: () => ['query sql\t note', '\tSELECT 1', 'dialect sql', 'x', '\tp ', '\t\ttext']}).data],
         [0, 0, 5, 0, 0, 0, 6, 3, 1, 0, 4, 1, 1, 0, 0, 0, 2, 0, 1, 0], 'Monaco: each header key and tag, positions relative to the previous token')
+    assert.deepStrictEqual([...providers.headers.provideDocumentSemanticTokens({getLinesContent: () => ['x, y,', 'z 1']}).data],
+        [0, 0, 1, 2, 0, 0, 3, 1, 2, 0], 'Monaco: the names of a dangling list that ends as a leaf are leaf keys')
     assert.deepStrictEqual(providers.headers.getLegend().tokenTypes, Object.values(manifest.contributes.semanticTokenScopes[0].scopes).flat())
     Module._load = realLoad
     console.log('test_vscode.js: all checks passed')

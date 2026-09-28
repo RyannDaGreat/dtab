@@ -41,6 +41,12 @@ async function run() {
     const semantic = await vscode.commands.executeCommand('vscode.provideDocumentSemanticTokens', source.uri)
     assert.ok(semantic && semantic.data.length === 10, 'expected two semantic tokens on the one header line, got ' + (semantic ? semantic.data.length / 5 : 'none'))
     assert.deepStrictEqual(Array.from(semantic.data), [1, 16, 4, 0, 0, 0, 5, 3, 1, 0], 'only code and sql should be header tokens')
+    // A key list that goes on over lines and ends as a leaf: its dangling names are leaf keys (type 2), the commas left alone.
+    const dangling = await vscode.workspace.openTextDocument({language: 'dtab', content: 'counts\ta,\n\tb,\n\tc int64\n'})
+    const danglingTokens = await vscode.commands.executeCommand('vscode.provideDocumentSemanticTokens', dangling.uri)
+    assert.deepStrictEqual(Array.from(danglingTokens.data), [0, 7, 1, 2, 0, 1, 1, 1, 2, 0], 'a and b should be leaf-key tokens')
+    const legend = await vscode.commands.executeCommand('vscode.provideDocumentSemanticTokensLegend', dangling.uri)
+    assert.strictEqual(legend.tokenTypes[2], 'dtabLeafKey', 'type 2 should be the leaf key, which package.json maps to the leaf-key scope')
 
     // The Tab and indent commands, each on a fresh document with the selections set first.
     const P = (line, ch) => new vscode.Position(line, ch)
