@@ -197,6 +197,8 @@ async function main() {
         [{line: 0, key: [12, 17], tag: [18, 22]}], 'earlier leaves are not header tokens')
     assert.deepStrictEqual(headers(['hello world\tmoose,\telk meat', '\tworld happy']),
         [{line: 0, key: [12, 22], tag: [23, 27]}], 'the complete final comma key list is the header')
+    assert.deepStrictEqual(headers(['stats\tjob da', '\tquery pending', '\tcommand bash', '\t\tuv run x.py', '', '\tcommit', 'after sql', '\tSELECT 1']),
+        [{line: 0, key: [6, 9], tag: [10, 12]}, {line: 6, key: [0, 5], tag: [6, 9]}], 'a header-shaped line inside a string body is text, not a header')
     const {shiftLine} = require(path.join(EXTENSION, manifest.main))
     assert.strictEqual(shiftLine('\tdef f():', true, 1), '\t    def f():')
     assert.strictEqual(shiftLine('\t    return', true, -1), '\treturn')
