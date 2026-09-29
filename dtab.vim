@@ -7,7 +7,8 @@
 " key on one side. Trailing tabs are harmless separators.
 " A leaf with lines indented under it is a multiline string: the key yellow, the leaf's text (a tag for
 " editors) orange, and the lines colored as text, or by the tagged language's own syntax file (sql, python,
-" bash, ...), or by a shebang.
+" bash, ...), or by a shebang. A language item running past a line's end leaves the next line's tabs, dtab's
+" indentation, in the string's color.
 "
 " A dtab line is tab-indented, with entries separated by tabs:
 "     deltas	l1,l2	position	x 1	y .5	 inline comment
@@ -75,10 +76,10 @@ function! s:DtabSyntax() abort
 endfunction
 
 " Languages a multiline string can be tagged with (the README's table), and the vim syntax file for each.
-" Vim has no syntax file for jsonl; json.vim colors a value per line just as well.
+" Vim has no syntax file for jsonl; s:DtabEmbedded makes its cluster from json.vim's groups.
 let s:dtab_languages = {
     \ 'sql': 'sql', 'python': 'python', 'py': 'python', 'javascript': 'javascript', 'js': 'javascript',
-    \ 'typescript': 'typescript', 'ts': 'typescript', 'html': 'html', 'css': 'css', 'json': 'json', 'jsonl': 'json',
+    \ 'typescript': 'typescript', 'ts': 'typescript', 'html': 'html', 'css': 'css', 'json': 'json', 'jsonl': 'jsonl',
     \ 'yaml': 'yaml', 'yml': 'yaml', 'markdown': 'markdown', 'md': 'markdown',
     \ 'bash': 'sh', 'sh': 'sh', 'shell': 'sh', 'zsh': 'zsh',
     \ 'c': 'c', 'cpp': 'cpp', 'rust': 'rust', 'go': 'go', 'java': 'java', 'swift': 'swift',
@@ -90,7 +91,20 @@ function! s:DtabEmbedded() abort
     " One region per tag: `key TAG` then the string, colored by that language's own syntax file. These are
     " defined after the plain region, so they win at the same position.
     " One region per shebang, nested in a plain string, from the shebang line to the string's end.
-    let l:included = {}
+    " The tabs that start a string's line are dtab's. A language item that runs past a line's end (json.vim's
+    " missing comma, a block comment) would color the next line's tabs, so dtabBlockIndent takes them inside
+    " every language group (dtabLanguageGroups, filled once the languages are in). Defined first, so a
+    " language pattern starting at the same column still wins (`^\s*\*` in a Javadoc comment). At a
+    " string's top level the tabs are the language's to match, or `^\s*\zs#include` would never match.
+    syntax match dtabBlockIndent /^\t\+/ contained containedin=@dtabLanguageGroups
+    " jsonl is a json value per line. json.vim looks past a line's end for the comma between an array's
+    " values (jsonMissingCommaError, and jsonFold, whose `}` does not close before a `{` on the next line),
+    " so a jsonl string gets json.vim's other groups, and brackets of its own.
+    syntax match dtabJsonlBracket /[][{}]/ contained
+    syntax cluster dtabLang_jsonl contains=jsonNoise,jsonKeywordMatch,jsonStringMatch,jsonStringSQError,jsonNumber,
+        \jsonNoQuotesError,jsonTripleQuotesError,jsonNumError,jsonCommentError,jsonSemicolonError,
+        \jsonTrailingCommaError,jsonPadding,jsonBoolean,jsonNull,dtabJsonlBracket
+    let l:included = {'jsonl': 1}   " no syntax file: json.vim comes in under the json tag
     for [l:tag, l:syntax] in items(s:dtab_languages)
         if !has_key(l:included, l:syntax)
             unlet! b:current_syntax
@@ -106,6 +120,7 @@ function! s:DtabEmbedded() abort
             \ . ' end=/^\%(\t\|\s*$\)\@!/ contained contains=@dtabLang_' . s:dtab_languages[l:tag]
     endfor
     syntax cluster dtabShebangs contains=dtabShebang
+    syntax cluster dtabLanguageGroups contains=\%(dtab\)\@!.*
     let b:current_syntax = 'dtab'
 endfunction
 
@@ -366,6 +381,8 @@ function! s:DtabHighlight() abort
     highlight dtabBlock     ctermfg=110 guifg=#87afd7 cterm=italic gui=italic   " lighter blue italic: multiline text, not a one-line value
     highlight default link dtabComment     Comment
     highlight default link dtabShebang     dtabBlock
+    highlight default link dtabBlockIndent dtabBlock   " as where no language item spans it
+    highlight default link dtabJsonlBracket jsonBraces
     highlight default link dtabHeaderComment Comment
     highlight default link dtabComma       Delimiter
     highlight default link dtabBadComma    Error

@@ -20,9 +20,9 @@ Checks:
      a comma in a key (`a, b`, `a,` continued on the next line): both parsers give the same tree or error.
   6. node test/test_dtab.js.
   7. Vim: the syntax groups over test/samples/highlight.dtab match test/expected/highlight.txt byte by byte
-     (that sample deliberately contains invalid keys, so it is not parsed), embedded languages, the Tab and
-     shift keys, J, :DtabPreview, and plugin/dtab.vim sets the filetype when the repo is on 'runtimepath',
-     which is what Vundle and vim-plug do.
+     (that sample deliberately contains invalid keys, so it is not parsed), embedded languages and the tabs
+     that start a string's line, the Tab and shift keys, J, :DtabPreview, and plugin/dtab.vim sets the
+     filetype when the repo is on 'runtimepath', which is what Vundle and vim-plug do.
   8. docs/index.html in headless Chrome (test/test_web.js), skipped with a message if puppeteer is not
      installed (`npm install --no-save puppeteer && npx puppeteer browsers install chrome`).
   9. The VS Code extension's TextMate grammar tokenizes the vim highlight sample the same way vim does,
@@ -265,6 +265,29 @@ def test_vim_embedded_languages():
     assert groups == ["sqlStatement", "dtabBlockKey", "sqlStatement", "shStatement", "dtabLeafKey", "dtabBlockTag", "jsonNumber", "jsonBoolean", "dtabBlockKey", "sqlStatement", "dtabLeafKey", "dtabBlockKey", "sqlStatement"], groups
 
 
+def test_vim_string_indentation():
+    """
+    The tabs that start a string's line are dtab's: a language item running past a line's end (json's missing
+    comma, `}` then `{` on the next line) leaves them in the string's color. In a jsonl string that `}` is no
+    error, each line being its own value. A language pattern at the line start still matches: a Javadoc
+    comment's `*`, and `#include` at a C string's top level.
+    """
+    with tempfile.TemporaryDirectory() as directory:
+        sample = Path(directory) / "indent.dtab"
+        sample.write_text("tables\n\tsnapshots\n\t\tinitial_rows jsonl\n\t\t\t{\"id\": \"multicam\"}\n\t\t\t{\"id\": \"season_titles\"}\n"
+                          "doc json\n\t[\n\t\t{\"a\": 1}\n\t\t{\"a\": 2}\n\t]\n"
+                          "code java\n\t/**\n\t * doc\n\t */\n"
+                          "code c\n\t#include <stdio.h>\n")
+        expected = [(4, 21, "dtabJsonlBracket"), (5, 1, "dtabBlock"), (8, 10, "jsonMissingCommaError"), (9, 1, "dtabBlockIndent"),
+                    (13, 2, "javaCommentStar"), (16, 2, "cInclude")]   # (line, column, group)
+        out = Path(directory) / "groups.txt"
+        positions = ",".join("[%d,%d]" % (line, column) for line, column, _ in expected)
+        vim("syntax on", "source dtab.vim", "edit " + str(sample),
+            "call writefile(map([%s], {_, p -> synIDattr(synID(p[0], p[1], 1), 'name')}), '%s')" % (positions, out))
+        groups = out.read_text().split()
+    assert groups == [group for _, _, group in expected], groups
+
+
 def test_vim_tab_key():
     """In insert mode, Tab inside a multiline string (past the line's tabs) inserts spaces; elsewhere a tab."""
     with tempfile.TemporaryDirectory() as directory:
@@ -396,7 +419,7 @@ def test_vscode_live():
 
 if __name__ == "__main__":
     for test in [test_doctests, test_skill_examples, test_readers_agree, test_round_trips, test_key_rule, test_comma_whitespace, test_path_blocks, test_js_suite,
-                 test_vim_highlighting, test_vim_embedded_languages, test_vim_tab_key, test_vim_shift_keys, test_vim_join, test_vim_join_after_comma,
+                 test_vim_highlighting, test_vim_embedded_languages, test_vim_string_indentation, test_vim_tab_key, test_vim_shift_keys, test_vim_join, test_vim_join_after_comma,
                  test_vim_preview, test_vim_plugin_shim, test_web_demo, test_vscode_grammar, test_vscode_live]:
         test()
         print("ok  " + test.__name__)
