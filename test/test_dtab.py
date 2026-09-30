@@ -21,7 +21,8 @@ Checks:
   6. node test/test_dtab.js.
   7. Vim: the syntax groups over test/samples/highlight.dtab match test/expected/highlight.txt byte by byte
      (that sample deliberately contains invalid keys, so it is not parsed), embedded languages and the tabs
-     that start a string's line, the Tab and shift keys, J, :DtabPreview, and plugin/dtab.vim sets the
+     that start a string's line, lines of a few thousand characters without E363 or a slow regex engine,
+     the Tab and shift keys, J, :DtabPreview, and plugin/dtab.vim sets the
      filetype when the repo is on 'runtimepath', which is what Vundle and vim-plug do.
   8. docs/index.html in headless Chrome (test/test_web.js), skipped with a message if puppeteer is not
      installed (`npm install --no-save puppeteer && npx puppeteer browsers install chrome`).
@@ -228,12 +229,12 @@ def test_js_suite():
     subprocess.run(["node", "test/test_dtab.js"], check=True, cwd=ROOT)
 
 
-def vim(*commands):
-    """Query (runs vim headless). Runs the -c commands in order in a clean vim and returns nothing."""
+def vim(*commands, timeout=None):
+    """Query (runs vim headless). Runs the -c commands in order in a clean vim, within timeout seconds, and returns nothing."""
     arguments = ["vim", "-N", "-u", "NONE", "-i", "NONE", "-n", "-es", "-c", "set shortmess+=A"]  # -n, +=A: no swap files, no ATTENTION prompt
     for command in commands:
         arguments += ["-c", command]
-    subprocess.run(arguments + ["-c", "qa!"], check=True, cwd=ROOT)
+    subprocess.run(arguments + ["-c", "qa!"], check=True, cwd=ROOT, timeout=timeout)
 
 
 def test_vim_highlighting():
@@ -286,6 +287,28 @@ def test_vim_string_indentation():
             "call writefile(map([%s], {_, p -> synIDattr(synID(p[0], p[1], 1), 'name')}), '%s')" % (positions, out))
         groups = out.read_text().split()
     assert groups == [group for _, _, group in expected], groups
+
+
+def test_vim_long_lines():
+    """
+    Long lines highlight without E363 and without vim switching to its backtracking regex engine: a string
+    of space-aligned table rows, a header with a long spaced tag, and leaves with long key lists, spaced and
+    not. Each once hung vim: a lookbehind tried at every column filled 'maxmempattern', and the engine
+    that took over never finished. The timeout stands for that hang.
+    """
+    words = "  ".join("col%d" % i for i in range(300))   # about 2000 characters, inside vim's 'synmaxcol'
+    keys = ", ".join("k%d" % i for i in range(300))
+    text = ("table TYPE  DESCRIPTION  EXAMPLE\n" + "".join("\tfield_%d @     [Key]  str   %s\n" % (row, words) for row in range(20))
+            + "tag " + words + "\n\tbody\n" + keys + " 1\n" + keys.replace(" ", "") + "\tv 1\nafter 1\n")
+    with tempfile.TemporaryDirectory() as directory:
+        sample = Path(directory) / "long.dtab"
+        sample.write_text(text)
+        out = Path(directory) / "result.txt"
+        vim("syntax on", "source dtab.vim", "edit " + str(sample), "set verbose=1", "redir => g:messages",
+            "call map(range(1, line('$')), {_, lnum -> synID(lnum, col([lnum, '$']) - 1, 1)})", "redir END",
+            "call writefile([v:errmsg, g:messages =~# 'Switching' ? 'switched engines' : ''], '%s')" % out, timeout=60)
+        errmsg, switched = out.read_text().split("\n")[:2]
+    assert (errmsg, switched) == ("", ""), (errmsg, switched)
 
 
 def test_vim_tab_key():
@@ -419,7 +442,7 @@ def test_vscode_live():
 
 if __name__ == "__main__":
     for test in [test_doctests, test_skill_examples, test_readers_agree, test_round_trips, test_key_rule, test_comma_whitespace, test_path_blocks, test_js_suite,
-                 test_vim_highlighting, test_vim_embedded_languages, test_vim_string_indentation, test_vim_tab_key, test_vim_shift_keys, test_vim_join, test_vim_join_after_comma,
+                 test_vim_highlighting, test_vim_embedded_languages, test_vim_string_indentation, test_vim_long_lines, test_vim_tab_key, test_vim_shift_keys, test_vim_join, test_vim_join_after_comma,
                  test_vim_preview, test_vim_plugin_shim, test_web_demo, test_vscode_grammar, test_vscode_live]:
         test()
         print("ok  " + test.__name__)

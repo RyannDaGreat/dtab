@@ -48,27 +48,36 @@ function! s:DtabSyntax() abort
     " may be followed by whitespace (s:keys). No space in the entry: object key. Space in the entry: leaf
     " `key value`. Leading space: comment.
     execute 'syntax match dtabObjectKey   /\%(^\t*\|\t\)\zs' . s:keys . '\ze\%(\t\|$\)/ contains=@dtabKeyParts'
-    execute 'syntax match dtabLeaf        /\%(^\t*\|\t\)\zs' . s:keys . ',\@<! [^\t]*/   contains=dtabLeafKey,dtabLeafValue'
-    execute 'syntax match dtabLeafKey     /' . s:keys . '\ze,\@<! /                       contained contains=@dtabKeyParts'
+    execute 'syntax match dtabLeaf        /\%(^\t*\|\t\)\zs' . s:closed_keys . ' [^\t]*/        contains=dtabLeafKey,dtabLeafValue'
+    execute 'syntax match dtabLeafKey     /' . s:closed_keys . '\ze /                            contained contains=@dtabKeyParts'
     syntax match dtabLeafValue   / \zs[^\t]*/                                 contained
     syntax match dtabComment     /\%(^\t*\|\t\)\zs [^\t]*/
     " A comma needs a key on both sides: the one before it right there, the one after it past the whitespace
     " it allows. Any other comma is an error (dtabComma is defined last, so it wins where both match).
+    " dtabComma's lookbehind is bounded to 4 bytes, one character: unbounded, vim would try it from every
+    " earlier column of the line.
     syntax match dtabBadComma    /,/                                                    contained
-    syntax match dtabComma       /[^\t\n ,]\@<=,\ze *[\t\n]*[^\t\n ,]/                  contained
+    syntax match dtabComma       /[^\t\n ,]\@4<=,\ze *[\t\n]*[^\t\n ,]/                 contained
     " A character outside the key bag: keyword characters (letters incl. multibyte, digits, _),
     " s:key_punctuation, the , that separates keys and the whitespace a comma allows
     execute 'syntax match dtabBadKey /\%(\k\|[,' . escape(s:key_punctuation, ']^-\/') . ' \t\n]\)\@!./ contained'
     syntax cluster dtabKeyParts contains=dtabBadComma,dtabComma,dtabBadKey
 
-    " The last non-comment leaf opens a multiline string when the next non-blank line is deeper.
-    " Look behind for earlier entries (already colored), then ahead for a deeper line (\1 is the header's tabs).
-    " nextgroup lets only that leaf start the region: the tag's lookbehind captures its indent (\z1), and
-    " the region covers deeper or blank lines. Comments and trailing tabs after the leaf are allowed.
-    " Defined after entries so the key wins. keepend closes embedded-language regions with the string.
-    execute 'syntax match  dtabBlockKey /\%(^\(\t*\)' . s:header_prefix . '\)\@<=' . s:keys . '\ze,\@<! [^\t]*\%(\t\+ [^\t]*\)*\t*\n\%(\s*\n\)*\1\t/ contains=@dtabKeyParts nextgroup=dtabBlock'
-    execute 'syntax region dtabBlock matchgroup=dtabBlockTag start=/\%(^\z(\t*\)' . s:header_prefix . s:keys . '\)\@<=,\@<! [^\t]*/ end=/^\%(\z1\t\|\s*$\)\@!/ contained keepend contains=dtabHeaderComment,@dtabShebangs'
-    execute 'syntax match  dtabHeaderComment /\%(^\t*' . s:header_prefix . s:keys . ',\@<! [^\t]*\%(\t\+ [^\t]*\)*\t\+\)\@<= [^\t]*/ contained'
+    " The last non-comment leaf opens a multiline string when the next non-blank line is deeper. Its key is
+    " read from the line's start (s:from_line_start): the earlier entries (already colored), the key, then
+    " comments to the line's end and a deeper line (\1 is the header's tabs). Defined after entries so the
+    " key wins. nextgroup lets only that key start the string, which reads the line again to capture its
+    " tabs (\z1) and covers deeper or blank lines: its start is the tag, then come the header's comments and
+    " trailing tabs, and from the next line the text, a region of its own that ends with the string
+    " (keepend), so no header comment is found in the text. A header split over lines is seen when the
+    " line of its tag keeps its first line's tabs, which are the tag line's for \1 and \z1 alike.
+    execute 'syntax match  dtabBlockKey /^\(\t*\)' . s:header_prefix . '\zs' . s:closed_keys . '\ze [^\t]*\%(\t\+ [^\t]*\)*\t*\n\%(\s*\n\)*\1\t/' . s:from_line_start . ' contains=@dtabKeyParts nextgroup=dtabString'
+    execute 'syntax region dtabString matchgroup=dtabBlockTag start=/^\z(\t*\)' . s:header_prefix . s:line_closed_keys . '\zs [^\t]*\ze\%(\t\+ [^\t]*\)*\t*$/' . s:from_line_start
+        \ . ' end=/^\%(\z1\t\|\s*$\)\@!/ contained keepend contains=dtabHeaderComment,dtabBlock'
+    syntax match  dtabHeaderComment / [^\t]*/ contained
+    " The text: plain from the next line on, or tagged (s:DtabEmbedded). \%$ is the file's end, which the
+    " string's end comes before.
+    syntax region dtabBlock start=/^/ end=/\%$/ contained contains=@dtabShebangs
     call s:DtabEmbedded()
     syntax sync fromstart
     call s:DtabHighlight()
@@ -88,8 +97,8 @@ let s:dtab_languages = {
 let s:dtab_shebangs = {'bash': 'bash', 'zsh': 'zsh', 'sh': 'sh', 'python': 'python', 'node': 'javascript'}
 
 function! s:DtabEmbedded() abort
-    " One region per tag: `key TAG` then the string, colored by that language's own syntax file. These are
-    " defined after the plain region, so they win at the same position.
+    " One region per tag: the text of a string whose header ends in `key TAG`, colored by that language's own
+    " syntax file. These are defined after the plain text, so they win at the same position.
     " One region per shebang, nested in a plain string, from the shebang line to the string's end.
     " The tabs that start a string's line are dtab's. A language item that runs past a line's end (json.vim's
     " missing comma, a block comment) would color the next line's tabs, so dtabBlockIndent takes them inside
@@ -111,9 +120,7 @@ function! s:DtabEmbedded() abort
             execute 'silent! syntax include @dtabLang_' . l:syntax . ' syntax/' . l:syntax . '.vim'
             let l:included[l:syntax] = 1
         endif
-        execute 'syntax region dtabBlock matchgroup=dtabBlockTag'
-            \ . ' start=/\%(^\z(\t*\)' . s:header_prefix . s:keys . '\)\@<=,\@<! ' . l:tag . '\ze\%(\t\|$\)/'
-            \ . ' end=/^\%(\z1\t\|\s*$\)\@!/ contained keepend contains=dtabHeaderComment,@dtabLang_' . l:syntax
+        execute 'syntax region dtabBlock start=/' . s:TextStart(l:tag) . '/ end=/\%$/ contained contains=@dtabLang_' . l:syntax
     endfor
     for [l:word, l:tag] in items(s:dtab_shebangs)
         execute 'syntax region dtabShebang start=/^\t\+#!.*\<' . l:word . '\d*\>/'
@@ -128,19 +135,42 @@ endfunction
 let s:block_indent = '    '
 " Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
 let s:key_punctuation = '_.-/'
-" A key list: runs of non-blank characters, where a run ending in a comma may go on past spaces, then tabs
-" or line breaks. Any character goes in; dtabBadKey and dtabBadComma flag the wrong ones. The space before a
-" value must not follow a comma (,\@<! after the keys), or `l1, l2, l3` could be the leaf `l1, l2,` with value `l3`.
-let s:keys = '[^\t ]\+\%(,\@<= *[\t\n]*[^\t ]\+\)*'
-" The same within one line, for the functions that look at a line
-let s:line_keys = '[^\t ]\+\%(,\@<= *\t*[^\t ]\+\)*'
-" Earlier entries before the last leaf of a multiline string's header
-let s:header_prefix = '\%(\%( [^\t]*\|' . s:keys . ',\@<!\%( [^\t]*\)\?\)\t\+\)*'
+" A key list: non-blank characters, where a comma may be followed by spaces, then tabs or line breaks, before
+" the next non-blank. Any character goes in; dtabBadKey and dtabBadComma flag the wrong ones. Only the commas
+" divide the list, so it matches in one way: were `a,b,c` divisible anywhere, vim's backtracking engine would
+" try every division.
+let s:keys = '[^\t ]\@=[^\t ,]*\%(,\%(\%( \+[\t\n]*\|[\t\n]\+\)[^\t ]\@=\)\=[^\t ,]*\)*'
+" A key list that does not end in a comma, which a leaf's key and an earlier entry of a header are: a comma
+" before the space would take the space in, so `l1, l2, l3` is not the leaf `l1, l2,` with value `l3`. Said
+" in the pattern, not by a lookbehind after it, which inside the header's earlier entries fills vim's NFA
+" engine's memory on a list of a few hundred keys.
+let s:closed_keys = '\%([^\t ,]*,\%( \+[\t\n]*\|[\t\n]\+\)\=\)*[^\t ,]\+'
+" The same within one line, for patterns and functions that look at a line
+let s:line_closed_keys = '\%([^\t ,]*,\%( \+\t*\|\t\+\)\=\)*[^\t ,]\+'
+" Earlier entries on the line of a multiline string's header, before its last leaf
+let s:header_prefix = '\%(\%( [^\t]*\|' . s:line_closed_keys . '\%( [^\t]*\)\=\)\t\+\)*'
+" Offsets for a pattern that starts with ^ and marks its item's start with \zs: it reads what comes before the
+" item, as a lookbehind would, but once per line. lc steps back to the line's start from whichever column vim
+" tries the pattern at (lines are shorter than this many bytes), and ms=s starts the item at \zs rather than
+" that far to its right. Each \zs must have one place on a line, since only the first match counts. A
+" lookbehind is tried at every column, and on a line a few hundred characters long fills 'maxmempattern'
+" (E363), after which vim's backtracking engine takes over and never finishes.
+let s:from_line_start = 'ms=s,lc=1000000'
+
+function! s:TextStart(tag) abort
+    " Pure function. The start pattern of a multiline string's text when its header's text matches the pattern
+    " tag: the start of the line after the header's line, which it looks behind at. The ^ keeps vim to column
+    " 0, so the lookbehind runs once.
+    " Args: tag (string, a pattern). Returns: string, a pattern.
+    " Example: s:TextStart('sql') matches at the start of the line after "A\tquery sql\t note", and not after
+    " "A\tquery sqlite".
+    return '^\%(^\t*' . s:header_prefix . s:line_closed_keys . ' ' . a:tag . '\%(\t\+ [^\t]*\)*\t*\n\)\@<='
+endfunction
 
 function! s:IsHeaderLine(line) abort
     " Pure function. Whether the last non-comment entry is a leaf (trailing tabs allowed).
     " Args: line (string). Returns: boolean. Example: s:IsHeaderLine("A\tB\tcode py\t") -> 1.
-    return a:line =~ '^\t*' . s:header_prefix . s:line_keys . ',\@<! [^\t]*\%(\t\+ [^\t]*\)*\t*$'
+    return a:line =~ '^\t*' . s:header_prefix . s:line_closed_keys . ' [^\t]*\%(\t\+ [^\t]*\)*\t*$'
 endfunction
 
 function! s:Deeper(lnum, depth) abort
@@ -383,6 +413,7 @@ function! s:DtabHighlight() abort
     highlight default link dtabShebang     dtabBlock
     highlight default link dtabBlockIndent dtabBlock   " as where no language item spans it
     highlight default link dtabJsonlBracket jsonBraces
+    highlight default link dtabString      dtabBlock   " the header's tabs after its tag
     highlight default link dtabHeaderComment Comment
     highlight default link dtabComma       Delimiter
     highlight default link dtabBadComma    Error
