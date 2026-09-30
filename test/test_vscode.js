@@ -186,9 +186,11 @@ async function main() {
     assert.strictEqual(insideBlock(['config\tdb', '\tinit sql', '\t\tCREATE'], 2), true, 'a nested header')
     assert.strictEqual(insideBlock(['x 1\ty 2', '\tz'], 1), true, 'the last leaf owns deeper text')
     assert.strictEqual(insideBlock(['code ', '\tx'], 0), false, 'the header itself is not inside the string')
-    const {isHeaderLine, lookaheadTokens, nextRenderWhitespace} = require(path.join(EXTENSION, manifest.main))
-    assert.deepStrictEqual(['selection', 'none', 'all', 'trailing', 'boundary'].map(nextRenderWhitespace), ['boundary', 'boundary', 'boundary', 'boundary', undefined],
-        'the whitespace button turns boundary on from anything, and off by removing the user setting')
+    const {isHeaderLine, lookaheadTokens, whitespaceMarks} = require(path.join(EXTENSION, manifest.main))
+    assert.strictEqual(manifest.contributes.configuration.properties['dtab.showWhitespace'].default, false, 'the whitespace marks start off')
+    assert.deepStrictEqual(['a\tb 1', 'key TYPE  DESC\t note  ', ' top  comment', '\t    return 1', 'a,  b\t c  d \t', '\t\t'].map(whitespaceMarks),
+        [{tabs: [1], spaces: []}, {tabs: [14], spaces: [15, 20, 21]}, {tabs: [], spaces: [0]}, {tabs: [0], spaces: [1, 2, 3, 4]}, {tabs: [5, 12], spaces: [6, 11]}, {tabs: [0, 1], spaces: []}],
+        'whitespace marks: every tab, and the spaces that start or end an entry, none between the words of a key list, value or comment')
     assert.deepStrictEqual(['query sql', 'prompt ', '\tinit sql\t note', ' note\tq sql', 'hello big world', 'x, y sql', 'x,\ty sql', 'a\tb sql', 'x 1\ty 2', 'k', 'q sql\t', 'key, fill', 'b sql\ta', 'A\tx 1\ty 2\t', 'A\tB\tcode py\t', 'A\tB\t'].map(isHeaderLine),
         [true, true, true, true, true, true, true, true, true, false, true, false, false, true, true, false], 'header shape: the last non-comment entry is a leaf; trailing tabs are ignored')
     assert.strictEqual(insideBlock(['A\tB\tcode py\t', '\tdef f():', '\t\treturn 1'], 2), true, 'inline path baseline is the header indentation')

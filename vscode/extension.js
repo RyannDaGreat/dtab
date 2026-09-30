@@ -4,8 +4,8 @@
 // elsewhere all of them work with tabs, like a plain dtab file wants. A live JSON preview of the file beside
 // it, like Markdown's, refreshed on every edit. Semantic tokens for what the grammar cannot color, since it
 // cannot see later lines: the header line of every multiline string, and a key list that ends its line with a
-// comma and ends as a leaf on a later line. And a title-bar button that draws the tabs carrying the structure
-// (editor.renderWhitespace "boundary") and stops again, so nobody has to find the setting.
+// comma and ends as a leaf on a later line. And a title-bar button that draws the whitespace carrying the
+// structure: the tabs, and the spaces that start or end an entry, not those between the words of a value.
 'use strict'
 const vscode = require('vscode')
 const dtab = require('./dtab.js')   // the repo's parser; vscode/dtab.js is a symlink to it
@@ -13,7 +13,8 @@ const {indentOf, isHeaderLine, lookaheadTokens, TOKEN_TYPES} = require('./header
 
 const BLOCK_INDENT = '    '   // one level of code indentation inside a multiline string
 const PREVIEW_SCHEME = 'dtab-preview'   // uri scheme of the read-only JSON documents the preview shows
-const WHITESPACE_SHOWN = 'boundary'   // the editor.renderWhitespace that draws tabs and runs of spaces, not single spaces
+const TAB_MARK = '→'     // drawn on a tab, as VS Code draws whitespace
+const SPACE_MARK = '·'   // drawn on a space
 
 /**
  * Pure function. Whether line `n` of a dtab document is inside a multiline string: walking up through
@@ -184,28 +185,57 @@ async function openPreview() {
 }
 
 /**
- * Pure function. The user setting editor.renderWhitespace to write when the whitespace button is pressed:
- * "boundary" unless that is what shows already, and then none of its own, which gives VS Code's default back.
- * The same setting VS Code's own Toggle Render Whitespace writes, so the two do not fight.
+ * Pure function. The whitespace worth drawing in a dtab line: every tab, since tabs are the structure, and
+ * the spaces that start or end an entry, like a comment's leading space or a value's trailing spaces. The
+ * spaces between words inside a value or comment are text, and are left alone.
  *
- * @param {string} current - the value in effect
- * @returns {string | undefined}
- * @example nextRenderWhitespace('selection')   // 'boundary'
- * @example nextRenderWhitespace('none')        // 'boundary'
- * @example nextRenderWhitespace('boundary')    // undefined
+ * @param {string} line - one line, without its line break
+ * @returns {{tabs: number[], spaces: number[]}} the columns of the tabs and of the spaces to draw
+ * @example whitespaceMarks('a\tb 1')                     // {tabs: [1], spaces: []}
+ * @example whitespaceMarks('key TYPE  DESC\t note  ')   // {tabs: [14], spaces: [15, 20, 21]}
+ * @example whitespaceMarks(' top  comment')              // {tabs: [], spaces: [0]}
+ * @example whitespaceMarks('\t    return 1')             // {tabs: [0], spaces: [1, 2, 3, 4]}
  */
-const nextRenderWhitespace = current => current === WHITESPACE_SHOWN ? undefined : WHITESPACE_SHOWN
+function whitespaceMarks(line) {
+    const tabs = []
+    const spaces = []
+    for (const {0: run, index} of line.matchAll(/\t|(?<=^|\t) +| +(?=\t|$)/g)) {
+        if (run === '\t') tabs.push(index)
+        else for (let i = 0; i < run.length; i++) spaces.push(index + i)
+    }
+    return {tabs, spaces}
+}
+
+/** Command. Draws the whitespace marks in an editor that shows a dtab file while dtab.showWhitespace is on; otherwise clears them. */
+function drawWhitespace(editor, marks) {
+    const document = editor.document
+    const shown = document.languageId === 'dtab' && vscode.workspace.getConfiguration('dtab').get('showWhitespace')
+    const tabs = []
+    const spaces = []
+    for (let n = 0; shown && n < document.lineCount; n++) {
+        const columns = whitespaceMarks(document.lineAt(n).text)
+        for (const column of columns.tabs) tabs.push(new vscode.Range(n, column, n, column + 1))
+        for (const column of columns.spaces) spaces.push(new vscode.Range(n, column, n, column + 1))
+    }
+    editor.setDecorations(marks.tab, tabs)
+    editor.setDecorations(marks.space, spaces)
+}
+
+/** Command. A decoration drawing `mark` over each whitespace character it covers, in the theme's whitespace color. */
+const whitespaceDecoration = mark => vscode.window.createTextEditorDecorationType({
+    before: {contentText: mark, color: new vscode.ThemeColor('editorWhitespace.foreground'), width: '0'},   // no width: drawn over the character, not before it
+})
 
 /**
- * Command. Switches drawing whitespace in the user settings, or in the user's [dtab] settings if they set it
- * there. When a workspace setting decides the value, nothing changes, and a warning says so.
+ * Command. Switches dtab.showWhitespace in the user settings: on, or off by removing it (its default is off).
+ * When a workspace setting decides it, nothing changes, and a warning says so.
  */
 async function toggleWhitespace() {
-    const setting = () => vscode.workspace.getConfiguration('editor', {languageId: 'dtab'})
-    const before = setting().get('renderWhitespace')
-    await setting().update('renderWhitespace', nextRenderWhitespace(before), vscode.ConfigurationTarget.Global)
-    if (setting().get('renderWhitespace') === before)
-        vscode.window.showWarningMessage('dtab: editor.renderWhitespace is still "' + before + '": a workspace setting decides it, over the user setting this button changes.')
+    const shown = () => vscode.workspace.getConfiguration('dtab').get('showWhitespace')
+    const before = shown()
+    await vscode.workspace.getConfiguration('dtab').update('showWhitespace', before ? undefined : true, vscode.ConfigurationTarget.Global)
+    if (shown() === before)
+        vscode.window.showWarningMessage('dtab: dtab.showWhitespace is still ' + before + ': a workspace setting decides it, over the user setting this button changes.')
 }
 
 /** Query (reads the document). Semantic tokens for the spans the grammar cannot color; package.json maps TOKEN_TYPES to scopes. */
@@ -218,7 +248,11 @@ function semanticTokens(document) {
 
 function activate(context) {
     const previewChanged = new vscode.EventEmitter()   // fired with a preview uri: VS Code then asks previewContent again
+    const marks = {tab: whitespaceDecoration(TAB_MARK), space: whitespaceDecoration(SPACE_MARK)}
+    const drawAll = () => vscode.window.visibleTextEditors.forEach(editor => drawWhitespace(editor, marks))
     context.subscriptions.push(
+        marks.tab,
+        marks.space,
         vscode.languages.registerDocumentSemanticTokensProvider({language: 'dtab'}, {provideDocumentSemanticTokens: semanticTokens}, new vscode.SemanticTokensLegend(TOKEN_TYPES)),
         vscode.commands.registerCommand('dtab.tab', tab),
         vscode.commands.registerCommand('dtab.indent', () => shiftSelection(1)),
@@ -227,7 +261,11 @@ function activate(context) {
         vscode.commands.registerCommand('dtab.toggleWhitespace', toggleWhitespace),
         vscode.workspace.registerTextDocumentContentProvider(PREVIEW_SCHEME, {onDidChange: previewChanged.event, provideTextDocumentContent: previewContent}),
         vscode.workspace.onDidChangeTextDocument(event => { if (event.document.languageId === 'dtab') previewChanged.fire(previewUri(event.document)) }),
+        vscode.workspace.onDidChangeTextDocument(event => vscode.window.visibleTextEditors.filter(editor => editor.document === event.document).forEach(editor => drawWhitespace(editor, marks))),
+        vscode.window.onDidChangeVisibleTextEditors(drawAll),
+        vscode.workspace.onDidChangeConfiguration(event => { if (event.affectsConfiguration('dtab.showWhitespace')) drawAll() }),
     )
+    drawAll()
 }
 
-module.exports = {activate, isHeaderLine, lookaheadTokens, insideBlock, shiftLine, selectedLines, lineEdit, previewText, nextRenderWhitespace}
+module.exports = {activate, isHeaderLine, lookaheadTokens, insideBlock, shiftLine, selectedLines, lineEdit, previewText, whitespaceMarks}

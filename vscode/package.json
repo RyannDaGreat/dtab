@@ -49,6 +49,16 @@
                 "path": "./syntaxes/dtab.tmLanguage.json"
             }
         ],
+        "configuration": {
+            "title": "dtab",
+            "properties": {
+                "dtab.showWhitespace": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Draw the whitespace that carries a dtab file's structure: every tab, and the spaces that start or end an entry (a comment's leading space, trailing spaces). Spaces between the words of a value or comment are not drawn. The whitespace button in the title bar switches it."
+                }
+            }
+        },
         "configurationDefaults": {
             "[dtab]": {
                 "editor.insertSpaces": false,
@@ -141,7 +151,7 @@
             },
             {
                 "command": "dtab.toggleWhitespace",
-                "title": "dtab: Toggle Boundary Whitespace (draw tabs and runs of spaces)",
+                "title": "dtab: Toggle Whitespace (tabs, and spaces at the ends of entries)",
                 "icon": {
                     "light": "./icons/whitespace-light.svg",
                     "dark": "./icons/whitespace-dark.svg"
