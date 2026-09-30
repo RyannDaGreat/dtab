@@ -138,6 +138,14 @@
                     "light": "./icons/delta-light.svg",
                     "dark": "./icons/delta-dark.svg"
                 }
+            },
+            {
+                "command": "dtab.toggleWhitespace",
+                "title": "dtab: Toggle Boundary Whitespace (draw tabs and runs of spaces)",
+                "icon": {
+                    "light": "./icons/whitespace-light.svg",
+                    "dark": "./icons/whitespace-dark.svg"
+                }
             }
         ],
         "keybindings": [
@@ -175,7 +183,12 @@
                 {
                     "command": "dtab.preview",
                     "when": "editorLangId == dtab",
-                    "group": "navigation"
+                    "group": "navigation@1"
+                },
+                {
+                    "command": "dtab.toggleWhitespace",
+                    "when": "editorLangId == dtab",
+                    "group": "navigation@2"
                 }
             ]
         },

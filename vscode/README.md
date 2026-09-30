@@ -9,9 +9,11 @@ https://github.com/RyannDaGreat/dtab
 Object keys, leaf keys, values, comments (entries starting with a space) and invalid keys each get
 their own scope, so any color theme applies. The Tab key inserts a tab.
 
-To see the tabs that carry the structure without dotting every space inside a value, set
-`"editor.renderWhitespace": "boundary"` (it draws tabs and runs of spaces, not single spaces).
-VS Code's normal Toggle Render Whitespace command works as usual.
+To see the tabs that carry the structure without dotting every space inside a value, press the
+whitespace button in the editor title bar (a Δ with a dot), or run `dtab: Toggle Boundary Whitespace`.
+It sets `"editor.renderWhitespace": "boundary"` in your user settings (tabs and runs of spaces, not single
+spaces), and pressed again removes that setting. VS Code's normal Toggle Render Whitespace command works
+as usual.
 
 Inside a multiline string (a `key word` line with lines indented under it) the Tab key inserts four spaces,
 since code indents with spaces and tabs are dtab

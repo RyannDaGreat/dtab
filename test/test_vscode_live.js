@@ -2,7 +2,8 @@
 // real settings or extensions touched) and checks the JSON preview: it opens beside the file as json,
 // leaves focus in the file, follows an edit into the parser's message, and recovers. Then the Tab and
 // indent commands: one tab on a whitespace-only line, a Shift+Down selection ending at column 0 leaves
-// the next line alone, the caret rides along with indented text, and every cursor is served.
+// the next line alone, the caret rides along with indented text, and every cursor is served. Then the
+// whitespace button: boundary on and off in the user settings, and in [dtab] if the user set it there.
 // Run:  node test/test_vscode_live.js   (needs `npm install --no-save @vscode/test-electron` and VS Code in /Applications)
 // This one file is both the launcher (when run directly) and the suite VS Code loads (its `run` export).
 'use strict'
@@ -73,6 +74,20 @@ async function run() {
     assert.strictEqual(r.text, 'hello world\tmoose meat\t\n\tx    \n\ty    \n', 'every cursor inside a last-leaf block gets its spaces')
     r = await run('a\nb 1\nc 2\n', [S(P(0, 0), P(0, 1)), S(P(2, 0), P(2, 1))], 'dtab.indent')
     assert.strictEqual(r.text, '\ta\nb 1\n\tc 2\n', 'every selection gets indented')
+
+    // The whitespace button, twice: boundary in the user settings, then that setting gone (VS Code's default).
+    const setting = () => vscode.workspace.getConfiguration('editor', {languageId: 'dtab'})
+    await vscode.commands.executeCommand('dtab.toggleWhitespace')
+    assert.strictEqual(setting().inspect('renderWhitespace').globalValue, 'boundary', 'the button should turn boundary on')
+    assert.strictEqual(setting().get('renderWhitespace'), 'boundary')
+    await vscode.commands.executeCommand('dtab.toggleWhitespace')
+    assert.strictEqual(setting().inspect('renderWhitespace').globalValue, undefined, 'the button should remove the setting again')
+    assert.strictEqual(setting().get('renderWhitespace'), setting().inspect('renderWhitespace').defaultValue)
+    // A user who set it under [dtab]: the button turns that one off, not the general one.
+    await setting().update('renderWhitespace', 'boundary', vscode.ConfigurationTarget.Global, true)
+    await vscode.commands.executeCommand('dtab.toggleWhitespace')
+    assert.strictEqual(setting().inspect('renderWhitespace').globalLanguageValue, undefined, 'the [dtab] setting should be removed')
+    assert.strictEqual(setting().get('renderWhitespace'), setting().inspect('renderWhitespace').defaultValue)
     console.log('test_vscode_live.js: all checks passed')
 }
 

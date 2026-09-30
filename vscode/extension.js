@@ -1,10 +1,11 @@
-// dtab extension entry point. Three jobs. Indentation inside multiline strings: code indents with spaces
+// dtab extension entry point. Four jobs. Indentation inside multiline strings: code indents with spaces
 // while tabs are dtab structure (the parser strips the one tab that puts a line under its key), so inside a
 // string Tab inserts spaces, and indent/outdent (Cmd+] Cmd+[ Shift+Tab, selections too) shift by spaces;
 // elsewhere all of them work with tabs, like a plain dtab file wants. A live JSON preview of the file beside
-// it, like Markdown's, refreshed on every edit. And semantic tokens for what the grammar cannot color, since it
+// it, like Markdown's, refreshed on every edit. Semantic tokens for what the grammar cannot color, since it
 // cannot see later lines: the header line of every multiline string, and a key list that ends its line with a
-// comma and ends as a leaf on a later line.
+// comma and ends as a leaf on a later line. And a title-bar button that draws the tabs carrying the structure
+// (editor.renderWhitespace "boundary") and stops again, so nobody has to find the setting.
 'use strict'
 const vscode = require('vscode')
 const dtab = require('./dtab.js')   // the repo's parser; vscode/dtab.js is a symlink to it
@@ -12,6 +13,7 @@ const {indentOf, isHeaderLine, lookaheadTokens, TOKEN_TYPES} = require('./header
 
 const BLOCK_INDENT = '    '   // one level of code indentation inside a multiline string
 const PREVIEW_SCHEME = 'dtab-preview'   // uri scheme of the read-only JSON documents the preview shows
+const WHITESPACE_SHOWN = 'boundary'   // the editor.renderWhitespace that draws tabs and runs of spaces, not single spaces
 
 /**
  * Pure function. Whether line `n` of a dtab document is inside a multiline string: walking up through
@@ -181,6 +183,31 @@ async function openPreview() {
     await vscode.window.showTextDocument(document, {viewColumn: vscode.ViewColumn.Beside, preserveFocus: true, preview: false})
 }
 
+/**
+ * Pure function. The user setting editor.renderWhitespace to write when the whitespace button is pressed:
+ * "boundary" unless that is what shows already, and then none of its own, which gives VS Code's default back.
+ * The same setting VS Code's own Toggle Render Whitespace writes, so the two do not fight.
+ *
+ * @param {string} current - the value in effect
+ * @returns {string | undefined}
+ * @example nextRenderWhitespace('selection')   // 'boundary'
+ * @example nextRenderWhitespace('none')        // 'boundary'
+ * @example nextRenderWhitespace('boundary')    // undefined
+ */
+const nextRenderWhitespace = current => current === WHITESPACE_SHOWN ? undefined : WHITESPACE_SHOWN
+
+/**
+ * Command. Switches drawing whitespace in the user settings, or in the user's [dtab] settings if they set it
+ * there. When a workspace setting decides the value, nothing changes, and a warning says so.
+ */
+async function toggleWhitespace() {
+    const setting = () => vscode.workspace.getConfiguration('editor', {languageId: 'dtab'})
+    const before = setting().get('renderWhitespace')
+    await setting().update('renderWhitespace', nextRenderWhitespace(before), vscode.ConfigurationTarget.Global)
+    if (setting().get('renderWhitespace') === before)
+        vscode.window.showWarningMessage('dtab: editor.renderWhitespace is still "' + before + '": a workspace setting decides it, over the user setting this button changes.')
+}
+
 /** Query (reads the document). Semantic tokens for the spans the grammar cannot color; package.json maps TOKEN_TYPES to scopes. */
 function semanticTokens(document) {
     const builder = new vscode.SemanticTokensBuilder()
@@ -197,9 +224,10 @@ function activate(context) {
         vscode.commands.registerCommand('dtab.indent', () => shiftSelection(1)),
         vscode.commands.registerCommand('dtab.outdent', () => shiftSelection(-1)),
         vscode.commands.registerCommand('dtab.preview', openPreview),
+        vscode.commands.registerCommand('dtab.toggleWhitespace', toggleWhitespace),
         vscode.workspace.registerTextDocumentContentProvider(PREVIEW_SCHEME, {onDidChange: previewChanged.event, provideTextDocumentContent: previewContent}),
         vscode.workspace.onDidChangeTextDocument(event => { if (event.document.languageId === 'dtab') previewChanged.fire(previewUri(event.document)) }),
     )
 }
 
-module.exports = {activate, isHeaderLine, lookaheadTokens, insideBlock, shiftLine, selectedLines, lineEdit, previewText}
+module.exports = {activate, isHeaderLine, lookaheadTokens, insideBlock, shiftLine, selectedLines, lineEdit, previewText, nextRenderWhitespace}

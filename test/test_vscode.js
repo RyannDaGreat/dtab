@@ -158,10 +158,14 @@ async function main() {
 
     const manifest = JSON.parse(fs.readFileSync(path.join(EXTENSION, 'package.json'), 'utf8'))
     const previewCommand = manifest.contributes.commands.find(c => c.command === 'dtab.preview')
+    const whitespaceCommand = manifest.contributes.commands.find(c => c.command === 'dtab.toggleWhitespace')
     for (const file of [manifest.icon, manifest.contributes.languages[0].configuration, manifest.contributes.languages[0].icon.light,
-                        manifest.contributes.languages[0].icon.dark, manifest.contributes.grammars[0].path, previewCommand.icon.light, previewCommand.icon.dark])
+                        manifest.contributes.languages[0].icon.dark, manifest.contributes.grammars[0].path, previewCommand.icon.light, previewCommand.icon.dark,
+                        whitespaceCommand.icon.light, whitespaceCommand.icon.dark])
         assert.ok(fs.existsSync(path.join(EXTENSION, file)), 'manifest points at missing file ' + file)
     assert.deepStrictEqual(manifest.contributes.languages[0].extensions, ['.dtab'])
+    assert.deepStrictEqual(manifest.contributes.menus['editor/title'].map(item => [item.command, item.when]),
+        [['dtab.preview', 'editorLangId == dtab'], ['dtab.toggleWhitespace', 'editorLangId == dtab']], 'the title bar of a dtab file: the preview button, then the whitespace button')
     assert.ok(!('editor.renderWhitespace' in manifest.contributes.configurationDefaults['[dtab]']),
         'renderWhitespace must not be set per language: it would defeat the built-in toggle')
     require('child_process').execFileSync('node', ['--check', path.join(EXTENSION, manifest.main)])   // syntax only: it needs the vscode module to run
@@ -182,7 +186,9 @@ async function main() {
     assert.strictEqual(insideBlock(['config\tdb', '\tinit sql', '\t\tCREATE'], 2), true, 'a nested header')
     assert.strictEqual(insideBlock(['x 1\ty 2', '\tz'], 1), true, 'the last leaf owns deeper text')
     assert.strictEqual(insideBlock(['code ', '\tx'], 0), false, 'the header itself is not inside the string')
-    const {isHeaderLine, lookaheadTokens} = require(path.join(EXTENSION, manifest.main))
+    const {isHeaderLine, lookaheadTokens, nextRenderWhitespace} = require(path.join(EXTENSION, manifest.main))
+    assert.deepStrictEqual(['selection', 'none', 'all', 'trailing', 'boundary'].map(nextRenderWhitespace), ['boundary', 'boundary', 'boundary', 'boundary', undefined],
+        'the whitespace button turns boundary on from anything, and off by removing the user setting')
     assert.deepStrictEqual(['query sql', 'prompt ', '\tinit sql\t note', ' note\tq sql', 'hello big world', 'x, y sql', 'x,\ty sql', 'a\tb sql', 'x 1\ty 2', 'k', 'q sql\t', 'key, fill', 'b sql\ta', 'A\tx 1\ty 2\t', 'A\tB\tcode py\t', 'A\tB\t'].map(isHeaderLine),
         [true, true, true, true, true, true, true, true, true, false, true, false, false, true, true, false], 'header shape: the last non-comment entry is a leaf; trailing tabs are ignored')
     assert.strictEqual(insideBlock(['A\tB\tcode py\t', '\tdef f():', '\t\treturn 1'], 2), true, 'inline path baseline is the header indentation')
