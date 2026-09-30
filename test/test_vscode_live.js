@@ -3,7 +3,8 @@
 // leaves focus in the file, follows an edit into the parser's message, and recovers. Then the Tab and
 // indent commands: one tab on a whitespace-only line, a Shift+Down selection ending at column 0 leaves
 // the next line alone, the caret rides along with indented text, and every cursor is served. Then the
-// whitespace button: dtab.showWhitespace on and off in the user settings.
+// whitespace button: dtab.showWhitespace on and off in the user settings. Then the comment toggle on every case of
+// test/comment_cases.json, toggled twice, and in a CRLF file.
 // Run:  node test/test_vscode_live.js   (needs `npm install --no-save @vscode/test-electron` and VS Code in /Applications)
 // This one file is both the launcher (when run directly) and the suite VS Code loads (its `run` export).
 'use strict'
@@ -82,6 +83,32 @@ async function run() {
     await vscode.commands.executeCommand('dtab.toggleWhitespace')
     assert.strictEqual(setting().globalValue, undefined, 'the button should remove the setting again')
     assert.strictEqual(vscode.workspace.getConfiguration('dtab').get('showWhitespace'), false)
+
+    // The comment toggle: every case of test/comment_cases.json with VS Code's own selections; then again with the
+    // selections as VS Code moved them, which gives the lines back when the first toggle commented.
+    const dtab = require(path.join(ROOT, 'dtab.js'))
+    const {cases} = JSON.parse(fs.readFileSync(path.join(ROOT, 'test', 'comment_cases.json'), 'utf8'))
+    const utf16 = (line, column) => [...line].slice(0, column).join('').length
+    const asArrays = selections => selections.map(({start, end}) => [start.line, start.character, end.line, end.character])
+    for (const {name, lines, selections, expected} of cases) {
+        const document = await vscode.workspace.openTextDocument({language: 'dtab', content: lines.join('\n')})
+        const editor = await vscode.window.showTextDocument(document)
+        editor.selections = selections.map(([sl, sc, el, ec]) => new vscode.Selection(sl, utf16(lines[sl], sc), el, ec === null ? lines[el].length : utf16(lines[el], ec)))
+        const commenting = !dtab.commentToggle(lines, asArrays(editor.selections)).remove
+        await vscode.commands.executeCommand('dtab.toggleComment')
+        assert.deepStrictEqual(document.getText().split('\n'), expected, name)
+        const predicted = dtab.toggleComments(expected, asArrays(editor.selections))
+        await vscode.commands.executeCommand('dtab.toggleComment')
+        assert.deepStrictEqual(document.getText().split('\n'), predicted, name + ': toggled again')
+        if (commenting) assert.deepStrictEqual(predicted, lines, name + ': toggled twice gives the lines back')
+        await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor')
+    }
+    const crlf = await vscode.workspace.openTextDocument({language: 'dtab', content: 'a\tb 1\r\nc 2\t\r\n'})
+    const crlfEditor = await vscode.window.showTextDocument(crlf)
+    crlfEditor.selections = [new vscode.Selection(0, 0, 2, 0)]
+    await vscode.commands.executeCommand('dtab.toggleComment')
+    assert.strictEqual(crlf.getText(), ' a\t b 1\r\n c 2\t\r\n', 'a CRLF file: its \\r is no entry')
+    await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor')
     console.log('test_vscode_live.js: all checks passed')
 }
 

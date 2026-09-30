@@ -156,6 +156,10 @@
                     "light": "./icons/whitespace-light.svg",
                     "dark": "./icons/whitespace-dark.svg"
                 }
+            },
+            {
+                "command": "dtab.toggleComment",
+                "title": "dtab: Toggle Comment (the entries a selection touches, a caret's whole line)"
             }
         ],
         "keybindings": [
@@ -186,6 +190,12 @@
                 "key": "ctrl+k v",
                 "mac": "cmd+k v",
                 "when": "editorLangId == dtab && !notebookEditorFocused"
+            },
+            {
+                "command": "dtab.toggleComment",
+                "key": "ctrl+/",
+                "mac": "cmd+/",
+                "when": "editorTextFocus && editorLangId == dtab && !editorReadonly"
             }
         ],
         "menus": {

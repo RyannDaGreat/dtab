@@ -31,6 +31,7 @@ Single pass, one stack, O(total characters).
 """
 
 import json
+import math
 import re
 
 __version__ = "0.5.6"  # SEMANTIC BINDING: dtab-version (also package.json "version")
@@ -44,6 +45,7 @@ _TAB_RUN = re.compile(r"\t+")  # Several tabs in a row are one separator, so col
 _KEY = re.compile(r"[\w" + re.escape(KEY_PUNCTUATION) + "]+")  # \w: letters, digits, _ (Unicode); the rest is reserved for syntax
 _SPACED_KEYS = re.compile(r"(?:^|(?<=\t))(?:[^\t\n ,]+, *[\t\n]*)+")  # keys at an entry's start whose commas are followed by whitespace
 _DANGLING = re.compile(r"(?:^|\t)[^\t\n ]*,\Z")  # a key list ending in a comma: it goes on on the next line
+_ENTRY = re.compile(r"( *)[^\t ][^\t]*")  # an entry: non-tab characters, not all spaces; group 1, its leading spaces, makes it a comment
 
 
 def parse(text):
@@ -148,6 +150,78 @@ def stringify(tree):
     lines = []
     _stringify_into(tree, 0, lines)
     return "\n".join(lines)
+
+
+def comment_toggle(lines, selections):
+    """
+    Pure function. What an editor's comment toggle does to its selections, the same in every dtab editor. The
+    unit is the entry: a run of non-tab characters with something other than spaces in it, which is a comment
+    when it starts with a space. A selection touches an entry when it covers some of its text after its
+    leading spaces; a caret touches every entry of its line. The touched entries all lose one space when they
+    all start with one; otherwise each gains one, so a comment already there becomes a double comment.
+    Commenting then toggling the same selections gives the text back, however the editor moves them over the
+    new spaces. Tabs, blank lines and runs of only spaces are never touched.
+
+    Args:
+        lines (list): The document's lines (str), without line breaks
+        selections (list): (start_line, start_column, end_line, end_column) each: 0-based characters, the end
+            column excluded (math.inf for the line's end); start and end equal for a caret
+
+    Returns:
+        tuple: (remove, at): whether to remove a space or insert one, and where, as the (line, column) of
+        each touched entry's first character, in document order
+
+    Examples:
+        >>> comment_toggle(['a\\tb 1', '\\tc 2'], [(0, 0, 1, 4)])
+        (False, [(0, 0), (0, 2), (1, 1)])
+        >>> comment_toggle([' a\\t b 1', 'c 3'], [(0, 5, 0, 5)])  # a caret: its line
+        (True, [(0, 0), (0, 3)])
+        >>> comment_toggle(['a\\tb\\tc 1'], [(0, 2, 0, 3)])  # only b
+        (False, [(0, 2)])
+        >>> comment_toggle(['a\\tb 1', 'c 2'], [(0, 0, 1, 0)])  # ends before line 1
+        (False, [(0, 0), (0, 2)])
+        >>> comment_toggle(['a\\t\\t', ''], [(0, 1, 1, 0)])  # nothing but tabs
+        (False, [])
+    """
+    touched = {}  # (line, column) -> whether the entry starts with a space
+    for start_line, start_column, end_line, end_column in selections:
+        caret = (start_line, start_column) == (end_line, end_column)
+        for line in range(start_line, end_line + 1):
+            start = 0 if caret or line > start_line else start_column
+            end = math.inf if caret or line < end_line else end_column
+            for entry in _ENTRY.finditer(lines[line]):
+                if entry.start() + len(entry.group(1)) < end and start < entry.end():
+                    touched[(line, entry.start())] = bool(entry.group(1))
+    at = sorted(touched)
+    return bool(at) and all(touched.values()), at
+
+
+def toggle_comments(lines, selections):
+    """
+    Pure function. The lines after an editor's comment toggle (comment_toggle) with the given selections.
+
+    Args:
+        lines (list): The document's lines (str)
+        selections (list): As for comment_toggle
+
+    Returns:
+        list
+
+    Examples:
+        >>> toggle_comments(['a\\tb 1', '\\tc 2'], [(0, 0, 1, 4)])
+        [' a\\t b 1', '\\t c 2']
+        >>> toggle_comments([' a\\t b 1', '\\t c 2'], [(0, 0, 1, 5)])
+        ['a\\tb 1', '\\tc 2']
+        >>> toggle_comments(['x 1\\t note'], [(0, 0, 0, 0)])  # the comment there becomes a double comment
+        [' x 1\\t  note']
+        >>> toggle_comments(['a\\tb\\tc 1'], [(0, 2, 0, 3)])
+        ['a\\t b\\tc 1']
+    """
+    remove, at = comment_toggle(lines, selections)
+    result = list(lines)
+    for line, column in reversed(at):
+        result[line] = result[line][:column] + ("" if remove else " ") + result[line][column + 1 if remove else column:]
+    return result
 
 
 def _close_up(match):

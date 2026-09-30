@@ -1,0 +1,944 @@
+{
+ "about": "Comment toggle cases every dtab implementation and editor must reproduce: dtab.py, dtab.js, dtab.vim, the VS Code extension and the demo. selections are [start line, start column, end line, end column], 0-based, in characters (code points), the end excluded; null ends at the line's end; start == end is a caret. Expected outputs are written by hand.",
+ "cases": [
+  {
+   "name": "a caret comments every entry of its line",
+   "lines": [
+    "a\tb\tc 1"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     0,
+     0
+    ]
+   ],
+   "expected": [
+    " a\t b\t c 1"
+   ]
+  },
+  {
+   "name": "a caret uncomments a line of only comments",
+   "lines": [
+    " a\t b\t c 1"
+   ],
+   "selections": [
+    [
+     0,
+     3,
+     0,
+     3
+    ]
+   ],
+   "expected": [
+    "a\tb\tc 1"
+   ]
+  },
+  {
+   "name": "an inline comment on a mixed line becomes a double comment",
+   "lines": [
+    "x 1\t note"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     0,
+     0
+    ]
+   ],
+   "expected": [
+    " x 1\t  note"
+   ]
+  },
+  {
+   "name": "double comments lose one level when everything is a comment",
+   "lines": [
+    "  x 1\t   note"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     0,
+     0
+    ]
+   ],
+   "expected": [
+    " x 1\t  note"
+   ]
+  },
+  {
+   "name": "a caret between two tabs still takes its whole line",
+   "lines": [
+    "a\t\tb 1"
+   ],
+   "selections": [
+    [
+     0,
+     1,
+     0,
+     1
+    ]
+   ],
+   "expected": [
+    " a\t\t b 1"
+   ]
+  },
+  {
+   "name": "a caret at the end of a line takes its whole line",
+   "lines": [
+    "a\tb 1"
+   ],
+   "selections": [
+    [
+     0,
+     5,
+     0,
+     5
+    ]
+   ],
+   "expected": [
+    " a\t b 1"
+   ]
+  },
+  {
+   "name": "selecting one key in the middle of a path",
+   "lines": [
+    "a\tb\tc 1"
+   ],
+   "selections": [
+    [
+     0,
+     2,
+     0,
+     3
+    ]
+   ],
+   "expected": [
+    "a\t b\tc 1"
+   ]
+  },
+  {
+   "name": "selecting part of a key takes the key",
+   "lines": [
+    "alpha\tbeta\tgamma 1"
+   ],
+   "selections": [
+    [
+     0,
+     7,
+     0,
+     9
+    ]
+   ],
+   "expected": [
+    "alpha\t beta\tgamma 1"
+   ]
+  },
+  {
+   "name": "selecting inside a leaf's value takes the leaf",
+   "lines": [
+    "key some value"
+   ],
+   "selections": [
+    [
+     0,
+     9,
+     0,
+     14
+    ]
+   ],
+   "expected": [
+    " key some value"
+   ]
+  },
+  {
+   "name": "a selection over two entries of a line",
+   "lines": [
+    "alpha\tbeta\tgamma 1"
+   ],
+   "selections": [
+    [
+     0,
+     3,
+     0,
+     8
+    ]
+   ],
+   "expected": [
+    " alpha\t beta\tgamma 1"
+   ]
+  },
+  {
+   "name": "a selection of only a tab touches nothing",
+   "lines": [
+    "a\tb"
+   ],
+   "selections": [
+    [
+     0,
+     1,
+     0,
+     2
+    ]
+   ],
+   "expected": [
+    "a\tb"
+   ]
+  },
+  {
+   "name": "a selection from an entry's end over the tab into the next entry takes only the next",
+   "lines": [
+    "ab\tcd"
+   ],
+   "selections": [
+    [
+     0,
+     2,
+     0,
+     4
+    ]
+   ],
+   "expected": [
+    "ab\t cd"
+   ]
+  },
+  {
+   "name": "a selection of only a comment's leading space touches nothing",
+   "lines": [
+    "a\t b"
+   ],
+   "selections": [
+    [
+     0,
+     2,
+     0,
+     3
+    ]
+   ],
+   "expected": [
+    "a\t b"
+   ]
+  },
+  {
+   "name": "a selection of only the leading spaces of a double comment touches nothing",
+   "lines": [
+    "a\t  b"
+   ],
+   "selections": [
+    [
+     0,
+     2,
+     0,
+     4
+    ]
+   ],
+   "expected": [
+    "a\t  b"
+   ]
+  },
+  {
+   "name": "a selection starting in a comment's leading spaces and reaching its text",
+   "lines": [
+    "a\t  b"
+   ],
+   "selections": [
+    [
+     0,
+     2,
+     0,
+     5
+    ]
+   ],
+   "expected": [
+    "a\t b"
+   ]
+  },
+  {
+   "name": "a selection ending at column 0 of the next line leaves that line",
+   "lines": [
+    "a 1",
+    "b 2"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     1,
+     0
+    ]
+   ],
+   "expected": [
+    " a 1",
+    "b 2"
+   ]
+  },
+  {
+   "name": "a selection from mid-line to mid-line",
+   "lines": [
+    "a\tb\tc",
+    "d\te",
+    "f\tg\th"
+   ],
+   "selections": [
+    [
+     0,
+     2,
+     2,
+     3
+    ]
+   ],
+   "expected": [
+    "a\t b\t c",
+    " d\t e",
+    " f\t g\th"
+   ]
+  },
+  {
+   "name": "the first line of a selection counts from its start",
+   "lines": [
+    "a\tb",
+    "c"
+   ],
+   "selections": [
+    [
+     0,
+     1,
+     1,
+     1
+    ]
+   ],
+   "expected": [
+    "a\t b",
+    " c"
+   ]
+  },
+  {
+   "name": "several selections decide together: one not a comment comments all",
+   "lines": [
+    "a 1",
+    " b 2"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     1,
+     0
+    ]
+   ],
+   "expected": [
+    " a 1",
+    "  b 2"
+   ]
+  },
+  {
+   "name": "several selections decide together: all comments uncomment all",
+   "lines": [
+    " a 1",
+    " b 2"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     1,
+     0
+    ]
+   ],
+   "expected": [
+    "a 1",
+    "b 2"
+   ]
+  },
+  {
+   "name": "two selections in one entry touch it once",
+   "lines": [
+    "abc\td"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     2,
+     0,
+     3
+    ]
+   ],
+   "expected": [
+    " abc\td"
+   ]
+  },
+  {
+   "name": "a caret and a selection on the same line",
+   "lines": [
+    "a\tb\tc"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     2,
+     0,
+     3
+    ]
+   ],
+   "expected": [
+    " a\t b\t c"
+   ]
+  },
+  {
+   "name": "selections on lines far apart leave the lines between",
+   "lines": [
+    "a 1",
+    "b 2",
+    "c 3"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     0,
+     1
+    ],
+    [
+     2,
+     0,
+     2,
+     1
+    ]
+   ],
+   "expected": [
+    " a 1",
+    "b 2",
+    " c 3"
+   ]
+  },
+  {
+   "name": "blank and whitespace-only lines are left alone",
+   "lines": [
+    "a 1",
+    "",
+    "\t\t",
+    "   ",
+    "\t  \t",
+    "b 2"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     5,
+     3
+    ]
+   ],
+   "expected": [
+    " a 1",
+    "",
+    "\t\t",
+    "   ",
+    "\t  \t",
+    " b 2"
+   ]
+  },
+  {
+   "name": "only blank lines selected: nothing changes",
+   "lines": [
+    "",
+    "\t",
+    "  "
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     2,
+     2
+    ]
+   ],
+   "expected": [
+    "",
+    "\t",
+    "  "
+   ]
+  },
+  {
+   "name": "a caret on a blank line: nothing changes",
+   "lines": [
+    "a 1",
+    ""
+   ],
+   "selections": [
+    [
+     1,
+     0,
+     1,
+     0
+    ]
+   ],
+   "expected": [
+    "a 1",
+    ""
+   ]
+  },
+  {
+   "name": "a run of only spaces between tabs is not an entry",
+   "lines": [
+    "a\t  \tb"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     0,
+     0
+    ]
+   ],
+   "expected": [
+    " a\t  \t b"
+   ]
+  },
+  {
+   "name": "a run of only spaces between tabs is not an entry, uncommenting",
+   "lines": [
+    " a\t  \t b"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     0,
+     0
+    ]
+   ],
+   "expected": [
+    "a\t  \tb"
+   ]
+  },
+  {
+   "name": "a lone space after the last tab is not an entry",
+   "lines": [
+    "a 1\t "
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     0,
+     0
+    ]
+   ],
+   "expected": [
+    " a 1\t "
+   ]
+  },
+  {
+   "name": "trailing spaces and tabs stay where they are",
+   "lines": [
+    "a 1  \t\t"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     0,
+     0
+    ]
+   ],
+   "expected": [
+    " a 1  \t\t"
+   ]
+  },
+  {
+   "name": "indentation tabs stay in front of the space",
+   "lines": [
+    "\t\tx 1"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     0,
+     0
+    ]
+   ],
+   "expected": [
+    "\t\t x 1"
+   ]
+  },
+  {
+   "name": "a comment at column 0 with two spaces loses one",
+   "lines": [
+    "  indented comment"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     0,
+     0
+    ]
+   ],
+   "expected": [
+    " indented comment"
+   ]
+  },
+  {
+   "name": "a key list with a space after its comma is one entry",
+   "lines": [
+    "a, b 1"
+   ],
+   "selections": [
+    [
+     0,
+     3,
+     0,
+     4
+    ]
+   ],
+   "expected": [
+    " a, b 1"
+   ]
+  },
+  {
+   "name": "a key list with a tab after its comma is two entries for the toggle",
+   "lines": [
+    "a,\tb 1"
+   ],
+   "selections": [
+    [
+     0,
+     3,
+     0,
+     4
+    ]
+   ],
+   "expected": [
+    "a,\t b 1"
+   ]
+  },
+  {
+   "name": "a key list with a tab after its comma, by caret",
+   "lines": [
+    "a,\tb 1"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     0,
+     0
+    ]
+   ],
+   "expected": [
+    " a,\t b 1"
+   ]
+  },
+  {
+   "name": "a key list going on over lines",
+   "lines": [
+    "list\talpha,",
+    "\tbeta 1"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     1,
+     null
+    ]
+   ],
+   "expected": [
+    " list\t alpha,",
+    "\t beta 1"
+   ]
+  },
+  {
+   "name": "a multiline string with its header",
+   "lines": [
+    "code python",
+    "\tdef f():",
+    "\t    return 1",
+    "after 1"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     2,
+     null
+    ]
+   ],
+   "expected": [
+    " code python",
+    "\t def f():",
+    "\t     return 1",
+    "after 1"
+   ]
+  },
+  {
+   "name": "a multiline string with its header, back",
+   "lines": [
+    " code python",
+    "\t def f():",
+    "\t     return 1",
+    "after 1"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     2,
+     null
+    ]
+   ],
+   "expected": [
+    "code python",
+    "\tdef f():",
+    "\t    return 1",
+    "after 1"
+   ]
+  },
+  {
+   "name": "indented code in a string starts with spaces, so alone it counts as a comment",
+   "lines": [
+    "code python",
+    "\t    return 1"
+   ],
+   "selections": [
+    [
+     1,
+     0,
+     1,
+     0
+    ]
+   ],
+   "expected": [
+    "code python",
+    "\t   return 1"
+   ]
+  },
+  {
+   "name": "a string with a blank line and deeper text",
+   "lines": [
+    "note ",
+    "\tline one",
+    "",
+    "\t\tdeeper",
+    "next 1"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     4,
+     null
+    ]
+   ],
+   "expected": [
+    " note ",
+    "\t line one",
+    "",
+    "\t\t deeper",
+    " next 1"
+   ]
+  },
+  {
+   "name": "a table in a string: only the run starts move",
+   "lines": [
+    "t txt",
+    "\tname\tage",
+    "\tryan\t30"
+   ],
+   "selections": [
+    [
+     1,
+     0,
+     2,
+     null
+    ]
+   ],
+   "expected": [
+    "t txt",
+    "\t name\t age",
+    "\t ryan\t 30"
+   ]
+  },
+  {
+   "name": "multibyte characters: selecting the emoji",
+   "lines": [
+    "café\t😀 1"
+   ],
+   "selections": [
+    [
+     0,
+     5,
+     0,
+     6
+    ]
+   ],
+   "expected": [
+    "café\t 😀 1"
+   ]
+  },
+  {
+   "name": "multibyte characters: selecting the é",
+   "lines": [
+    "café\t😀 1"
+   ],
+   "selections": [
+    [
+     0,
+     3,
+     0,
+     4
+    ]
+   ],
+   "expected": [
+    " café\t😀 1"
+   ]
+  },
+  {
+   "name": "multibyte characters in comments, by caret",
+   "lines": [
+    " 😀\t é"
+   ],
+   "selections": [
+    [
+     0,
+     1,
+     0,
+     1
+    ]
+   ],
+   "expected": [
+    "😀\té"
+   ]
+  },
+  {
+   "name": "a selection ending right after an emoji",
+   "lines": [
+    "😀\tb"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     0,
+     1
+    ]
+   ],
+   "expected": [
+    " 😀\tb"
+   ]
+  },
+  {
+   "name": "a non-breaking space is text, not the comment space",
+   "lines": [
+    " a 1"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     0,
+     0
+    ]
+   ],
+   "expected": [
+    "  a 1"
+   ]
+  },
+  {
+   "name": "a line of only a non-breaking space is an entry",
+   "lines": [
+    " "
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     0,
+     0
+    ]
+   ],
+   "expected": [
+    "  "
+   ]
+  },
+  {
+   "name": "select everything of a mixed document",
+   "lines": [
+    "a\tb 1",
+    " note",
+    "\tc 2\t x",
+    "",
+    "d"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     4,
+     1
+    ]
+   ],
+   "expected": [
+    " a\t b 1",
+    "  note",
+    "\t c 2\t  x",
+    "",
+    " d"
+   ]
+  },
+  {
+   "name": "select everything of a document of only comments",
+   "lines": [
+    " a\t b 1",
+    "  note",
+    "\t c 2\t  x",
+    "",
+    " d"
+   ],
+   "selections": [
+    [
+     0,
+     0,
+     4,
+     2
+    ]
+   ],
+   "expected": [
+    "a\tb 1",
+    " note",
+    "\tc 2\t x",
+    "",
+    "d"
+   ]
+  }
+ ]
+}

@@ -32,6 +32,13 @@ augroup dtab
     " string it is vim's own J. A count or a visual range joins pairwise from the top.
     autocmd FileType dtab nnoremap <buffer> J :<C-U>call <SID>Join(line('.'), line('.') + max([v:count1 - 1, 1]))<CR>
     autocmd FileType dtab xnoremap <buffer> J :<C-U>call <SID>Join(line("'<"), max([line("'>"), line("'<") + 1]))<CR>
+    " gc{motion}, gcc (with a count) and visual gc (also part of a line, or a block) toggle comments on the
+    " entries they touch, the same as in the other dtab editors (s:CommentToggle); . repeats gc and gcc.
+    " :DtabComment does whole lines. Buffer-local, so they win over tcomment's or commentary's gc.
+    autocmd FileType dtab nnoremap <buffer> <expr> gc <SID>Operator('CommentOperator')
+    autocmd FileType dtab nnoremap <buffer> <expr> gcc <SID>Operator('CommentOperator') . '_'
+    autocmd FileType dtab xnoremap <buffer> gc :<C-U>call <SID>CommentRegion(getpos("'<"), getpos("'>"), visualmode())<CR>
+    autocmd FileType dtab command! -buffer -range -bar DtabComment call <SID>ToggleComments([[<line1>, 0, <line2>, v:maxcol]])
     " :DtabPreview toggles a split showing the tree as JSON, which follows every edit
     autocmd FileType dtab command! -buffer -bar DtabPreview call <SID>TogglePreview()
     autocmd FileType dtab autocmd TextChanged,TextChangedI <buffer> call <SID>RenderPreview()
@@ -360,6 +367,92 @@ function! s:Join(first, last) abort
             call s:JoinWith(a:first, "\t")
         endif
     endfor
+endfunction
+
+" An entry: non-tab characters, not all spaces; group 1, its leading spaces, makes it a comment
+let s:entry = '\( *\)[^\t ][^\t]*'
+
+function! s:CommentToggle(lines, selections) abort
+    " Pure function. What an editor's comment toggle does to its selections, the same as commentToggle in
+    " dtab.js and comment_toggle in dtab.py, whose carets are vim's linewise gcc. A selection touches an entry
+    " when it covers some of its text after its leading spaces. The touched entries all lose one space when
+    " they all start with one; otherwise each gains one, so a comment already there becomes a double comment.
+    " Commenting then toggling the same selections gives the text back.
+    " Args: lines (list of strings); selections (list of [start line, start column, end line, end column]:
+    " 0-based, byte columns, the end column excluded, v:maxcol for the line's end). Returns: [remove, at], at
+    " the sorted [line, column] of each touched entry's first character.
+    " Example: s:CommentToggle(["a\tb 1", "\tc 2"], [[0, 0, 1, 4]]) -> [0, [[0, 0], [0, 2], [1, 1]]];
+    " s:CommentToggle(["a\tb\tc 1"], [[0, 2, 0, 3]]) -> [0, [[0, 2]]].
+    let l:touched = {}   " zero-padded 'line,column' -> [line, column, starts with a space]
+    for [l:start_line, l:start_column, l:end_line, l:end_column] in a:selections
+        for l:line in range(l:start_line, l:end_line)
+            let l:from = l:line > l:start_line ? 0 : l:start_column
+            let l:to = l:line < l:end_line ? v:maxcol : l:end_column
+            let [l:entry, l:start, l:end] = matchstrpos(a:lines[l:line], s:entry)
+            while l:start >= 0
+                if l:start + len(matchstr(l:entry, '^ *')) < l:to && l:from < l:end
+                    let l:touched[printf('%09d,%09d', l:line, l:start)] = [l:line, l:start, l:entry[0] ==# ' ']
+                endif
+                let [l:entry, l:start, l:end] = matchstrpos(a:lines[l:line], s:entry, l:end)
+            endwhile
+        endfor
+    endfor
+    let l:entries = map(sort(keys(l:touched)), 'l:touched[v:val]')
+    let l:remove = !empty(l:entries) && empty(filter(copy(l:entries), '!v:val[2]'))
+    return [l:remove, map(l:entries, 'v:val[0 : 1]')]
+endfunction
+
+function! s:ToggleComments(selections) abort
+    " Toggles comments (s:CommentToggle) for selections in the buffer, their lines 1-based. The visual marks move
+    " with the text, so gv selects what was selected and gc on it toggles back.
+    if empty(a:selections)
+        return
+    endif
+    let l:first = min(map(copy(a:selections), 'v:val[0]'))
+    let l:lines = getline(l:first, max(map(copy(a:selections), 'v:val[2]')))
+    let [l:remove, l:at] = s:CommentToggle(l:lines, map(copy(a:selections), '[v:val[0] - l:first, v:val[1], v:val[2] - l:first, v:val[3]]'))
+    let l:columns = {}   " line number -> the columns edited on it, in order
+    for [l:line, l:column] in l:at
+        let l:columns[l:line + l:first] = get(l:columns, l:line + l:first, []) + [l:column]
+    endfor
+    let l:marks = []
+    for l:mark in ["'<", "'>"]
+        let l:pos = getpos(l:mark)
+        if has_key(l:columns, l:pos[1]) && l:pos[2] <= len(getline(l:pos[1]))
+            " The character under the mark moves past a space inserted at or before it, back past one removed before it
+            let l:moved = filter(copy(l:columns[l:pos[1]]), l:remove ? 'v:val < l:pos[2] - 1' : 'v:val <= l:pos[2] - 1')
+            let l:pos[2] += (l:remove ? -1 : 1) * len(l:moved)
+            call add(l:marks, [l:mark, l:pos])
+        endif
+    endfor
+    for [l:lnum, l:edited] in items(l:columns)
+        let l:text = getline(str2nr(l:lnum))
+        for l:column in reverse(copy(l:edited))
+            let l:text = strpart(l:text, 0, l:column) . (l:remove ? '' : ' ') . strpart(l:text, l:remove ? l:column + 1 : l:column)
+        endfor
+        call setline(str2nr(l:lnum), l:text)
+    endfor
+    for [l:mark, l:pos] in l:marks
+        call setpos(l:mark, l:pos)
+    endfor
+endfunction
+
+function! s:CommentRegion(start, end, mode) abort
+    " Toggles comments on the entries a region touches: a visual selection or an operator's motion, from
+    " getpos() positions and a visualmode() mode. Linewise takes whole lines; characterwise runs from the start
+    " to the end character; a block is a one-line selection per line, from getregionpos, which knows tabs (a
+    " line the block misses comes back as columns 0 to 0, which touches nothing).
+    if a:mode ==# 'V'
+        call s:ToggleComments([[a:start[1], 0, a:end[1], v:maxcol]])
+    elseif a:mode ==# 'v'
+        call s:ToggleComments([[a:start[1], a:start[2] - 1, a:end[1], a:end[2]]])
+    else
+        call s:ToggleComments(map(getregionpos(a:start, a:end, {'type': a:mode}), '[v:val[0][1], v:val[0][2] - 1, v:val[1][1], v:val[1][2]]'))
+    endif
+endfunction
+
+function! s:CommentOperator(type) abort
+    call s:CommentRegion(getpos("'["), getpos("']"), {'char': 'v', 'line': 'V', 'block': "\<C-V>"}[a:type])
 endfunction
 
 " The JSON preview parses with the plugin's own dtab.py (next to this file) through vim's python3.

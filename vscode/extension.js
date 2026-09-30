@@ -1,4 +1,4 @@
-// dtab extension entry point. Four jobs. Indentation inside multiline strings: code indents with spaces
+// dtab extension entry point. Five jobs. Indentation inside multiline strings: code indents with spaces
 // while tabs are dtab structure (the parser strips the one tab that puts a line under its key), so inside a
 // string Tab inserts spaces, and indent/outdent (Cmd+] Cmd+[ Shift+Tab, selections too) shift by spaces;
 // elsewhere all of them work with tabs, like a plain dtab file wants. A live JSON preview of the file beside
@@ -6,6 +6,7 @@
 // cannot see later lines: the header line of every multiline string, and a key list that ends its line with a
 // comma and ends as a leaf on a later line. And a title-bar button that draws the whitespace carrying the
 // structure: the tabs, and the spaces that start or end an entry, not those between the words of a value.
+// And Cmd+/ toggling comments on the entries a selection touches, as the other dtab editors do.
 'use strict'
 const vscode = require('vscode')
 const dtab = require('./dtab.js')   // the repo's parser; vscode/dtab.js is a symlink to it
@@ -238,6 +239,24 @@ async function toggleWhitespace() {
         vscode.window.showWarningMessage('dtab: dtab.showWhitespace is still ' + before + ': a workspace setting decides it, over the user setting this button changes.')
 }
 
+/**
+ * Command. The comment toggle of every dtab editor (dtab.commentToggle): the entries any selection touches,
+ * all of a caret's line, lose a leading space when they all have one, and otherwise each gains one.
+ */
+async function toggleComments() {
+    const editor = vscode.window.activeTextEditor
+    if (!editor) return
+    const document = editor.document
+    const lines = Array.from({length: document.lineCount}, (_, n) => document.lineAt(n).text)   // without a CRLF file's \r
+    const {remove, at} = dtab.commentToggle(lines, editor.selections.map(({start, end}) => [start.line, start.character, end.line, end.character]))
+    await editor.edit(edit => {
+        for (const [line, column] of at) {
+            if (remove) edit.delete(new vscode.Range(line, column, line, column + 1))
+            else edit.insert(new vscode.Position(line, column), ' ')
+        }
+    })
+}
+
 /** Query (reads the document). Semantic tokens for the spans the grammar cannot color; package.json maps TOKEN_TYPES to scopes. */
 function semanticTokens(document) {
     const builder = new vscode.SemanticTokensBuilder()
@@ -259,6 +278,7 @@ function activate(context) {
         vscode.commands.registerCommand('dtab.outdent', () => shiftSelection(-1)),
         vscode.commands.registerCommand('dtab.preview', openPreview),
         vscode.commands.registerCommand('dtab.toggleWhitespace', toggleWhitespace),
+        vscode.commands.registerCommand('dtab.toggleComment', toggleComments),
         vscode.workspace.registerTextDocumentContentProvider(PREVIEW_SCHEME, {onDidChange: previewChanged.event, provideTextDocumentContent: previewContent}),
         vscode.workspace.onDidChangeTextDocument(event => { if (event.document.languageId === 'dtab') previewChanged.fire(previewUri(event.document)) }),
         vscode.workspace.onDidChangeTextDocument(event => vscode.window.visibleTextEditors.filter(editor => editor.document === event.document).forEach(editor => drawWhitespace(editor, marks))),

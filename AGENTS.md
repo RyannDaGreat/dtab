@@ -24,6 +24,8 @@ The whitespace a comma in a key allows (spaces, then tabs or line breaks, then t
 
 Vim's syntax patterns must stay fast on lines of a few thousand characters (vim highlights up to 'synmaxcol', 3000). A lookbehind over a line is tried at every column, and vim's NFA engine then runs out of 'maxmempattern' (E363) and hands over to the backtracking engine, which never finishes; so a pattern that needs its line from the start begins with `^` and takes `s:from_line_start`, and a lookbehind stays behind a leading `^`, which keeps it to column 0 (`s:TextStart`), or is bounded (`\@4<=`). Key-list patterns match a list in one way only, and say "no comma at the end" in the pattern (`s:closed_keys`), not with `,\@<!`. `test_vim_long_lines` guards this.
 
+The comment toggle (the entries a selection touches, a caret's whole line; all comments lose a space, else all gain one) lives in three places and changes together: `dtab.js` (`commentToggle`, which the VS Code extension and the demo call), `dtab.py` (`comment_toggle`), and `dtab.vim` (`s:CommentToggle`, the `gc` mappings, `:DtabComment`). `test/comment_cases.json` is their contract: hand-written cases that all three and every editor must reproduce (Python, `node test/test_dtab.js`, Vim through `test/comment_toggle.vim`, the demo by keypress, VS Code by command), plus random-case agreement and toggle-twice checks.
+
 `vscode/dtab.js` is a symlink to the root `dtab.js` (the extension's JSON preview parses with it); the VSIX packager copies it in.
 
 Never write tokens into this repo.

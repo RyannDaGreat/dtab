@@ -1,5 +1,5 @@
-// JS-side checks for dtab.js: the documented examples, the key rule, and a parse/stringify round trip
-// of every sample. Run with no arguments:  node test/test_dtab.js   (also `npm test`)
+// JS-side checks for dtab.js: the documented examples, the key rule, a parse/stringify round trip of every
+// sample, and the comment toggle's hand-written cases (test/comment_cases.json). Run with no arguments:  node test/test_dtab.js   (also `npm test`)
 // test/test_dtab.py runs this too, and additionally compares dtab.js with dtab.py and the original.
 'use strict'
 const assert = require('assert')
@@ -67,6 +67,17 @@ function testRoundTrips() {
     }
 }
 
+/** Pure function. A character column (the unit of comment_cases.json) as UTF-16 code units, the unit of dtab.js. */
+const utf16 = (line, column) => [...line].slice(0, column).join('').length
+
+function testCommentCases() {
+    const {cases} = JSON.parse(fs.readFileSync(path.join(__dirname, 'comment_cases.json'), 'utf8'))
+    for (const {name, lines, selections, expected} of cases) {
+        const units = selections.map(([sl, sc, el, ec]) => [sl, utf16(lines[sl], sc), el, ec === null ? Infinity : utf16(lines[el], ec)])
+        assert.deepStrictEqual(dtab.toggleComments(lines, units), expected, name)
+    }
+}
+
 function testLoadsInABrowserBundle() {
     // A bundler wraps this CommonJS file with its own `module` and no `require`, and strips the shebang; monaco.mjs imports it that way.
     const bundled = {exports: {}}
@@ -77,5 +88,6 @@ function testLoadsInABrowserBundle() {
 testDocumentedExamples()
 testKeyRule()
 testRoundTrips()
+testCommentCases()
 testLoadsInABrowserBundle()
 console.log('test_dtab.js: all checks passed')

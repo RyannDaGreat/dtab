@@ -19,5 +19,9 @@ Inside a multiline string (a `key word` line with lines indented under it) the T
 since code indents with spaces and tabs are dtab
 structure. Everywhere else it inserts a tab.
 
+Cmd+/ (Ctrl+/) comments and uncomments the entries a selection touches, even part of a line, or every entry
+of a cursor's line: when all of them are comments each loses its leading space, otherwise each gains one, so
+toggling twice gives the text back. Vim and the demo do the same.
+
 The preview button in the editor title bar (or Cmd+K V / Ctrl+K V) opens the file's tree as JSON beside
 it, updated as you type. While the file does not parse, it shows the parser's message with the line number.

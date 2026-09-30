@@ -31,7 +31,11 @@ Checks:
      (`npm install --no-save vscode-textmate vscode-oniguruma`).
  10. The JSON preview inside the installed VS Code, in an isolated profile (test/test_vscode_live.js),
      skipped if @vscode/test-electron is not installed.
- 11. The agent skill: every ```dtab fence in skills/dtab/SKILL.md parses, in Python and in JS, to the
+ 11. The comment toggle: dtab.py, dtab.js and dtab.vim (through gc and gcc as typed, and its pure function
+     directly) on the hand-written cases of test/comment_cases.json and on thousands of random documents and
+     selections: they agree, toggling twice gives the text back, only spaces at entry starts change, and
+     commenting every line of any document parses to {}. The demo and VS Code run the same cases.
+ 12. The agent skill: every ```dtab fence in skills/dtab/SKILL.md parses, in Python and in JS, to the
      ```json fence right after it, which also proves the fences hold real tabs.
 
 Needs: python 3, node, vim. The optional packages go in together, since an `npm install --no-save` removes
@@ -40,6 +44,8 @@ the ones it was not given: `npm install --no-save puppeteer vscode-textmate vsco
 
 import doctest
 import json
+import math
+import random
 import re
 import subprocess
 import sys
@@ -51,6 +57,11 @@ SKILL = ROOT / "skills" / "dtab" / "SKILL.md"
 HIGHLIGHT_SAMPLE = ROOT / "test" / "samples" / "highlight.dtab"
 SAMPLES = sorted(path for path in (ROOT / "test" / "samples").glob("*.dtab") if path != HIGHLIGHT_SAMPLE)
 DEVIATING = {"deviations.dtab", "game_config.dtab", "multiline.dtab", "comma_whitespace.dtab", "edge_cases.dtab", "path_blocks.dtab"}  # multiline strings, ignored trailing tabs and whitespace after commas differ from the original
+COMMENT_CASES = json.loads((ROOT / "test" / "comment_cases.json").read_text())["cases"]   # hand-written, shared by every editor's test
+COMMENT_ALPHABET = ["a", "b", " ", " ", "\t", "\t", ",", "\u00e9", "\U0001F600", "\u00a0"]   # what the entry scanner weighs, multibyte and a non-breaking space included
+RANDOM_COMMENT_CASES = 3000   # random documents and selections the toggle properties are checked on
+RANDOM_VIM_COMMENT_CASES = 400   # of those, one selection each, run through vim's gestures
+VIM_MAXCOL = 2 ** 31 - 1   # vim's v:maxcol: a selection to the line's end
 IDENTIFIER_PROBES = ["café", "变量", "x²", "_x", "0x", "a-b", "ok_1", "ª", "Ⅻ", "℘", "ℕ", "𝔸", "a.b", "é1", "1é", "a/b", "a:b", "ä-ö.ü", "١٢٣", "a~b"]   # the key rule, py vs js
 
 sys.path.insert(0, str(ROOT))
@@ -225,6 +236,89 @@ def test_path_blocks():
         assert json.loads(run("node", "-e", "console.log(JSON.stringify(require('./dtab.js').parse(%s)))" % json.dumps(text))) == expected
 
 
+def case_selections(selections):
+    """Pure function. A case's selections as dtab.py takes them: a null end column is math.inf."""
+    return [tuple(math.inf if value is None else value for value in selection) for selection in selections]
+
+
+def moved_selections(selections, remove, at, stay):
+    """
+    Pure function. Selections moved over a comment toggle's edits the way editors move them: past every space
+    inserted before them, back over every one removed before them. A position right where a space goes in
+    stays in front of it (stay=True) or moves past it, the two ways editors do it.
+
+    Examples:
+        >>> moved_selections([(0, 2, 0, 3)], False, [(0, 0), (0, 2)], True)
+        [(0, 3, 0, 5)]
+        >>> moved_selections([(0, 2, 0, 3)], False, [(0, 0), (0, 2)], False)
+        [(0, 4, 0, 5)]
+    """
+    def moved(line, column):
+        edits = [edit for edit_line, edit in at if edit_line == line]
+        if remove:
+            return column - sum(edit < column for edit in edits)
+        return column + sum(edit < column or (edit == column and not stay) for edit in edits)
+    return [(sl, moved(sl, sc), el, moved(el, ec)) for sl, sc, el, ec in selections]
+
+
+def random_comment_case(rng, max_selections):
+    """Near-pure function (advances rng). Random lines of COMMENT_ALPHABET, and random selections over them, a fifth of them carets."""
+    lines = ["".join(rng.choice(COMMENT_ALPHABET) for _ in range(rng.randint(0, 9))) for _ in range(rng.randint(1, 5))]
+    selections = []
+    for _ in range(rng.randint(1, max_selections)):
+        start = (rng.randrange(len(lines)),)
+        start += (rng.randint(0, len(lines[start[0]])),)
+        end = start if rng.random() < 0.2 else (rng.randrange(len(lines)),)
+        if len(end) == 1:
+            end += (None if rng.random() < 0.1 else rng.randint(0, len(lines[end[0]])),)
+        first, last = sorted([start, end], key=lambda position: (position[0], math.inf if position[1] is None else position[1]))
+        selections.append([first[0], 0 if first[1] is None else first[1], last[0], last[1]])
+    return {"lines": lines, "selections": selections}
+
+
+def test_comment_toggle():
+    """
+    Command (runs Node). The comment toggle of dtab.py and dtab.js: the hand-written cases of
+    test/comment_cases.json; then random documents of tabs, spaces, commas, multibyte characters and non-breaking
+    spaces under random selections: only spaces at entry starts change; toggling again, with the selections moved
+    as either kind of editor moves them, gives the lines back unless everything touched is still a comment;
+    dtab.js gives what dtab.py gives; and commenting every line of any document, the samples included, parses to
+    {} in both, and toggling back gives the document.
+    """
+    for case in COMMENT_CASES:
+        got = dtab.toggle_comments(case["lines"], case_selections(case["selections"]))
+        assert got == case["expected"], "%s: got %r" % (case["name"], got)
+    rng = random.Random(1234)
+    cases = COMMENT_CASES + [random_comment_case(rng, 3) for _ in range(RANDOM_COMMENT_CASES)]
+    for path in sorted((ROOT / "test" / "samples").glob("*.dtab")):
+        lines = path.read_text().split("\n")
+        cases.append({"name": path.name, "lines": lines, "selections": [[0, 0, len(lines) - 1, None]], "everything": True})
+    for case in cases:
+        lines, selections = case["lines"], case_selections(case["selections"])
+        remove, at = dtab.comment_toggle(lines, selections)
+        once = dtab.toggle_comments(lines, selections)
+        for line, column in at:
+            assert (column == 0 or lines[line][column - 1] == "\t") and lines[line][column:].split("\t")[0].strip(" "), (case, line, column)
+            assert not remove or lines[line][column] == " ", (case, line, column)
+        assert [line.replace(" ", "") for line in once] == [line.replace(" ", "") for line in lines], ("only spaces change", case)
+        for stay in [True, False]:
+            moved = moved_selections(selections, remove, at, stay)
+            again_remove, _ = dtab.comment_toggle(once, moved)
+            again = dtab.toggle_comments(once, moved)
+            assert again == lines or (remove and again_remove), ("toggling twice", stay, case, once, again)
+        case["expected_py"] = once
+        if case.get("everything") and not remove:
+            assert dtab.parse("\n".join(once)) == {}, ("commented everything", case["name"])
+    with tempfile.TemporaryDirectory() as directory:
+        cases_file = Path(directory) / "cases.json"
+        cases_file.write_text(json.dumps([{"lines": case["lines"], "selections": case["selections"]} for case in cases]))
+        js_results = json.loads(run("node", "test/comment_toggle.js", str(cases_file)))
+    for case, js_result in zip(cases, js_results):
+        assert js_result["lines"] == case["expected_py"], ("dtab.js disagrees", case, js_result["lines"])
+        if case.get("everything"):
+            assert js_result["parsed"] == {}, ("dtab.js: commented everything", case["name"], js_result["parsed"])
+
+
 def test_js_suite():
     subprocess.run(["node", "test/test_dtab.js"], check=True, cwd=ROOT)
 
@@ -309,6 +403,68 @@ def test_vim_long_lines():
             "call writefile([v:errmsg, g:messages =~# 'Switching' ? 'switched engines' : ''], '%s')" % out, timeout=60)
         errmsg, switched = out.read_text().split("\n")[:2]
     assert (errmsg, switched) == ("", ""), (errmsg, switched)
+
+
+def test_vim_comment_toggle():
+    """
+    gc and gcc toggle comments like dtab.py (test/comment_toggle.vim types them): every hand-written case with
+    one selection and random cases, each toggled twice, the second time after gv or on the same line. Then the
+    rest of the gestures: counts, . repeat, gc with motions, linewise and block visual selections, :DtabComment.
+    """
+    rng = random.Random(4321)
+    cases = [case for case in COMMENT_CASES if len(case["selections"]) == 1] + [random_comment_case(rng, 1) for _ in range(RANDOM_VIM_COMMENT_CASES)]
+    with tempfile.TemporaryDirectory() as directory:
+        cases_file, out = Path(directory) / "cases.json", Path(directory) / "results.json"
+        cases_file.write_text(json.dumps([{"lines": case["lines"], "selection": case["selections"][0]} for case in cases], ensure_ascii=False))
+        vim("syntax on", "source dtab.vim", "edit " + str(Path(directory) / "x.dtab"), "source test/comment_toggle.vim",
+            "call CommentCases('%s', '%s')" % (cases_file, out))
+        results = json.loads(out.read_text())
+    for case, (first, second) in zip(cases, results):
+        selections = case_selections(case["selections"])
+        remove, at = dtab.comment_toggle(case["lines"], selections)
+        once = dtab.toggle_comments(case["lines"], selections)
+        assert first == case.get("expected", once), ("vim's first toggle", case, first)
+        assert second == dtab.toggle_comments(once, moved_selections(selections, remove, at, True)), ("vim's second toggle", case, second)
+
+    # The pure function itself, several selections at once (vim makes those from a block), carets as the whole
+    # lines gcc takes, columns in bytes
+    def in_bytes(line, column):
+        return VIM_MAXCOL if column is None else len(line[:column].encode("utf-8"))
+    cases = COMMENT_CASES + [random_comment_case(rng, 4) for _ in range(RANDOM_VIM_COMMENT_CASES)]
+    pure = [{"lines": case["lines"], "selections": [[sl, 0, el, VIM_MAXCOL] if (sl, sc) == (el, ec) else [sl, in_bytes(case["lines"][sl], sc), el, in_bytes(case["lines"][el], ec)]
+                                                    for sl, sc, el, ec in case["selections"]]} for case in cases]
+    with tempfile.TemporaryDirectory() as directory:
+        cases_file, out = Path(directory) / "cases.json", Path(directory) / "results.json"
+        cases_file.write_text(json.dumps(pure, ensure_ascii=False))
+        vim("source dtab.vim", "source test/comment_toggle.vim", "call CommentTogglePure('%s', '%s')" % (cases_file, out))
+        results = json.loads(out.read_text())
+    for case, lines in zip(cases, results):
+        assert lines == dtab.toggle_comments(case["lines"], case_selections(case["selections"])), ("vim's s:CommentToggle", case, lines)
+
+    with tempfile.TemporaryDirectory() as directory:
+        sample, out = Path(directory) / "gestures.dtab", Path(directory) / "lines.json"
+        start = ["a\tb 1", "c 2", "", "d\te", "f 3", "", "g 4"]
+        sample.write_text("\n".join(start) + "\n")
+        steps = [   # [keys or an Ex command, the lines after it]
+            ["normal 1G3gcc", [" a\t b 1", " c 2", "", "d\te", "f 3", "", "g 4"]],     # a count: three lines, the blank one untouched
+            ["normal 1G.", ["a\tb 1", "c 2", "", "d\te", "f 3", "", "g 4"]],           # . repeats gcc with its count: back
+            ["normal 4Ggcj", ["a\tb 1", "c 2", "", " d\t e", " f 3", "", "g 4"]],      # gc with a motion
+            ["normal 4Ggcip", ["a\tb 1", "c 2", "", "d\te", "f 3", "", "g 4"]],        # gc with a text object: the paragraph
+            ["normal 1GVjgc", [" a\t b 1", " c 2", "", "d\te", "f 3", "", "g 4"]],     # linewise visual
+            ["normal 1GVjgc", ["a\tb 1", "c 2", "", "d\te", "f 3", "", "g 4"]],
+            ["execute \"normal 1G0f\\<Tab>l\\<C-V>3jgc\"", ["a\t b 1", "c 2", "", "d\t e", "f 3", "", "g 4"]],   # a block over the second column: b and e
+            ["2,5DtabComment", ["a\t b 1", " c 2", "", " d\t  e", " f 3", "", "g 4"]],   # mixed: all comment, e twice
+            ["2,5DtabComment", ["a\t b 1", "c 2", "", "d\t e", "f 3", "", "g 4"]],
+            ["normal 3Ggcc", ["a\t b 1", "c 2", "", "d\t e", "f 3", "", "g 4"]],       # a blank line: nothing
+            ['%delete _ | call setline(1, ["ab\\tcd", "ef\\tgh"])', ["ab\tcd", "ef\tgh"]],
+            ["execute \"normal 1G02|\\<C-V>j2lgc\"", [" ab\t cd", " ef\t gh"]],   # a block from the end of one entry, over the tab, into the next
+        ]
+        script = Path(directory) / "steps.vim"   # one file: vim takes at most 10 -c commands
+        script.write_text("".join("%s\ncall writefile([json_encode(getline(1, '$'))], '%s', 'a')\n" % (command, out) for command, _ in steps))
+        vim("syntax on", "source dtab.vim", "edit " + str(sample), "source " + str(script))
+        states = [json.loads(line) for line in out.read_text().splitlines()]
+    for (command, expected), state in zip(steps, states):
+        assert state == expected, "%s: got %r, expected %r" % (command, state, expected)
 
 
 def test_vim_tab_key():
@@ -442,7 +598,8 @@ def test_vscode_live():
 
 if __name__ == "__main__":
     for test in [test_doctests, test_skill_examples, test_readers_agree, test_round_trips, test_key_rule, test_comma_whitespace, test_path_blocks, test_js_suite,
-                 test_vim_highlighting, test_vim_embedded_languages, test_vim_string_indentation, test_vim_long_lines, test_vim_tab_key, test_vim_shift_keys, test_vim_join, test_vim_join_after_comma,
+                 test_comment_toggle,
+                 test_vim_highlighting, test_vim_embedded_languages, test_vim_string_indentation, test_vim_long_lines, test_vim_comment_toggle, test_vim_tab_key, test_vim_shift_keys, test_vim_join, test_vim_join_after_comma,
                  test_vim_preview, test_vim_plugin_shim, test_web_demo, test_vscode_grammar, test_vscode_live]:
         test()
         print("ok  " + test.__name__)

@@ -146,6 +146,62 @@ function stringify(tree) {
 }
 
 /**
+ * Pure function. What an editor's comment toggle does to its selections, the same in every dtab editor. The unit
+ * is the entry: a run of non-tab characters with something other than spaces in it, which is a comment when
+ * it starts with a space. A selection touches an entry when it covers some of its text after its leading
+ * spaces; a caret touches every entry of its line. The touched entries all lose one space when they all start
+ * with one; otherwise each gains one, so a comment already there becomes a double comment. Commenting then
+ * toggling the same selections gives the text back, however the editor moves them over the new spaces. Tabs,
+ * blank lines and runs of only spaces are never touched.
+ *
+ * @param {string[]} lines - the document's lines, without line breaks
+ * @param {Array<number[]>} selections - [startLine, startColumn, endLine, endColumn] each: 0-based, UTF-16 code
+ *   units, the end column excluded (Infinity for the line's end); start and end equal for a caret
+ * @returns {{remove: boolean, at: Array<number[]>}} whether to remove a space or insert one, and where: the
+ *   [line, column] of each touched entry's first character, in document order
+ *
+ * @example commentToggle(['a\tb 1', '\tc 2'], [[0, 0, 1, 4]])     // {remove: false, at: [[0, 0], [0, 2], [1, 1]]}
+ * @example commentToggle([' a\t b 1', 'c 3'], [[0, 5, 0, 5]])    // {remove: true, at: [[0, 0], [0, 3]]} (a caret: its line)
+ * @example commentToggle(['a\tb\tc 1'], [[0, 2, 0, 3]])           // {remove: false, at: [[0, 2]]} (only b)
+ * @example commentToggle(['a\tb 1', 'c 2'], [[0, 0, 1, 0]])       // {remove: false, at: [[0, 0], [0, 2]]} (ends before line 1)
+ * @example commentToggle(['a\t\t', ''], [[0, 1, 1, 0]])           // {remove: false, at: []} (nothing but tabs)
+ */
+function commentToggle(lines, selections) {
+    const touched = new Map()   // 'line,column' -> [line, column, starts with a space]
+    for (const [startLine, startColumn, endLine, endColumn] of selections) {
+        const caret = startLine === endLine && startColumn === endColumn
+        for (let line = startLine; line <= endLine; line++) {
+            const from = caret || line > startLine ? 0 : startColumn
+            const to = caret || line < endLine ? Infinity : endColumn
+            for (const {0: entry, 1: spaces, index} of lines[line].matchAll(/( *)[^\t ][^\t]*/g))
+                if (index + spaces.length < to && from < index + entry.length) touched.set(line + ',' + index, [line, index, spaces.length > 0])
+        }
+    }
+    const entries = [...touched.values()].sort((a, b) => a[0] - b[0] || a[1] - b[1])
+    return {remove: entries.length > 0 && entries.every(entry => entry[2]), at: entries.map(([line, column]) => [line, column])}
+}
+
+/**
+ * Pure function. The lines after an editor's comment toggle (commentToggle) with the given selections.
+ *
+ * @param {string[]} lines
+ * @param {Array<number[]>} selections - as for commentToggle
+ * @returns {string[]}
+ *
+ * @example toggleComments(['a\tb 1', '\tc 2'], [[0, 0, 1, 4]])      // [' a\t b 1', '\t c 2']
+ * @example toggleComments([' a\t b 1', '\t c 2'], [[0, 0, 1, 5]])   // ['a\tb 1', '\tc 2']
+ * @example toggleComments(['x 1\t note'], [[0, 0, 0, 0]])           // [' x 1\t  note'] (the comment there becomes a double comment)
+ * @example toggleComments(['a\tb\tc 1'], [[0, 2, 0, 3]])            // ['a\t b\tc 1']
+ */
+function toggleComments(lines, selections) {
+    const {remove, at} = commentToggle(lines, selections)
+    const result = lines.slice()
+    for (const [line, column] of at.reverse())
+        result[line] = result[line].slice(0, column) + (remove ? '' : ' ') + result[line].slice(remove ? column + 1 : column)
+    return result
+}
+
+/**
  * Pure function (throws). The names a key stands for: `a,b` is two while parsing, and a stringify key
  * must be a single name.
  *
@@ -222,7 +278,7 @@ function stringifyInto(node, depth, lines) {
     }
 }
 
-const dtab = {parse, stringify, KEY_SEPARATOR, TEXT_TAG, KEY_PUNCTUATION, KEY, KEY_RULE}
+const dtab = {parse, stringify, commentToggle, toggleComments, KEY_SEPARATOR, TEXT_TAG, KEY_PUNCTUATION, KEY, KEY_RULE}
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = dtab

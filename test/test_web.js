@@ -1,6 +1,7 @@
 // Drives docs/index.html in headless Chrome: the example parses, the JSON pane matches dtab.js on the
 // same text, the editor highlights entries with the same classes dtab.vim uses, tabs are drawn, typing
-// a tab inserts a tab, and a bad key shows the parser's error with its line number.
+// a tab inserts a tab, a bad key shows the parser's error with its line number, and Cmd-/ or Ctrl-/ toggles
+// comments as test/comment_cases.json says.
 // Serves the repo root over HTTP so the page's CDN-or-local script fallback works offline.
 // Run:  node test/test_web.js        (needs `npm install --no-save puppeteer` and a downloaded Chrome)
 'use strict'
@@ -207,6 +208,26 @@ async function main() {
         await page.keyboard.type('b 1')
         assert.strictEqual(await editorText(page), 'a\tb 1', 'Tab key did not insert a tab')
         assert.deepStrictEqual(JSON.parse(await page.$eval('#output', element => element.textContent)), {a: {b: '1'}})
+
+        // 5. The comment toggle (Cmd-/ or Ctrl-/): every case of test/comment_cases.json, with the editor's own
+        //    selections; pressed again with the selections as CodeMirror moved them, and a commented case is back.
+        const {cases} = JSON.parse(fs.readFileSync(path.join(ROOT, 'test', 'comment_cases.json'), 'utf8'))
+        const utf16 = (line, column) => [...line].slice(0, column).join('').length
+        const command = process.platform === 'darwin' ? 'Meta' : 'Control'
+        const toggle = async modifier => { await page.keyboard.down(modifier); await page.keyboard.press('Slash'); await page.keyboard.up(modifier) }
+        const selections = () => page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror.listSelections().map(r => [r.from().line, r.from().ch, r.to().line, r.to().ch]))
+        for (const [index, {name, lines, selections: chosen, expected}] of cases.entries()) {
+            await setEditorText(page, lines.join('\n'))
+            const ranges = chosen.map(([sl, sc, el, ec]) => ({anchor: {line: sl, ch: utf16(lines[sl], sc)}, head: {line: el, ch: ec === null ? lines[el].length : utf16(lines[el], ec)}}))
+            await page.evaluate(r => { const c = document.querySelector('.CodeMirror').CodeMirror; c.focus(); c.setSelections(r) }, ranges)
+            const commenting = !dtab.commentToggle(lines, ranges.map(r => [r.anchor.line, r.anchor.ch, r.head.line, r.head.ch])).remove
+            await toggle(index % 2 ? 'Control' : command)   // both bindings, every other case
+            assert.deepStrictEqual(await value(), expected, name)
+            const predicted = dtab.toggleComments(expected, await selections())
+            await toggle(command)
+            assert.deepStrictEqual(await value(), predicted, name + ': pressed again')
+            if (commenting) assert.deepStrictEqual(predicted, lines, name + ': pressed twice gives the lines back')
+        }
 
         assert.deepStrictEqual(failures, [], 'page errors: ' + failures.join('; '))
         console.log('test_web.js: all checks passed')

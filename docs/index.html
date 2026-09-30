@@ -415,6 +415,21 @@ function insertTab(cm) {
     cm.replaceSelection(insideBlock(cm, cursor.line) && cursor.ch >= lineIndent(cm.getLine(cursor.line)) ? BLOCK_INDENT : '\t')
 }
 
+/**
+ * Command. The comment toggle of every dtab editor (dtab.commentToggle): the entries any selection touches,
+ * all of a caret's line, lose a leading space when they all have one, and otherwise each gains one.
+ */
+function toggleComments(cm) {
+    const selections = cm.listSelections().map(range => [range.from().line, range.from().ch, range.to().line, range.to().ch])
+    const {remove, at} = dtab.commentToggle(cm.getValue().split('\n'), selections)
+    cm.operation(() => {
+        for (const [line, ch] of at.reverse()) {   // from the end, so the positions still ahead stay put
+            if (remove) cm.replaceRange('', {line, ch}, {line, ch: ch + 1})
+            else cm.replaceRange(' ', {line, ch})
+        }
+    })
+}
+
 const editor = CodeMirror.fromTextArea(document.getElementById('source'), {
     mode: 'dtab',
     indentWithTabs: true,
@@ -425,6 +440,7 @@ const editor = CodeMirror.fromTextArea(document.getElementById('source'), {
         Tab: insertTab, 'Shift-Tab': cm => shiftSelection(cm, -1),
         'Cmd-]': cm => shiftSelection(cm, 1), 'Cmd-[': cm => shiftSelection(cm, -1),
         'Ctrl-]': cm => shiftSelection(cm, 1), 'Ctrl-[': cm => shiftSelection(cm, -1),
+        'Cmd-/': toggleComments, 'Ctrl-/': toggleComments,
     },
 })
 

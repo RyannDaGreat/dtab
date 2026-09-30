@@ -164,6 +164,8 @@ async function main() {
                         whitespaceCommand.icon.light, whitespaceCommand.icon.dark])
         assert.ok(fs.existsSync(path.join(EXTENSION, file)), 'manifest points at missing file ' + file)
     assert.deepStrictEqual(manifest.contributes.languages[0].extensions, ['.dtab'])
+    assert.ok(manifest.contributes.keybindings.some(k => k.command === 'dtab.toggleComment' && k.mac === 'cmd+/' && k.key === 'ctrl+/' && k.when.includes('editorLangId == dtab')),
+        'Cmd+/ (Ctrl+/) toggles dtab comments in dtab files')
     assert.deepStrictEqual(manifest.contributes.menus['editor/title'].map(item => [item.command, item.when]),
         [['dtab.preview', 'editorLangId == dtab'], ['dtab.toggleWhitespace', 'editorLangId == dtab']], 'the title bar of a dtab file: the preview button, then the whitespace button')
     assert.ok(!('editor.renderWhitespace' in manifest.contributes.configurationDefaults['[dtab]']),
