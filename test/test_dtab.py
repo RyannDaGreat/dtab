@@ -20,9 +20,10 @@ Checks:
      a comma in a key (`a, b`, `a,` continued on the next line): both parsers give the same tree or error.
   6. node test/test_dtab.js.
   7. Vim: the syntax groups over test/samples/highlight.dtab match test/expected/highlight.txt byte by byte
-     (that sample deliberately contains invalid keys, so it is not parsed), embedded languages and the tabs
+     (that sample deliberately contains invalid keys, so it is not parsed), embedded languages (only those a
+     file uses, and a language an edit adds comes in) and the tabs
      that start a string's line, lines of a few thousand characters without E363 or a slow regex engine,
-     the Tab and shift keys, J, :DtabPreview, and plugin/dtab.vim sets the
+     reading bottom-up costing about what reading top-down does (no match runs past its line), the Tab and shift keys, J, :DtabPreview, and plugin/dtab.vim sets the
      filetype when the repo is on 'runtimepath', which is what Vundle and vim-plug do.
   8. docs/index.html in headless Chrome (test/test_web.js), skipped with a message if puppeteer is not
      installed (`npm install --no-save puppeteer && npx puppeteer browsers install chrome`).
@@ -360,6 +361,23 @@ def test_vim_embedded_languages():
     assert groups == ["sqlStatement", "dtabBlockKey", "sqlStatement", "shStatement", "dtabLeafKey", "dtabBlockTag", "jsonNumber", "jsonBoolean", "dtabBlockKey", "sqlStatement", "dtabLeafKey", "dtabBlockKey", "sqlStatement"], groups
 
 
+def test_vim_new_language_comes_in():
+    """
+    Only the syntax files a file's tags and shebangs need are included, and an edit that adds a tag brings its
+    language in (the syntax is set again), so the new string is colored at once. Typed in insert mode, since the
+    check reads the changed lines from the '[ and '] marks, which append() and setline() leave alone.
+    """
+    with tempfile.TemporaryDirectory() as directory:
+        sample = Path(directory) / "new_tag.dtab"
+        sample.write_text("query sql\n\tSELECT name FROM t\n")
+        out = Path(directory) / "result.txt"
+        vim("syntax on", "source dtab.vim", "edit " + str(sample), "let g:before = copy(b:dtab_syntaxes)",
+            "execute \"normal! Gorun bash\\<CR>\\techo hi\\<Esc>\"",
+            "call writefile([string(g:before), string(b:dtab_syntaxes), synIDattr(synID(4, 2, 1), 'name')], '%s')" % out)
+        before, after, group = out.read_text().split("\n")[:3]
+    assert (before, after, group) == ("['sql']", "['sh', 'sql']", "shStatement"), (before, after, group)
+
+
 def test_vim_string_indentation():
     """
     The tabs that start a string's line are dtab's: a language item running past a line's end (json's missing
@@ -403,6 +421,34 @@ def test_vim_long_lines():
             "call writefile([v:errmsg, g:messages =~# 'Switching' ? 'switched engines' : ''], '%s')" % out, timeout=60)
         errmsg, switched = out.read_text().split("\n")[:2]
     assert (errmsg, switched) == ("", ""), (errmsg, switched)
+
+
+def test_vim_saved_states_survive_continued_lists():
+    """
+    Reading a file bottom-up (what scrolling up does) costs about what reading it top-down does, through a key
+    list going on over hundreds of lines: no syntax match may run past its line's end. Vim saves no parse state
+    inside such a match, so when the list was one match each of its lines read bottom-up was parsed again from
+    the list's start (about 37 times the regex calls of top-down here, growing with the list; one-line matches
+    give about 4). In a window it was worse: every drawn line tries to save its state, and each refusal also
+    frees the state saved before it, back to the file's start, which this headless count does not show. Counts
+    the regex calls :syntime reports, so the check does not depend on the machine's speed.
+    """
+    max_ratio = 10   # bottom-up over top-down regex calls
+    text = "list\n" + "".join("\tk%d,\n" % i for i in range(300)) + "\tlast\tv 1\n" + "".join("x%d 1\n" % i for i in range(300))
+    calls = ("function! Calls(lnums) abort\n    syntax clear\n    let &l:syntax = 'dtab'\n    syntime clear\n    syntime on\n"
+             "    call map(copy(a:lnums), {_, lnum -> synID(lnum, 1, 1)})\n    syntime off\n"
+             "    return eval(join(map(filter(split(execute('syntime report'), \"\\n\"), 'len(split(v:val)) >= 6 && v:val =~ \"^ *[0-9]\"'),"
+             " 'str2nr(split(v:val)[1])'), '+'))\nendfunction\n")
+    with tempfile.TemporaryDirectory() as directory:
+        sample = Path(directory) / "continued.dtab"
+        sample.write_text(text)
+        script = Path(directory) / "calls.vim"
+        script.write_text(calls)
+        out = Path(directory) / "calls.txt"
+        vim("syntax on", "source dtab.vim", "edit " + str(sample), "source " + str(script),
+            "call writefile([Calls(range(1, line('$'))), Calls(reverse(range(1, line('$'))))], '%s')" % out, timeout=60)
+        top_down, bottom_up = map(int, out.read_text().split())
+    assert bottom_up <= max_ratio * top_down, (top_down, bottom_up)
 
 
 def test_vim_comment_toggle():
@@ -599,7 +645,7 @@ def test_vscode_live():
 if __name__ == "__main__":
     for test in [test_doctests, test_skill_examples, test_readers_agree, test_round_trips, test_key_rule, test_comma_whitespace, test_path_blocks, test_js_suite,
                  test_comment_toggle,
-                 test_vim_highlighting, test_vim_embedded_languages, test_vim_string_indentation, test_vim_long_lines, test_vim_comment_toggle, test_vim_tab_key, test_vim_shift_keys, test_vim_join, test_vim_join_after_comma,
+                 test_vim_highlighting, test_vim_embedded_languages, test_vim_new_language_comes_in, test_vim_string_indentation, test_vim_long_lines, test_vim_saved_states_survive_continued_lists, test_vim_comment_toggle, test_vim_tab_key, test_vim_shift_keys, test_vim_join, test_vim_join_after_comma,
                  test_vim_preview, test_vim_plugin_shim, test_web_demo, test_vscode_grammar, test_vscode_live]:
         test()
         print("ok  " + test.__name__)

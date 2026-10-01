@@ -14,7 +14,7 @@
 "     deltas	l1,l2	position	x 1	y .5	 inline comment
 "     object keys ............... leaf  leaf  comment
 " After a comma in a key, spaces, then tabs or line breaks, are skipped, so `l1, l2` and `l1,` at the end of a
-" line with `l2` on the next are `l1,l2`; a key match may therefore span lines.
+" line with `l2` on the next are `l1,l2`; such a key list is colored line by line (s:DtabSyntax).
 augroup dtab
     autocmd!
     autocmd BufRead,BufNewFile *.dtab setfiletype dtab
@@ -44,6 +44,7 @@ augroup dtab
     autocmd FileType dtab autocmd TextChanged,TextChangedI <buffer> call <SID>RenderPreview()
     autocmd Syntax dtab call s:DtabSyntax()
     autocmd ColorScheme * if &filetype ==# 'dtab' | call s:DtabHighlight() | endif
+    autocmd TextChanged,InsertLeave * if &filetype ==# 'dtab' | call s:IncludeNewLanguages() | endif
 augroup END
 
 " File icon for NERDTree, airline etc. via vim-devicons: a delta. Only takes effect if devicons is loaded.
@@ -54,9 +55,26 @@ function! s:DtabSyntax() abort
     " An entry is a run of non-tab characters bounded by tabs or the line's ends, except that a key's comma
     " may be followed by whitespace (s:keys). No space in the entry: object key. Space in the entry: leaf
     " `key value`. Leading space: comment.
-    execute 'syntax match dtabObjectKey   /\%(^\t*\|\t\)\zs' . s:keys . '\ze\%(\t\|$\)/ contains=@dtabKeyParts'
-    execute 'syntax match dtabLeaf        /\%(^\t*\|\t\)\zs' . s:closed_keys . ' [^\t]*/        contains=dtabLeafKey,dtabLeafValue'
-    execute 'syntax match dtabLeafKey     /' . s:closed_keys . '\ze /                            contained contains=@dtabKeyParts'
+    " No match runs past its line's end. Vim does not save its parse state at the start of a line that a match
+    " runs into, and in refusing it frees the saved state before it (store_current_state in vim's syntax.c), so
+    " a key list going on over a few dozen lines once freed every state back to the file's start, and each
+    " scroll up parsed from line 1. A key list that goes on to the next line (it ends its line in a comma) is
+    " colored to its line's end, its kind read by a lookahead through the whole list (s:keys or s:closed_keys
+    " spanning lines); each later line of it is a continuation item of the same group (below), which nextgroup
+    " with skipnl and skipempty carries over the line break in vim's saved state. Each group's dangling item is
+    " defined after its one-line item, so it wins where both match, as the longest list did in a single match.
+    let l:entry = '\%(^\t*\|\t\)\zs'
+    execute 'syntax match dtabObjectKey   /' . l:entry . s:line_keys . '\ze\%(\t\|$\)/ contains=@dtabKeyParts'
+    execute 'syntax match dtabObjectKey   /' . l:entry . '\%(' . s:dangling_keys . '\n[\t\n]*' . s:keys . '\%(\t\|$\)\)\@=.*/'
+        \ . ' contains=@dtabKeyParts nextgroup=dtabObjectKey skipnl skipempty'
+    execute 'syntax match dtabLeaf        /' . l:entry . s:line_closed_keys . ' [^\t]*/ contains=dtabLeafKey,dtabLeafValue'
+    execute 'syntax match dtabLeaf        /' . l:entry . '\%(' . s:dangling_keys . '\n[\t\n]*' . s:closed_keys . ' \)\@=.*/'
+        \ . ' contains=dtabLeafKey,dtabLeafValue nextgroup=dtabLeaf skipnl skipempty'
+    " A leaf's key: up to the space before the value, from a continuation line's start when the list began on
+    " an earlier line (its tabs are the list's); or a whole line of a list going on, which starts at the
+    " leaf's start (after a tab, or at the line's start) or at a continuation line's start.
+    execute 'syntax match dtabLeafKey     /\%(^\t\+\)\=' . s:line_closed_keys . '\ze / contained contains=@dtabKeyParts'
+    execute 'syntax match dtabLeafKey     /\%(\t\@1<=\|^\t*\)' . s:dangling_keys . '$\|^\t\+$/ contained contains=@dtabKeyParts'
     syntax match dtabLeafValue   / \zs[^\t]*/                                 contained
     syntax match dtabComment     /\%(^\t*\|\t\)\zs [^\t]*/
     " A comma needs a key on both sides: the one before it right there, the one after it past the whitespace
@@ -78,14 +96,30 @@ function! s:DtabSyntax() abort
     " trailing tabs, and from the next line the text, a region of its own that ends with the string
     " (keepend), so no header comment is found in the text. A header split over lines is seen when the
     " line of its tag keeps its first line's tabs, which are the tag line's for \1 and \z1 alike.
-    execute 'syntax match  dtabBlockKey /^\(\t*\)' . s:header_prefix . '\zs' . s:closed_keys . '\ze [^\t]*\%(\t\+ [^\t]*\)*\t*\n\%(\s*\n\)*\1\t/' . s:from_line_start . ' contains=@dtabKeyParts nextgroup=dtabString'
+    let l:header_end = ' [^\t]*\%(\t\+ [^\t]*\)*\t*\n\%(\s*\n\)*\1\t'
+    execute 'syntax match  dtabBlockKey /^\(\t*\)' . s:header_prefix . '\zs' . s:line_closed_keys . '\ze' . l:header_end . '/' . s:from_line_start . ' contains=@dtabKeyParts nextgroup=dtabString'
+    execute 'syntax match  dtabBlockKey /^\(\t*\)' . s:header_prefix . '\zs\%(' . s:dangling_keys . '\n[\t\n]*' . s:closed_keys . l:header_end . '\)\@=.*/' . s:from_line_start
+        \ . ' contains=@dtabKeyParts nextgroup=dtabBlockKey skipnl skipempty'
+    " Continuations, reached only by nextgroup at a line's start: the lines after a key list's line that ends in a
+    " comma. Their leading tabs are the list's, and so is a line of only tabs. An object key list goes on while a
+    " list follows that ends before a tab or at a line's end (the end of a line ending in a comma, too); a leaf's
+    " or a header's list was read to its end by its first line's lookahead. Defined after the first-line items of
+    " the same group, which nextgroup also tries, so these win at the line's start.
+    let l:list_goes_on = '\t*\%(' . s:dangling_keys . '\)\=\n[\t\n]*'
+    execute 'syntax match dtabObjectKey   /^\t*' . s:line_keys . '\ze\%(\t\|$\)/ contained contains=@dtabKeyParts'
+    execute 'syntax match dtabObjectKey   /^\%(' . l:list_goes_on . s:keys . '\%(\t\|$\)\)\@=.\+/ contained contains=@dtabKeyParts nextgroup=dtabObjectKey skipnl skipempty'
+    execute 'syntax match dtabLeaf        /^\t*' . s:line_closed_keys . ' [^\t]*/ contained contains=dtabLeafKey,dtabLeafValue'
+    execute 'syntax match dtabLeaf        /^\%(\t\+\|\t*' . s:dangling_keys . '\)$/ contained contains=dtabLeafKey,dtabLeafValue nextgroup=dtabLeaf skipnl skipempty'
+    execute 'syntax match dtabBlockKey    /^\t*' . s:line_closed_keys . '\ze / contained contains=@dtabKeyParts nextgroup=dtabString'
+    execute 'syntax match dtabBlockKey    /^\%(\t\+\|\t*' . s:dangling_keys . '\)$/ contained contains=@dtabKeyParts nextgroup=dtabBlockKey skipnl skipempty'
     execute 'syntax region dtabString matchgroup=dtabBlockTag start=/^\z(\t*\)' . s:header_prefix . s:line_closed_keys . '\zs [^\t]*\ze\%(\t\+ [^\t]*\)*\t*$/' . s:from_line_start
         \ . ' end=/^\%(\z1\t\|\s*$\)\@!/ contained keepend contains=dtabHeaderComment,dtabBlock'
     syntax match  dtabHeaderComment / [^\t]*/ contained
     " The text: plain from the next line on, or tagged (s:DtabEmbedded). \%$ is the file's end, which the
     " string's end comes before.
     syntax region dtabBlock start=/^/ end=/\%$/ contained contains=@dtabShebangs
-    call s:DtabEmbedded()
+    let b:dtab_syntaxes = s:NeededSyntaxes(getline(1, '$'))
+    call s:DtabEmbedded(b:dtab_syntaxes)
     syntax sync fromstart
     call s:DtabHighlight()
     let b:current_syntax = 'dtab'
@@ -102,8 +136,42 @@ let s:dtab_languages = {
     \ }
 " Interpreters a shebang can name, and the tag each one means
 let s:dtab_shebangs = {'bash': 'bash', 'zsh': 'zsh', 'sh': 'sh', 'python': 'python', 'node': 'javascript'}
+" The interpreter a shebang line names, as in dtabShebang's start pattern
+let s:shebang_word = '^\t\+#!.*\<\zs\%(' . join(keys(s:dtab_shebangs), '\|') . '\)\ze\d*\>'
 
-function! s:DtabEmbedded() abort
+function! s:NeededSyntaxes(lines) abort
+    " Pure function. The syntax files the multiline strings in lines need: the languages of the tags that end a
+    " line (a superset of the headers', which costs only an unused include) and of shebangs; jsonl's is json.
+    " Args: lines (list of strings). Returns: sorted list of syntax names.
+    " Example: s:NeededSyntaxes(["q sql\t note", "\tSELECT 1", "s ", "\t#!/bin/bash", "log jsonl", "x 1"])
+    " -> ['json', 'sh', 'sql'].
+    let l:needed = {}
+    for l:line in a:lines
+        let l:word = matchstr(l:line, s:shebang_word)
+        let l:tags = [matchstr(l:line, ' \zs[^\t ]\+\ze\%(\t\+ [^\t]*\)*\t*$'), get(s:dtab_shebangs, l:word, '')]
+        for l:syntax in map(filter(l:tags, 'has_key(s:dtab_languages, v:val)'), 's:dtab_languages[v:val]')
+            let l:needed[l:syntax ==# 'jsonl' ? 'json' : l:syntax] = 1
+        endfor
+    endfor
+    return sort(keys(l:needed))
+endfunction
+
+function! s:IncludeNewLanguages() abort
+    " Command (may reload the buffer's syntax). After an edit, brings in the syntax file of a language the
+    " changed lines started to use (a new tag or shebang) by setting 'syntax' again. Scans only the changed lines.
+    if get(b:, 'current_syntax', '') !=# 'dtab'
+        return
+    endif
+    let l:new = filter(s:NeededSyntaxes(getline(line("'["), line("']"))), 'index(b:dtab_syntaxes, v:val) < 0')
+    if !empty(l:new)
+        let &l:syntax = &l:syntax
+    endif
+endfunction
+
+function! s:DtabEmbedded(syntaxes) abort
+    " Command (defines syntax items). Only the syntax files in syntaxes (s:NeededSyntaxes) come in: vim walks
+    " every syntax item at each position where it looks for a match, so including all of them made every line
+    " several times slower to parse.
     " One region per tag: the text of a string whose header ends in `key TAG`, colored by that language's own
     " syntax file. These are defined after the plain text, so they win at the same position.
     " One region per shebang, nested in a plain string, from the shebang line to the string's end.
@@ -116,22 +184,26 @@ function! s:DtabEmbedded() abort
     " jsonl is a json value per line. json.vim looks past a line's end for the comma between an array's
     " values (jsonMissingCommaError, and jsonFold, whose `}` does not close before a `{` on the next line),
     " so a jsonl string gets json.vim's other groups, and brackets of its own.
-    syntax match dtabJsonlBracket /[][{}]/ contained
-    syntax cluster dtabLang_jsonl contains=jsonNoise,jsonKeywordMatch,jsonStringMatch,jsonStringSQError,jsonNumber,
-        \jsonNoQuotesError,jsonTripleQuotesError,jsonNumError,jsonCommentError,jsonSemicolonError,
-        \jsonTrailingCommaError,jsonPadding,jsonBoolean,jsonNull,dtabJsonlBracket
-    let l:included = {'jsonl': 1}   " no syntax file: json.vim comes in under the json tag
+    if index(a:syntaxes, 'json') >= 0
+        syntax match dtabJsonlBracket /[][{}]/ contained
+        syntax cluster dtabLang_jsonl contains=jsonNoise,jsonKeywordMatch,jsonStringMatch,jsonStringSQError,jsonNumber,
+            \jsonNoQuotesError,jsonTripleQuotesError,jsonNumError,jsonCommentError,jsonSemicolonError,
+            \jsonTrailingCommaError,jsonPadding,jsonBoolean,jsonNull,dtabJsonlBracket
+    endif
+    for l:syntax in a:syntaxes
+        unlet! b:current_syntax
+        execute 'silent! syntax include @dtabLang_' . l:syntax . ' syntax/' . l:syntax . '.vim'
+    endfor
     for [l:tag, l:syntax] in items(s:dtab_languages)
-        if !has_key(l:included, l:syntax)
-            unlet! b:current_syntax
-            execute 'silent! syntax include @dtabLang_' . l:syntax . ' syntax/' . l:syntax . '.vim'
-            let l:included[l:syntax] = 1
+        if index(a:syntaxes, l:syntax ==# 'jsonl' ? 'json' : l:syntax) >= 0   " jsonl has no syntax file of its own
+            execute 'syntax region dtabBlock start=/' . s:TextStart(l:tag) . '/ end=/\%$/ contained contains=@dtabLang_' . l:syntax
         endif
-        execute 'syntax region dtabBlock start=/' . s:TextStart(l:tag) . '/ end=/\%$/ contained contains=@dtabLang_' . l:syntax
     endfor
     for [l:word, l:tag] in items(s:dtab_shebangs)
-        execute 'syntax region dtabShebang start=/^\t\+#!.*\<' . l:word . '\d*\>/'
-            \ . ' end=/^\%(\t\|\s*$\)\@!/ contained contains=@dtabLang_' . s:dtab_languages[l:tag]
+        if index(a:syntaxes, s:dtab_languages[l:tag]) >= 0
+            execute 'syntax region dtabShebang start=/^\t\+#!.*\<' . l:word . '\d*\>/'
+                \ . ' end=/^\%(\t\|\s*$\)\@!/ contained contains=@dtabLang_' . s:dtab_languages[l:tag]
+        endif
     endfor
     syntax cluster dtabShebangs contains=dtabShebang
     syntax cluster dtabLanguageGroups contains=\%(dtab\)\@!.*
@@ -147,6 +219,13 @@ let s:key_punctuation = '_.-/'
 " divide the list, so it matches in one way: were `a,b,c` divisible anywhere, vim's backtracking engine would
 " try every division.
 let s:keys = '[^\t ]\@=[^\t ,]*\%(,\%(\%( \+[\t\n]*\|[\t\n]\+\)[^\t ]\@=\)\=[^\t ,]*\)*'
+" The same within one line
+let s:line_keys = '[^\t ]\@=[^\t ,]*\%(,\%(\%( \+\t*\|\t\+\)[^\t ]\@=\)\=[^\t ,]*\)*'
+" A line's part of a key list going on to the next line: the keys to a comma ending the line, with the spaces,
+" then tabs, a comma allows before the line break. Followed by a line break and the rest of the whitespace
+" ([\t\n]*), s:keys or s:closed_keys then match the rest of the list, so together they are those lists spanning
+" lines. Only the commas divide it.
+let s:dangling_keys = '\%([^\t ,]*,\%( \+\t*\|\t\+\)\=\)\+'
 " A key list that does not end in a comma, which a leaf's key and an earlier entry of a header are: a comma
 " before the space would take the space in, so `l1, l2, l3` is not the leaf `l1, l2,` with value `l3`. Said
 " in the pattern, not by a lookbehind after it, which inside the header's earlier entries fills vim's NFA
