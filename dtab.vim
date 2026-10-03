@@ -84,7 +84,8 @@ function! s:DtabSyntax() abort
     " earlier column of the line.
     syntax match dtabBadComma    /,/                                                    contained
     syntax match dtabComma       /[^\t\n ,]\@4<=,\ze *[\t\n]*[^\t\n ,]/                 contained
-    syntax match dtabComma       /\%(^\|\t\)\@1<=,\ze\%([ \t]\|$\)/                  contained
+    syntax match dtabListObjectKey /\%(^\|\t\)\@1<=,\ze\%([ \t]\|$\)/ contained containedin=dtabObjectKey
+    syntax match dtabListLeafKey   /\%(^\|\t\)\@1<=,\ze\%([ \t]\|$\)/ contained containedin=dtabLeafKey,dtabBlockKey
     " A character outside the key bag: keyword characters (letters incl. multibyte, digits, _),
     " s:key_punctuation, the , that separates keys and the whitespace a comma allows
     execute 'syntax match dtabBadKey /\%(\k\|[,' . escape(s:key_punctuation, ']^-\/') . ' \t\n]\)\@!./ contained'
@@ -583,10 +584,13 @@ EOF
 endfunction
 
 function! s:DtabHighlight() abort
+    " Command. Applies key colors; anonymous entry keys additionally use bold.
     highlight dtabObjectKey ctermfg=176 guifg=#d787d7   " purple
     highlight dtabLeafKey   ctermfg=81  guifg=#5fd7ff   " cyan
+    highlight dtabListObjectKey ctermfg=176 guifg=#d787d7 cterm=bold gui=bold
+    highlight dtabListLeafKey   ctermfg=81  guifg=#5fd7ff cterm=bold gui=bold
     highlight dtabLeafValue ctermfg=75  guifg=#5fafff   " blue
-    highlight dtabBlockKey  ctermfg=221 guifg=#ffd75f   " yellow: a multiline string's key is a different thing from a leaf key
+    highlight dtabBlockKey  ctermfg=221 guifg=#ffd75f   " yellow: named multiline headers; anonymous string keys stay cyan
     highlight dtabBlockTag  ctermfg=173 guifg=#d7875f cterm=italic gui=italic   " orange italic: the language tag
     highlight dtabBlock     ctermfg=110 guifg=#87afd7 cterm=italic gui=italic   " lighter blue italic: multiline text, not a one-line value
     highlight default link dtabComment     Comment

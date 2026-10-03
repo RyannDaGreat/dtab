@@ -141,10 +141,21 @@ async function main() {
         // Anonymous entries stay separate; their multiline headers work like named headers.
         await setEditorText(page, ',\t, 1\t, 2\n,\t, 3\t, 4')
         assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), [['1', '2'], ['3', '4']])
-        assert.strictEqual((await lineTokens(page, 1)).filter(([kind]) => kind === 'dtab-comma').length, 3)
+        assert.strictEqual((await lineTokens(page, 1)).filter(([kind]) => kind.includes('dtab-list-key')).length, 3)
+        assert.deepStrictEqual(await page.$$eval('.cm-dtab-list-key', spans => spans.map(span => {
+            const style = getComputedStyle(span)
+            return [style.color, style.fontWeight]
+        })), [
+            ['rgb(215, 135, 215)', '700'], ['rgb(95, 215, 255)', '700'], ['rgb(95, 215, 255)', '700'],
+            ['rgb(215, 135, 215)', '700'], ['rgb(95, 215, 255)', '700'], ['rgb(95, 215, 255)', '700'],
+        ], 'list containers use bold object-key purple; string entries use bold cyan')
         await setEditorText(page, ', sql\n\tSELECT 1\n, done')
         assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), ['SELECT 1', 'done'])
-        assert.deepStrictEqual((await lineTokens(page, 1)).map(([kind]) => kind), ['dtab-comma', 'dtab-block-tag'])
+        assert.deepStrictEqual((await lineTokens(page, 1)).map(([kind]) => kind), ['dtab-leaf-key dtab-list-key', 'dtab-block-tag'])
+        assert.deepStrictEqual(await page.$eval('.cm-dtab-list-key', span => {
+            const style = getComputedStyle(span)
+            return [style.color, style.fontWeight]
+        }), ['rgb(95, 215, 255)', '700'], 'multiline string commas are also bold cyan')
         assert.ok((await lineTokens(page, 2)).some(([kind, text]) => kind === 'keyword' && text === 'SELECT'))
 
         // 3. The toggles: unchecking removes the colors and the tab glyphs, and the choice survives a reload.

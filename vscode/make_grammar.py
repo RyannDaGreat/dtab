@@ -32,13 +32,20 @@ EMBEDDED = [
 # (interpreter regex in a shebang, scope, name)
 SHEBANGS = [("bash|zsh|sh", "source.shell", "shellscript"), ("python\\d*", "source.python", "python"), ("node", "source.js", "javascript")]
 
+# Anonymous keys keep their container/string color and have a separate scope for bold; separators stay punctuation.
+KEY_CAPTURES = {
+    kind: {"name": scope, "patterns": [
+        {"match": "(?<![^\\t]),(?=[ \\t]|$)", "name": scope + ".anonymous"}, {"include": "#comma"}]}
+    for kind, scope in [("leaf", "entity.name.tag.leaf-key.dtab"), ("object", "entity.name.type.object-key.dtab")]
+}
+
 # A header's last non-comment entry is a leaf; earlier entries and trailing tabs do not affect that.
 # TextMate cannot look at the next line, so each candidate opens a region that ends at once when nothing
 # deeper follows, and the header itself is colored as the ordinary leaf it may be.
-# The extension paints real headers (key yellow, tag orange) through semantic tokens, which can look ahead.
+# Semantic tokens repaint named header keys yellow and all header tags orange; anonymous string keys stay cyan.
 BLOCK_CAPTURES = {
     "2": {"name": "meta.entries-before-block.dtab", "patterns": [{"include": "#entry"}]},
-    "3": {"name": "entity.name.tag.leaf-key.dtab", "patterns": [{"include": "#comma"}]},
+    "3": KEY_CAPTURES["leaf"],
     "4": {"name": "string.unquoted.value.dtab"},
     "5": {"name": "meta.entries-after-header.dtab", "patterns": [{"include": "#entry"}]},
 }
@@ -107,13 +114,12 @@ def grammar():
                 {"comment": "Comment: an entry that starts with a space", "match": " [^\\t]*", "name": "comment.line.dtab"},
                 {"comment": "Leaf: key(s), one space, value up to the next tab",
                  "match": "(%s) ([^\\t]*)" % KEYS,
-                 "captures": {"1": {"name": "entity.name.tag.leaf-key.dtab", "patterns": [{"include": "#comma"}]},
-                              "2": {"name": "string.unquoted.value.dtab"}}},
+                 "captures": {"1": KEY_CAPTURES["leaf"], "2": {"name": "string.unquoted.value.dtab"}}},
                 {"comment": "Object key: key(s) with no space. A comma at the end of the line continues the list on the next line, which a "
                             "grammar cannot see, so the keys are object keys even when the list ends as a leaf there (the extension and monaco.mjs then repaint them "
                             "as leaf keys through semantic tokens)",
                  "match": "(?:,|%s(?:,$)?)(?=\\t|$)" % NAMED_KEYS,
-                 "captures": {"0": {"name": "entity.name.type.object-key.dtab", "patterns": [{"include": "#comma"}]}}},
+                 "captures": {"0": KEY_CAPTURES["object"]}},
                 {"comment": "Anything else before a space: a bad key, with its value",
                  "match": "([^\\t ]+) ([^\\t]*)",
                  "captures": {"1": {"name": "invalid.illegal.key.dtab"}, "2": {"name": "string.unquoted.value.dtab"}}},

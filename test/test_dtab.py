@@ -377,6 +377,29 @@ def test_vim_highlighting():
     assert got == expected, "vim highlighting differs:\nexpected:\n%s\ngot:\n%s" % (expected, got)
 
 
+def test_vim_list_key_styles():
+    """
+    Command. Runs Vim to verify list commas have type colors and bold GUI/terminal styles.
+
+    >>> # test_vim_list_key_styles() -> None; wrong styles raise AssertionError.
+    """
+    with tempfile.TemporaryDirectory() as directory:
+        sample = Path(directory) / "styles.dtab"
+        sample.write_text("matrix\n\t,\t, 1\nstrings\n\t, sql\n\t\tSELECT 1\nrecords\n\t,\n\t\tname Ada\nfanout\ta,b value\n")
+        out = Path(directory) / "styles.txt"
+        vim("syntax on", "source dtab.vim", "edit " + str(sample),
+            "let styles=[] | for [line,col] in [[2,2],[2,4],[4,2],[7,2],[9,9]] | let id=synID(line,col,1)"
+            " | call add(styles,[synIDattr(id,'name'),synIDattr(synIDtrans(id),'fg#','gui'),"
+            "synIDattr(synIDtrans(id),'bold','gui'),synIDattr(synIDtrans(id),'bold','cterm')]) | endfor",
+            "call writefile(map(styles,'json_encode(v:val)'), '%s')" % out)
+        styles = [json.loads(line) for line in out.read_text().splitlines()]
+    assert styles[:4] == [
+        ["dtabListObjectKey", "#d787d7", "1", "1"], ["dtabListLeafKey", "#5fd7ff", "1", "1"],
+        ["dtabListLeafKey", "#5fd7ff", "1", "1"], ["dtabListObjectKey", "#d787d7", "1", "1"],
+    ], styles
+    assert styles[4][0] == "dtabComma" and styles[4][2:] == ["", ""], styles[4]
+
+
 def test_vim_embedded_languages():
     """
     A tagged multiline string (at the top level or nested) and a shebang string get the language's own groups.
@@ -691,7 +714,7 @@ def test_vscode_live():
 if __name__ == "__main__":
     for test in [test_doctests, test_skill_examples, test_readers_agree, test_round_trips, test_key_rule, test_comma_whitespace, test_path_blocks, test_js_suite,
                  test_comment_toggle,
-                 test_vim_highlighting, test_vim_embedded_languages, test_vim_new_language_comes_in, test_vim_string_indentation, test_vim_long_lines, test_vim_saved_states_survive_continued_lists, test_vim_comment_toggle, test_vim_tab_key, test_vim_shift_keys, test_vim_join, test_vim_join_after_comma,
+                 test_vim_highlighting, test_vim_list_key_styles, test_vim_embedded_languages, test_vim_new_language_comes_in, test_vim_string_indentation, test_vim_long_lines, test_vim_saved_states_survive_continued_lists, test_vim_comment_toggle, test_vim_tab_key, test_vim_shift_keys, test_vim_join, test_vim_join_after_comma,
                  test_vim_preview, test_vim_plugin_shim, test_web_demo, test_vscode_grammar, test_vscode_live]:
         test()
         print("ok  " + test.__name__)

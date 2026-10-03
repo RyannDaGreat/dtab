@@ -24,6 +24,10 @@
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
                         {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
+                        {
                             "include": "#comma"
                         }
                     ]
@@ -63,6 +67,10 @@
                 "3": {
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
+                        {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
                         {
                             "include": "#comma"
                         }
@@ -104,6 +112,10 @@
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
                         {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
+                        {
                             "include": "#comma"
                         }
                     ]
@@ -143,6 +155,10 @@
                 "3": {
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
+                        {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
                         {
                             "include": "#comma"
                         }
@@ -184,6 +200,10 @@
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
                         {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
+                        {
                             "include": "#comma"
                         }
                     ]
@@ -223,6 +243,10 @@
                 "3": {
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
+                        {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
                         {
                             "include": "#comma"
                         }
@@ -264,6 +288,10 @@
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
                         {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
+                        {
                             "include": "#comma"
                         }
                     ]
@@ -303,6 +331,10 @@
                 "3": {
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
+                        {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
                         {
                             "include": "#comma"
                         }
@@ -344,6 +376,10 @@
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
                         {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
+                        {
                             "include": "#comma"
                         }
                     ]
@@ -383,6 +419,10 @@
                 "3": {
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
+                        {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
                         {
                             "include": "#comma"
                         }
@@ -424,6 +464,10 @@
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
                         {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
+                        {
                             "include": "#comma"
                         }
                     ]
@@ -463,6 +507,10 @@
                 "3": {
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
+                        {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
                         {
                             "include": "#comma"
                         }
@@ -504,6 +552,10 @@
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
                         {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
+                        {
                             "include": "#comma"
                         }
                     ]
@@ -543,6 +595,10 @@
                 "3": {
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
+                        {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
                         {
                             "include": "#comma"
                         }
@@ -584,6 +640,10 @@
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
                         {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
+                        {
                             "include": "#comma"
                         }
                     ]
@@ -623,6 +683,10 @@
                 "3": {
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
+                        {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
                         {
                             "include": "#comma"
                         }
@@ -664,6 +728,10 @@
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
                         {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
+                        {
                             "include": "#comma"
                         }
                     ]
@@ -704,6 +772,10 @@
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
                         {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
+                        {
                             "include": "#comma"
                         }
                     ]
@@ -743,6 +815,10 @@
                 "3": {
                     "name": "entity.name.tag.leaf-key.dtab",
                     "patterns": [
+                        {
+                            "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                            "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                        },
                         {
                             "include": "#comma"
                         }
@@ -850,6 +926,10 @@
                             "name": "entity.name.tag.leaf-key.dtab",
                             "patterns": [
                                 {
+                                    "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                                    "name": "entity.name.tag.leaf-key.dtab.anonymous"
+                                },
+                                {
                                     "include": "#comma"
                                 }
                             ]
@@ -866,6 +946,10 @@
                         "0": {
                             "name": "entity.name.type.object-key.dtab",
                             "patterns": [
+                                {
+                                    "match": "(?<![^\\t]),(?=[ \\t]|$)",
+                                    "name": "entity.name.type.object-key.dtab.anonymous"
+                                },
                                 {
                                     "include": "#comma"
                                 }

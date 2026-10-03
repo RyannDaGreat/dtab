@@ -19,8 +19,8 @@
         --key-leaf: #5fd7ff;
         --value: #3d8bff;
         --comment: #6a6a6a;
-        --block-key: #ffd75f;    /* a $key: yellow, distinct from a leaf key */
-        --block-tag: #d7875f;    /* the language tag after a $key: orange, italic */
+        --block-key: #ffd75f;    /* named multiline header keys: anonymous string keys stay cyan */
+        --block-tag: #d7875f;    /* multiline language tags: orange, italic */
         --block-text: #87afd7;   /* plain multiline text: lighter blue, italic; not a one-line value */
         --font-mono: "PT Mono", "SF Mono", Menlo, Consolas, monospace;
         --font-size: 14px;
@@ -58,6 +58,7 @@
     .CodeMirror-selected { background: var(--border); }
     .highlight .cm-dtab-object-key { color: var(--key-object); }
     .highlight .cm-dtab-leaf-key { color: var(--key-leaf); }
+    .highlight .cm-dtab-list-key { font-weight: bold; }
     .highlight .cm-dtab-value { color: var(--value); }
     .highlight .cm-dtab-comment { color: var(--comment); }
     .highlight .cm-dtab-bad-key { color: var(--error); text-decoration: underline wavy; }
@@ -201,12 +202,11 @@ const CLOSED_KEYS = '(?:,|' + KEYS + '(?<!,))'   // lone comma is complete, not 
  * @example entryClass('l1, l2', false)   // 'dtab-object-key'
  * @example entryClass('a|b', false)      // 'dtab-bad-key'
  * @example entryClass('a,,b', false)     // 'dtab-bad-key'
- * @example entryClass(',', true)        // 'dtab-comma'
+ * @example entryClass(',', true)        // 'dtab-leaf-key dtab-list-key'
  */
 function entryClass(key, isLeaf) {
-    if (key === ',') return 'dtab-comma'
-    if (!key.replace(/, *\t*/g, ',').split(',').every(name => KEY_NAME.test(name))) return 'dtab-bad-key'
-    return isLeaf ? 'dtab-leaf-key' : 'dtab-object-key'
+    if (key !== ',' && !key.replace(/, *\t*/g, ',').split(',').every(name => KEY_NAME.test(name))) return 'dtab-bad-key'
+    return (isLeaf ? 'dtab-leaf-key' : 'dtab-object-key') + (key === ',' ? ' dtab-list-key' : '')
 }
 
 /**
@@ -330,7 +330,7 @@ CodeMirror.defineMode('dtab', config => ({
             const tag = stream.string.slice(stream.pos + 1).split('\t')[0]
             state.pending = blockState(config, lineIndent(stream.string), tag || null)
             state.tagPending = true
-            return key === ',' ? 'dtab-comma' : entryClass(key, true) === 'dtab-bad-key' ? 'dtab-bad-key' : 'dtab-block-key'
+            return key === ',' ? entryClass(key, true) : entryClass(key, true) === 'dtab-bad-key' ? 'dtab-bad-key' : 'dtab-block-key'
         }
         if (isLeaf && !goesOn) { stream.next(); state.inValue = !stream.eol() }
         return entryClass(key, isLeaf)

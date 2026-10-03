@@ -81,6 +81,15 @@
                         }
                     },
                     {
+                        "scope": [
+                            "entity.name.type.object-key.dtab.anonymous",
+                            "entity.name.tag.leaf-key.dtab.anonymous"
+                        ],
+                        "settings": {
+                            "fontStyle": "bold"
+                        }
+                    },
+                    {
                         "scope": "string.unquoted.value.dtab",
                         "settings": {
                             "foreground": "#5fafff"

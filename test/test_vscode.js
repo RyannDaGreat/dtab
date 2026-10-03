@@ -32,22 +32,27 @@ const SCOPE_FOR_VIM_GROUP = {
     K2: 'entity.name.function.block-key',   // a header's key, when painted by semantic tokens; the grammar gives it the leaf-key scope
 }
 
-/** Command (reads files). The dtab TextMate grammar, loaded through the same engine VS Code uses. */
-async function loadGrammar() {
+/**
+ * Command. Loads TextMate and its theme through VS Code's engine; initializes Oniguruma.
+ * @param {object} theme - TextMate theme settings.
+ * @returns {Promise<{grammar: object, colors: string[]}>}
+ * @example await loadGrammar({settings: []}) // {grammar, colors}
+ */
+async function loadGrammar(theme) {
     const wasm = fs.readFileSync(path.join(ROOT, 'node_modules', 'vscode-oniguruma', 'release', 'onig.wasm'))
     const onigLib = oniguruma.loadWASM(wasm.buffer).then(() => ({
         createOnigScanner: patterns => new oniguruma.OnigScanner(patterns),
         createOnigString: s => new oniguruma.OnigString(s),
     }))
     const registry = new textmate.Registry({
-        onigLib,
+        onigLib, theme,
         loadGrammar: scope => {
             if (scope === 'source.dtab') return textmate.parseRawGrammar(fs.readFileSync(GRAMMAR, 'utf8'), GRAMMAR)
             const file = BUNDLED_GRAMMARS[scope]
             return file && fs.existsSync(file) ? textmate.parseRawGrammar(fs.readFileSync(file, 'utf8'), file) : null
         },
     })
-    return registry.loadGrammar('source.dtab')
+    return {grammar: await registry.loadGrammar('source.dtab'), colors: registry.getColorMap()}
 }
 
 /**
@@ -71,7 +76,10 @@ function letters(line, tokens) {
 }
 
 async function main() {
-    const grammar = await loadGrammar()
+    // vscode-textmate's encoded token format: bold is bit 12, foreground occupies bits 15–23.
+    const BOLD_MASK = 1 << 12, FOREGROUND_SHIFT = 15, FOREGROUND_MASK = 0x1ff
+    const manifest = JSON.parse(fs.readFileSync(path.join(EXTENSION, 'package.json'), 'utf8'))
+    const {grammar, colors} = await loadGrammar({settings: manifest.contributes.configurationDefaults['editor.tokenColorCustomizations'].textMateRules})
     const sample = fs.readFileSync(path.join(ROOT, 'test', 'samples', 'highlight.dtab'), 'utf8').split('\n')
     const expected = fs.readFileSync(path.join(ROOT, 'test', 'expected', 'highlight.txt'), 'utf8').split('\n')
     let stack = textmate.INITIAL   // carried across lines, as VS Code does, so multiline strings work
@@ -156,7 +164,20 @@ async function main() {
     const plain = grammar.tokenizeLine('after 1', grammar.tokenizeLine('dialect sql', textmate.INITIAL).ruleStack)
     assert.ok(plain.tokens.some(tok => tok.scopes.includes('entity.name.tag.leaf-key.dtab')), 'a one-word leaf without deeper lines swallowed the next line')
 
-    const manifest = JSON.parse(fs.readFileSync(path.join(EXTENSION, 'package.json'), 'utf8'))
+    // Check actual theme metadata, not just scope names. Ordinary separators and values stay non-bold.
+    for (const [line, column, color, bold] of [
+        [',\t, 1\t, 2', 0, '#d787d7', true], [',\t, 1\t, 2', 2, '#5fd7ff', true],
+        [',\t, 1\t, 2', 6, '#5fd7ff', true], ['items\t,', 6, '#d787d7', true],
+        [', sql', 0, '#5fd7ff', true], ['a,b 1', 1, '#8a8a8a', false],
+        ['a,b 1', 0, '#5fd7ff', false], ['value a,b', 7, '#5fafff', false],
+    ]) {
+        const tokens = grammar.tokenizeLine2(line, textmate.INITIAL).tokens
+        let metadata
+        for (let i = 0; i < tokens.length && tokens[i] <= column; i += 2) metadata = tokens[i + 1]
+        assert.strictEqual(colors[(metadata >>> FOREGROUND_SHIFT) & FOREGROUND_MASK].toLowerCase(), color, line)
+        assert.strictEqual(Boolean(metadata & BOLD_MASK), bold, line)
+    }
+
     const previewCommand = manifest.contributes.commands.find(c => c.command === 'dtab.preview')
     const whitespaceCommand = manifest.contributes.commands.find(c => c.command === 'dtab.toggleWhitespace')
     for (const file of [manifest.icon, manifest.contributes.languages[0].configuration, manifest.contributes.languages[0].icon.light,
@@ -267,6 +288,10 @@ async function main() {
         setTokensProvider: (language, provider) => { providers.tokens = provider },
         registerDocumentSemanticTokensProvider: (language, provider) => { providers.headers = provider },
     }}, {wasm: fs.readFileSync(path.join(ROOT, 'node_modules', 'vscode-oniguruma', 'release', 'onig.wasm'))})
+    assert.deepStrictEqual(providers.tokens.tokenize(',\t, 1\t, 2', providers.tokens.getInitialState()).tokens
+        .filter(token => token.scopes.endsWith('.anonymous')).map(token => token.scopes),
+        ['entity.name.type.object-key.dtab.anonymous', 'entity.name.tag.leaf-key.dtab.anonymous', 'entity.name.tag.leaf-key.dtab.anonymous'],
+        'Monaco preserves the distinct anonymous-key scopes for type color and bold')
     const queryState = providers.tokens.tokenize('query sql', providers.tokens.getInitialState()).endState
     const bodyLine = providers.tokens.tokenize('\tSELECT 1', queryState)
     assert.ok(bodyLine.tokens.some(token => token.scopes === 'meta.embedded.block.sql'), 'Monaco: the string under a sql header is sql')
