@@ -10,7 +10,9 @@ Bump the version in `dtab.py` (`__version__`), `package.json`, and `vscode/packa
 2. **PyPI**: `python -m build && twine upload dist/* && rm -rf dist build dtab.egg-info` (username `__token__`, password a PyPI token).
 3. **VS Code**: `cd vscode && npx vsce package --no-dependencies`, then upload the `.vsix` at https://marketplace.visualstudio.com/manage/publishers/RyannDaGreat (`⋮` next to dtab, Update).
 4. **Vim**: nothing; plugin managers pull from GitHub.
-5. If `dtab.js` changed, refresh the demo's copy: `curl https://purge.jsdelivr.net/gh/RyannDaGreat/dtab@main/dtab.js`.
+5. If `dtab.js` or `tools.js` changed, refresh each changed demo copy: `curl https://purge.jsdelivr.net/gh/RyannDaGreat/dtab@main/dtab.js` and `curl https://purge.jsdelivr.net/gh/RyannDaGreat/dtab@main/tools.js`.
+
+JavaScript YAML conversion lives in `tools.js`, using `dtab.parseWithSource()` rather than a second DTAB parser. Keep the `yaml` version in `package.json` and the demo's module URL in `docs/index.html` identical. `test/test_yaml.js` checks data and layout, including `test/yaml/annotated.dtab`; the web test exercises both preview modes.
 
 Colors live in three places and change together: `dtab.vim`, `docs/index.html` (`:root` vars), `vscode/package.json` (`tokenColorCustomizations`).
 

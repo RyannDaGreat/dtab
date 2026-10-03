@@ -9,7 +9,7 @@
 # dtab
 
 **Delta Tab.** Config files made of tab-separated paths. One line is one path into a tree, and later lines are deltas on top of earlier ones.
-[Try it in your browser](https://ryanndagreat.github.io/dtab/): dtab on the left, JSON on the right.
+[Try it in your browser](https://ryanndagreat.github.io/dtab/): dtab on the left, JSON or formatting-aware YAML on the right.
 
 ```
 objects	l1,l2 light
@@ -146,3 +146,32 @@ Commenting works the same in Vim (`gcc`, `gc` with a motion, `gc` on a visual se
 - `parse(text)` returns nested dicts/lists (Python) or objects/arrays (JavaScript), with string leaves. Invalid keys, mixed named/anonymous keys and type changes raise errors.
 - `stringify(tree)` writes the tree back out, one entry per line. Empty lists raise an error because they have no distinct representation.
 - Command line: `dtab scene.dtab` prints the tree as JSON.
+- JavaScript `parseWithSource(text)` returns `{value, entries}`: the same parsed data plus original UTF-16 ranges, final paths, comments, and blank lines for source-aware tools. It uses the same parser, not a separate grammar.
+
+## JavaScript supporting tools: YAML
+
+```javascript
+const {toYAML} = require('deltatab/tools')
+console.log(toYAML('port 19677\t Local service\n', {tabSize: 4}))
+// port: "19677" # Local service
+```
+
+`toYAML(text, {tabSize: 4})` uses the `yaml` package for YAML syntax, quoting, and literal string blocks. Its output parses to the same data as `dtab.parse(text)`, with string leaves, including values that resemble numbers, booleans, or dates. The web editor's **JSON / YAML** selector uses this same function and remembers your choice; JSON remains the default.
+
+This is source conversion, not `stringify(parse(text))`: comments and blank runs are retained, tabs are expanded at their original stops, and aligned documentation columns stay aligned. Sibling annotation rows share any extra horizontal shift needed when YAML punctuation or quotes consume their padding. Short uncommented paths and matrix rows use compact YAML collections when possible. See [the annotated example](test/yaml/annotated.dtab).
+
+YAML cannot preserve every DTAB layout: fan-out expands, repeated keys merge to their final values, and inline paths with comments may need additional lines. Each source comment is retained once, near its surviving entry; later delta notes stay with that owner rather than moving to an unrelated section. Comments are not duplicated across fan-out. Multiline highlighting tags are not data and are omitted, while the string contents remain intact. Positions are logical character columns, not font-dependent glyph widths. `tabSize` also sets YAML indentation and must be an integer from 1 through 9.
+
+For direct browser use, load the existing DTAB script first, then the YAML dependency and tools:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/deltatab/dtab.js"></script>
+<script type="module">
+import * as YAML from 'https://cdn.jsdelivr.net/npm/yaml@2.9.1/browser/index.js'
+globalThis.YAML = YAML
+await import('https://cdn.jsdelivr.net/npm/deltatab/tools.js')
+console.log(dtabTools.toYAML('port 19677'))
+</script>
+```
+
+Conversion errors are reported, not replaced with a comment-free dump. Generated YAML is checked against the parsed DTAB data before it is returned.

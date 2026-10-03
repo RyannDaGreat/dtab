@@ -50,6 +50,7 @@
     .pane .label .spacer { flex: 1; }
     .pane .label label { cursor: pointer; user-select: none; }
     .pane .label input { vertical-align: middle; accent-color: var(--accent); }
+    .pane .label select { font: inherit; color: var(--text); background: var(--panel); border: none; cursor: pointer; }
     .CodeMirror, pre {
         flex: 1; height: auto; padding: var(--pad); font: inherit; line-height: var(--line-height); tab-size: var(--tab-size);
         background: transparent; color: var(--text); overflow: auto; white-space: pre;
@@ -99,13 +100,17 @@
         <textarea id="source"></textarea>
     </section>
     <section class="pane">
-        <div class="label"><b>JSON</b> &middot; what parse() returns</div>
-        <pre id="output"></pre>
+        <div class="label">
+            <select id="preview-format" aria-label="Preview format"><option value="json">JSON</option><option value="yaml">YAML</option></select>
+            &middot; <span id="preview-description">what parse() returns</span>
+        </div>
+        <pre id="output" class="highlight"></pre>
     </section>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/simple.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/runmode/runmode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
@@ -123,9 +128,9 @@
 <script>
 // The repo's own dtab.js when served from a checkout (tests, local use). On GitHub Pages only docs/ is served,
 // so that 404s and the same file is loaded from the repo through jsDelivr's GitHub mirror instead. The mirror
-// caches a branch for up to ~12 hours; after a push that changes dtab.js, refresh it with
-//   curl https://purge.jsdelivr.net/gh/RyannDaGreat/dtab@main/dtab.js
-if (typeof dtab === 'undefined') document.write('<script src="https://cdn.jsdelivr.net/gh/RyannDaGreat/dtab@main/dtab.js"><\/script>')
+// caches a branch for up to ~12 hours; after changing dtab.js or tools.js, purge that file's mirror.
+const DTAB_SCRIPT_ROOT = typeof dtab === 'undefined' ? 'https://cdn.jsdelivr.net/gh/RyannDaGreat/dtab@main/' : new URL('../', location.href).href
+if (typeof dtab === 'undefined') document.write('<script src="' + DTAB_SCRIPT_ROOT + 'dtab.js"><\/script>')
 </script>
 <script>
 'use strict'
@@ -468,14 +473,68 @@ function colorized(tree) {
         colon ? '<span class="k">"' + text + '"</span>:' : '<span class="s">"' + text + '"</span>')
 }
 
-/** Command. Re-parses the editor into the right pane; shows the parser's error if there is one. */
-function render() {
+const previewFormat = document.getElementById('preview-format')
+previewFormat.value = localStorage.getItem('preview-format') === 'yaml' ? 'yaml' : 'json'
+let yamlTools, renderVersion = 0
+
+/**
+ * Command. Loads the YAML dependency and supporting tools only when YAML is requested.
+ * @returns {Promise<object>} Browser API with toYAML; load failures propagate to the preview.
+ * @example await loadYAMLTools() // {toYAML}
+ */
+async function loadYAMLTools() {
+    globalThis.YAML = await import('https://cdn.jsdelivr.net/npm/yaml@2.9.1/browser/index.js')
+    await import(DTAB_SCRIPT_ROOT + 'tools.js')
+    return globalThis.dtabTools
+}
+
+/**
+ * Command. Colors YAML with CodeMirror while retaining literal tabs in copyable output text.
+ * @param {string} text - YAML to display.
+ * @returns {void}
+ * @example showYAML('x: "1"\n') // output.textContent stays exactly 'x: "1"\n'.
+ */
+function showYAML(text) {
+    output.replaceChildren()
+    CodeMirror.runMode(text, 'yaml', (value, style) => {
+        if (!style) { output.append(value); return }
+        const token = document.createElement('span')
+        token.className = 'cm-' + style.replace(/ +/g, ' cm-')
+        token.textContent = value
+        output.append(token)
+    })
+}
+
+/**
+ * Command. Updates the selected preview; reports conversion/load errors and discards stale async work.
+ * @returns {Promise<void>}
+ * @example await render() // Right pane contains the current document, not an earlier edit.
+ */
+async function render() {
+    const version = ++renderVersion, source = editor.getValue(), format = previewFormat.value
+    document.getElementById('preview-description').textContent = format === 'yaml' ? 'comments and layout retained where possible' : 'what parse() returns'
     try {
-        output.innerHTML = colorized(dtab.parse(editor.getValue()))
+        if (format === 'yaml') {
+            output.textContent = 'Loading YAML…'
+            const tools = await (yamlTools ||= loadYAMLTools())
+            if (version !== renderVersion) return
+            showYAML(tools.toYAML(source, {tabSize: editor.getOption('tabSize')}))
+        } else output.innerHTML = colorized(dtab.parse(source))
     } catch (error) {
-        output.innerHTML = '<span class="error">' + String(error.message).replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c])) + '</span>'
+        if (version !== renderVersion) return
+        const message = document.createElement('span')
+        message.className = 'error'
+        message.textContent = String(error.message)
+        output.replaceChildren(message)
     }
 }
+
+/** Command. Remembers the preview choice and refreshes it; no source text is stored. */
+function selectPreview() {
+    localStorage.setItem('preview-format', previewFormat.value)
+    render()
+}
+previewFormat.addEventListener('change', selectPreview)
 
 // The two toggles add or remove a class on the editor's pane; CSS does the rest. Remembered per browser.
 const TOGGLES = [['toggle-highlight', 'highlight'], ['toggle-tabs', 'show-tabs']]

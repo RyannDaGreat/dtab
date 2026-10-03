@@ -11,6 +11,8 @@ const http = require('http')
 const path = require('path')
 const puppeteer = require('puppeteer')
 const dtab = require('../dtab.js')
+const YAML = require('yaml')
+const {toYAML} = require('../tools.js')
 
 const ROOT = path.join(__dirname, '..')
 const TYPES = {'.html': 'text/html', '.js': 'text/javascript', '.jpg': 'image/jpeg'}
@@ -20,13 +22,13 @@ function serve() {
     return new Promise(resolve => {
         const server = http.createServer((request, response) => {
             const file = path.join(ROOT, decodeURIComponent(request.url.split('?')[0]))
-            if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+            if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
                 response.writeHead(404); response.end(); return
             }
             response.writeHead(200, {'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream'})
             response.end(fs.readFileSync(file))
         })
-        server.listen(0, () => resolve([server, server.address().port]))
+        server.listen(0, '127.0.0.1', () => resolve([server, server.address().port]))
     })
 }
 
@@ -47,13 +49,28 @@ const lineTokens = (page, line) => page.evaluate(n =>
         .filter((token, i, all) => !(token[0] === 'tab' && i > 0 && all[i - 1][0] === 'tab')), line)
 
 async function main() {
+    const RICH_PREVIEW_VIEWPORT = {width: 2400, height: 1800} // Fits both annotation grids and the full 70-line fixture.
+    const YAML_CDN = 'https://cdn.jsdelivr.net/npm/yaml@' + require('yaml/package.json').version + '/'
+    const YAML_ROOT = path.join(ROOT, 'node_modules', 'yaml')
     const [server, port] = await serve()
     const browser = await puppeteer.launch({headless: true})
     try {
         const page = await browser.newPage()
-        const failures = []
-        page.on('pageerror', error => failures.push(error.message))
+        const failures = [], yamlRequests = []
+        // Use the installed, pinned YAML browser build while exercising the production module URLs.
+        await page.setRequestInterception(true)
+        page.on('request', request => {
+            if (!request.url().startsWith(YAML_CDN)) { request.continue(); return }
+            yamlRequests.push(request.url())
+            const file = path.resolve(YAML_ROOT, decodeURIComponent(request.url().slice(YAML_CDN.length).split('?')[0]))
+            if (!file.startsWith(YAML_ROOT + path.sep) || !fs.existsSync(file)) {
+                request.respond({status: 404, body: 'Missing YAML browser module'}); return
+            }
+            request.respond({status: 200, contentType: 'text/javascript', headers: {'Access-Control-Allow-Origin': '*'}, body: fs.readFileSync(file)})
+        })
+        page.on('pageerror', error => { failures.push(error.message); console.error('Page error:', error.message) })
         await page.goto('http://127.0.0.1:' + port + '/docs/index.html', {waitUntil: 'networkidle0'})
+        assert.deepStrictEqual(failures, [], 'page startup errors')
 
         // 1. The example renders as JSON, and it is exactly what dtab.js says about the same text.
         const sourceText = await editorText(page)
@@ -249,6 +266,45 @@ async function main() {
             if (commenting) assert.deepStrictEqual(predicted, lines, name + ': pressed twice gives the lines back')
         }
 
+        // 6. YAML is lazy, keeps exact copyable text, and never overwrites a newer JSON render.
+        assert.deepStrictEqual(yamlRequests, [], 'JSON preview should not fetch YAML')
+        await page.evaluate(() => {
+            const cm = document.querySelector('.CodeMirror').CodeMirror
+            const choice = document.getElementById('preview-format')
+            cm.setValue('old 1')
+            choice.value = 'yaml'; choice.dispatchEvent(new Event('change'))
+            cm.setValue('latest 2')
+            choice.value = 'json'; choice.dispatchEvent(new Event('change'))
+        })
+        await page.waitForFunction(() => globalThis.dtabTools)
+        assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), {latest: '2'}, 'stale YAML load replaced JSON')
+        assert.ok(yamlRequests.length > 0)
+        const annotated = fs.readFileSync(path.join(ROOT, 'test', 'yaml', 'annotated.dtab'), 'utf8')
+        await setEditorText(page, annotated)
+        await page.select('#preview-format', 'yaml')
+        await page.waitForFunction(expected => document.getElementById('output').textContent === expected, {}, toYAML(annotated))
+        assert.deepStrictEqual(YAML.parse(await page.$eval('#output', e => e.textContent)), dtab.parse(annotated))
+        assert.ok(await page.$('#output .cm-comment'), 'YAML comments should be highlighted')
+        await page.setViewport(RICH_PREVIEW_VIEWPORT)
+        await page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror.refresh())
+        fs.mkdirSync(path.join(ROOT, '.scratchpad'), {recursive: true})
+        await page.screenshot({path: path.join(ROOT, '.scratchpad', 'yaml-preview.png'), fullPage: true})
+
+        const yamlTabbed = 'code txt\n\t\tactual tab\n\t  spaces\n'
+        await setEditorText(page, yamlTabbed)
+        await page.waitForFunction(expected => document.getElementById('output').textContent === expected, {}, toYAML(yamlTabbed))
+        assert.ok((await page.$eval('#output', e => e.textContent)).includes('\t'), 'syntax coloring expanded data tabs')
+        const hostile = 'x <img src=x onerror=window.yamlInjected=true>\t </pre><script>window.yamlInjected=true</script>'
+        await setEditorText(page, hostile)
+        await page.waitForFunction(expected => document.getElementById('output').textContent === expected, {}, toYAML(hostile))
+        assert.strictEqual(await page.evaluate(() => Boolean(globalThis.yamlInjected || document.querySelector('#output img, #output script'))), false)
+        await setEditorText(page, ', 1\nkey 2')
+        await page.waitForFunction(() => document.querySelector('#output .error')?.textContent.includes('line 2'))
+        await page.reload({waitUntil: 'networkidle0'})
+        assert.strictEqual(await page.$eval('#preview-format', e => e.value), 'yaml', 'preview choice should persist')
+        await page.waitForFunction(expected => document.getElementById('output').textContent === expected, {}, toYAML(await editorText(page)))
+        await page.select('#preview-format', 'json')
+        assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), dtab.parse(await editorText(page)))
         assert.deepStrictEqual(failures, [], 'page errors: ' + failures.join('; '))
         console.log('test_web.js: all checks passed')
     } finally {

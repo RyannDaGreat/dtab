@@ -696,6 +696,11 @@ def test_vim_plugin_shim():
         assert out.read_text().strip() == "dtab", "plugin/dtab.vim did not set the filetype"
 
 
+def test_yaml_tools():
+    """Command. Runs JavaScript YAML semantic/layout tests; returns None on success."""
+    subprocess.run(["node", "test/test_yaml.js"], check=True, cwd=ROOT)
+
+
 def test_web_demo():
     if not (ROOT / "node_modules" / "puppeteer").is_dir():
         print("    (skipped: puppeteer not installed)")
@@ -729,7 +734,7 @@ if __name__ == "__main__":
     for test in [test_doctests, test_skill_examples, test_readers_agree, test_round_trips, test_key_rule, test_comma_whitespace, test_path_blocks, test_js_suite,
                  test_comment_toggle,
                  test_vim_highlighting, test_vim_list_key_styles, test_vim_embedded_languages, test_vim_new_language_comes_in, test_vim_string_indentation, test_vim_long_lines, test_vim_saved_states_survive_continued_lists, test_vim_comment_toggle, test_vim_tab_key, test_vim_shift_keys, test_vim_join, test_vim_join_after_comma,
-                 test_vim_preview, test_vim_plugin_shim, test_web_demo, test_vscode_grammar, test_vscode_live]:
+                 test_vim_preview, test_vim_plugin_shim, test_yaml_tools, test_web_demo, test_vscode_grammar, test_vscode_live]:
         test()
         print("ok  " + test.__name__)
     print("All dtab tests passed")

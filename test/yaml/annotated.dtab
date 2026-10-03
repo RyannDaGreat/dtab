@@ -1,0 +1,74 @@
+environ
+	BATCH_SIZE 2000	 Measured on the worker pool; this is not the machine's CPU count
+	WORKERS 12	 Processes, limited by the upstream service
+	DATABASE_ROOT data/local
+
+database
+	backend example.LocalBackend
+	host 0.0.0.0
+	port 19677
+	root $DATABASE_ROOT
+
+tables
+	snapshots
+		 One seeded row triggers each snapshot once
+		primary_key snapshot_id
+		initial_rows
+			,	snapshot_id assets
+			,	snapshot_id titles
+			,	snapshot_id images
+		columns
+			snapshot_id string
+
+	assets
+		 Source assets consumed by downstream processing
+		primary_key asset_id
+		columns
+			asset_id, group_id, proxy_url string
+			frame_count int64
+
+processors
+	query_assets
+		query pending_assets
+		claim	snapshot_claim snapshots
+		command bash	 Keep the environment reference verbatim
+			python processors/query_assets.py "$SAMPLE"
+		commit
+			assets
+				assets.parquet			 TYPE	 DESCRIPTION				 EXAMPLE
+					asset_id @	 [Key]	 str	 Stable asset identifier	 "sample-id"
+					proxy_url uri		 str	 Current proxy location		 "https://example.invalid/proxy"
+					frame_count @		 int	 Reported frame count		 1083
+
+					 ===== DOCUMENTATION ONLY BELOW =====
+
+					 SUBFIELD			 TYPE	 DESCRIPTION				 EXAMPLE
+					 source_id			 str	 Source identifier			 "source-id"
+					 camera_format		 str	 Camera format				 "ExampleCam"
+					 width				 int	 Source width in pixels		 2304
+
+	query_titles
+		query pending_titles
+		command bash
+			python processors/query_titles.py "$SAMPLE"
+		commit
+			titles
+				titles.parquet			 TYPE	 DESCRIPTION				 EXAMPLE
+					title_id @	 [Key]	 int	 Stable title identifier	 81983257
+					title @				 str	 Display title				 "Example: Season 1"
+
+queries
+	 Convention: reusable component queries start with an underscore
+	 Convention: processor queries start with pending_
+
+	 Snapshot queries
+	_unclaimed SELECT snapshot_id FROM snapshots WHERE snapshot_claim IS NULL
+	pending_assets SELECT * FROM _unclaimed WHERE snapshot_id = 'assets'
+	pending_titles SELECT * FROM _unclaimed WHERE snapshot_id = 'titles'
+
+	pending_work sql
+		SELECT asset_id, proxy_url FROM assets
+		WHERE worker_claim IS NULL AND proxy_url IS NOT NULL
+		LIMIT $BATCH_SIZE
+
+	 A final note stays below the queries

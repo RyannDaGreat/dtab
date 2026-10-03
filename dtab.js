@@ -40,7 +40,6 @@ const TEXT_TAG = 'txt'     // the tag stringify gives a multiline string; any si
 const KEY_PUNCTUATION = '_.-/'   // Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
 const KEY_RULE = 'keys may contain only letters, digits and ' + [...KEY_PUNCTUATION].join(' ')
 const COMMA_RULE = 'a comma needs a key on both sides; a comment does not count'
-const TAB_RUN = /\t+/  // Several tabs in a row are one separator, so columns can be aligned
 const KEY = new RegExp('^[\\p{L}\\p{N}' + KEY_PUNCTUATION.replace(/[\]\\^-]/g, '\\$&') + ']+$', 'u')  // letters, digits (as Python's \w) and the punctuation; the rest is reserved for syntax
 const SPACED_KEYS = /(^|\t)((?:[^\t\n ,]+, *[\t\n]*)+)/g  // keys at an entry's start whose commas are followed by whitespace
 const DANGLING = /(?:^|\t)[^\t ]+,\n*$/  // a key list ending in a comma: it goes on on the next line
@@ -72,13 +71,45 @@ const DANGLING = /(?:^|\t)[^\t ]+,\n*$/  // a key list ending in a comma: it goe
  * @example parse('a,\n comment\nb 1')   // throws: dtab line 1: invalid key "a,": a comma needs a key on both sides; a comment does not count
  */
 function parse(text) {
+    return parseTree(text)
+}
+
+/**
+ * Pure function. Parses once, retaining source ranges and final target paths for formatting tools.
+ * Comments have an owner entry when inline, otherwise paths name their enclosing containers.
+ * Ranges are original UTF-16 offsets, end excluded; multiline bodies exclude trimmed trailing blanks.
+ *
+ * @param {string} text - DTAB source.
+ * @returns {{value: object|Array, entries: object[]}} Entry, comment, and blank records in source order.
+ * @example parseWithSource('a\tb 1\t note').entries.map(e => [e.type, e.paths])
+ *   // [['entry', [['a']]], ['entry', [['a', 'b']]], ['comment', [['a']]]]
+ * @example parseWithSource(', x\n, y').value // ['x', 'y']
+ */
+function parseWithSource(text) {
+    const entries = []
+    const value = parseTree(text, entries)
+    return {value, entries}
+}
+
+/**
+ * Command when entries is supplied (appends provenance); otherwise pure. Shared parsing engine.
+ *
+ * @param {string} text - DTAB source.
+ * @param {object[]|null} [entries] - Optional destination for source records.
+ * @returns {object|Array} Resolved data; ordinary parsing allocates no provenance maps.
+ * @example parseTree('a 1') // {a: '1'}
+ */
+function parseTree(text, entries = null) {
     const root = Object.create(null)  // internal dictionary: even __proto__ is an ordinary key
     const kinds = new WeakMap()  // constant-time key-kind checks, without rescanning growing lists
     const stack = [[-1, [root]]]  // [indent, nodes that deeper lines nest into]
     let block = null  // last entry is a leaf: {indent, nodes, names, deep: raw lines under it}
     const lines = text.split('\n')
+    const starts = entries && [0]
+    if (starts) for (const line of lines) starts.push(starts.at(-1) + line.length + 1)
     for (let index = 0; index < lines.length; index++) {
-        let line = lines[index]
+        let line = lines[index], original = line
+        const sourceStart = starts && starts[index]
         let lineNumber = index + 1
         const indent = line.length - line.replace(/^\t+/, '').length
         if (block) {
@@ -91,29 +122,40 @@ function parse(text) {
         }
         if (!line.trim()) continue
         line = closeUp(line)
-        while (DANGLING.test(line) && index + 1 < lines.length) line = closeUp(line + '\n' + lines[++index])  // the key list goes on on the next line
+        while (DANGLING.test(line) && index + 1 < lines.length) {
+            const next = lines[++index]
+            if (entries) original += '\n' + next
+            line = closeUp(line + '\n' + next)
+        }
+        const offsets = entries && subsequencePositions(original, line)
         while (stack[stack.length - 1][0] >= indent) stack.pop()
-        let nodes = stack[stack.length - 1][1]
-        for (const rawEntry of line.slice(indent).split(TAB_RUN)) {
+        let nodes = stack[stack.length - 1][1], owner = null
+        for (const {0: rawEntry, index: entryOffset} of line.slice(indent).matchAll(/[^\t]+/g)) {
             const entry = rawEntry.replace(/\n/g, '')
             const entryLine = lineNumber
             lineNumber += rawEntry.length - entry.length
             const spaceAt = entry.indexOf(' ')
             const key = spaceAt === -1 ? entry : entry.slice(0, spaceAt)
-            if (!key) continue  // Comment or trailing tabs; neither changes the path
+            const range = entries && {start: sourceStart + offsets[indent + entryOffset], end: sourceStart + offsets[indent + entryOffset + rawEntry.length - 1] + 1}
+            if (!key) {
+                if (entries && entry.trim()) entries.push({type: 'comment', ...range, targets: nodes, names: null, owner})
+                continue  // Comment or trailing tabs; neither changes the path
+            }
             const names = key === KEY_SEPARATOR ? [Symbol()] : keyNames(key, entryLine, true)
             const kind = typeof names[0]
             for (const node of nodes) {
                 if (kinds.has(node) && kinds.get(node) !== kind) throw new Error('dtab line ' + entryLine + ': cannot mix list entries and named keys')
                 kinds.set(node, kind)
             }
+            const record = entries && {type: 'entry', ...range, targets: nodes, names, leaf: spaceAt !== -1}
+            if (entries) { entries.push(record); owner = record }
             if (spaceAt !== -1) {
                 const value = entry.slice(spaceAt + 1)
                 for (const node of nodes) for (const name of names) {
                     if (isPlainObject(node[name])) throw new Error('dtab line ' + entryLine + ': cannot replace a container with a string')
                     node[name] = value
                 }
-                block = {indent, nodes, names, deep: []}
+                block = {indent, nodes, names, deep: [], source: record, bodyStart: starts && starts[index + 1]}
             } else {
                 nodes = nodes.flatMap(node => names.map(name => child(node, name, entryLine)))
                 block = null
@@ -122,23 +164,48 @@ function parse(text) {
         stack.push([indent, nodes])
     }
     if (block) finishBlock(block)
-    return resolveLists(root)
+    const positions = entries && new WeakMap()
+    const value = resolveLists(root, positions)
+    if (entries) {
+        for (const entry of entries) {
+            entry.paths = entry.targets.flatMap(node => {
+                const {path, keys} = positions.get(node)
+                return entry.names ? entry.names.map(name => [...path, keys.get(name)]) : [path]
+            })
+            entry.paths = [...new Map(entry.paths.map(path => [JSON.stringify(path), path])).values()]
+            delete entry.targets
+            delete entry.names
+        }
+        const bodies = entries.filter(entry => entry.body).map(entry => entry.body)
+        let body = 0
+        for (let index = 0; index < lines.length; index++) {
+            while (body < bodies.length && bodies[body][1] <= starts[index]) body++
+            if (!lines[index].trim() && (index < lines.length - 1 || lines[index]) &&
+                !(body < bodies.length && bodies[body][0] <= starts[index]))
+                entries.push({type: 'blank', start: starts[index], end: starts[index] + lines[index].length})
+        }
+        entries.sort((a, b) => a.start - b.start)
+    }
+    return value
 }
 
 /**
- * Pure function. Converts validated anonymous-only dictionaries to arrays.
+ * Command when positions is supplied (records paths); otherwise pure. Resolves anonymous lists.
  *
  * @param {object|string} node - Validated subtree; anonymous keys are Symbols, named keys are strings.
+ * @param {WeakMap|null} [positions] - Optional internal node-to-path destination, mutated when supplied.
+ * @param {Array<string|number>} [path] - Current path for source tracking.
  * @returns {object|Array|string} Empty dictionaries remain dictionaries.
  *
  * @example resolveLists({items: {[Symbol()]: 'red', [Symbol()]: {}}}) // {items: ['red', {}]}
  * @example resolveLists({empty: {}}) // {empty: {}}
  */
-function resolveLists(node) {
+function resolveLists(node, positions = null, path = []) {
     if (!isPlainObject(node)) return node
-    const keys = Reflect.ownKeys(node)
-    const values = keys.map(key => resolveLists(node[key]))
-    return typeof keys[0] === 'symbol' ? values : Object.fromEntries(keys.map((key, index) => [key, values[index]]))
+    const keys = Reflect.ownKeys(node), list = typeof keys[0] === 'symbol'
+    if (positions) positions.set(node, {path, keys: new Map(keys.map((key, index) => [key, list ? index : key]))})
+    const values = keys.map((key, index) => resolveLists(node[key], positions, positions && [...path, list ? index : key]))
+    return list ? values : Object.fromEntries(keys.map((key, index) => [key, values[index]]))
 }
 
 /**
@@ -154,6 +221,7 @@ function finishBlock(block) {
     const deep = block.deep
     while (deep.length && !deep[deep.length - 1].trim()) deep.pop()
     if (!deep.length) return
+    if (block.source) block.source.body = [block.bodyStart, block.bodyStart + deep.reduce((size, line) => size + line.length + 1, 0) - 1]
     const base = '\t'.repeat(block.indent + 1)
     const value = deep.map(line => line.startsWith(base) ? line.slice(base.length) : '').join('\n')
     for (const node of block.nodes) for (const name of block.names) node[name] = value
@@ -275,6 +343,25 @@ function closeUp(line) {
 }
 
 /**
+ * Pure function. Finds the leftmost UTF-16 positions of a subsequence in its original text.
+ *
+ * @param {string} original - Unmodified text.
+ * @param {string} subsequence - Text obtained by deleting characters.
+ * @returns {number[]} Original offsets; throws if the second string is not a subsequence.
+ * @example subsequencePositions('a \tb', 'ab') // [0, 3]
+ */
+function subsequencePositions(original, subsequence) {
+    const positions = []
+    let cursor = 0
+    for (let index = 0; index < subsequence.length; index++) {
+        while (cursor < original.length && original[cursor] !== subsequence[index]) cursor++
+        if (cursor === original.length) throw new Error('text is not a subsequence of its original')
+        positions.push(cursor++)
+    }
+    return positions
+}
+
+/**
  * Command. Creates a missing child dictionary; rejects replacing a string with a container.
  *
  * @param {object} node - Parent to mutate.
@@ -334,7 +421,7 @@ function stringifyInto(node, depth, lines) {
     }
 }
 
-const dtab = {parse, stringify, commentToggle, toggleComments, KEY_SEPARATOR, TEXT_TAG, KEY_PUNCTUATION, KEY, KEY_RULE}
+const dtab = {parse, parseWithSource, stringify, commentToggle, toggleComments, KEY_SEPARATOR, TEXT_TAG, KEY_PUNCTUATION, KEY, KEY_RULE}
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = dtab

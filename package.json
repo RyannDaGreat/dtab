@@ -8,12 +8,16 @@
     },
     "files": [
         "dtab.js",
+        "tools.js",
         "monaco.mjs",
         "vscode/headers.js",
         "vscode/syntaxes/dtab.tmLanguage.json"
     ],
     "scripts": {
-        "test": "node test/test_dtab.js"
+        "test": "node test/test_dtab.js && node test/test_yaml.js"
+    },
+    "dependencies": {
+        "yaml": "2.9.1"
     },
     "repository": {
         "type": "git",
