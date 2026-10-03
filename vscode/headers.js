@@ -8,9 +8,10 @@
 const indentOf = line => line.length - line.replace(/^\t+/, '').length
 
 // A key list within a line: runs of non-blanks, where a run ending in a comma goes on past spaces, then tabs
-const KEYS = '[^\\t ]+(?:(?<=,) *\\t*[^\\t ]+)*'
+const KEYS = '[^\\t ,][^\\t ]*(?:(?<=,) *\\t*[^\\t ]+)*'
+const CLOSED_KEYS = '(?:,|' + KEYS + '(?<!,))'   // lone comma is complete, not a named-key continuation
 // A header line: tabs, earlier entries, final leaf keys (group 1, with indices), tag, comments, trailing tabs
-const HEADER_LINE = new RegExp('^\\t*(?:(?: [^\\t]*|' + KEYS + '(?<!,)(?: [^\\t]*)?)\\t+)*(' + KEYS + ')(?<!,) [^\\t]*(?:\\t+ [^\\t]*)*\\t*$', 'd')
+const HEADER_LINE = new RegExp('^\\t*(?:(?: [^\\t]*|' + CLOSED_KEYS + '(?: [^\\t]*)?)\\t+)*(' + CLOSED_KEYS + ') [^\\t]*(?:\\t+ [^\\t]*)*\\t*$', 'd')
 // A line whose last entry is a key list ending in a comma (group 1), then spaces, then tabs: the list goes on
 const DANGLING_LINE = new RegExp('(?:^|\\t)(' + KEYS + ')(?<=,) *\\t*$', 'd')
 // The keys a line starts with (group 1), which go on with a list from an earlier line
@@ -51,8 +52,10 @@ function deeperFollows(lines, n) {
  *
  * @example keyNames(4, 'a, b,', 3)                // [{line: 4, name: 'a', start: 3, end: 4}, {line: 4, name: 'b', start: 6, end: 7}]
  * @example keyNames(0, 'a,,b', 0).map(k => k.name) // ['a', '', 'b']
+ * @example keyNames(0, ',', 0) // [] (anonymous punctuation has no name to repaint)
  */
 function keyNames(line, keys, offset) {
+    if (keys === ',') return []
     let start = offset
     return keys.replace(/,$/, '').split(/(,[ \t]*)/).flatMap((part, i) => {   // names at even indices, separators between
         const name = {line, name: part, start, end: start + part.length}
@@ -117,8 +120,10 @@ function lookaheadTokens(lines, key) {
         const line = lines[n]
         if (isHeaderLine(line) && deeperFollows(lines, n)) {
             const [start, end] = HEADER_LINE.exec(line).indices[1]
-            if (valid(keyNames(n, line.slice(start, end), start)))
-                tokens.push({line: n, start, end, type: 'dtabBlockKey'}, {line: n, start: end + 1, end: end + 1 + line.slice(end + 1).search(/\t|$/), type: 'dtabBlockTag'})
+            if (valid(keyNames(n, line.slice(start, end), start))) {
+                if (line.slice(start, end) !== ',') tokens.push({line: n, start, end, type: 'dtabBlockKey'})
+                tokens.push({line: n, start: end + 1, end: end + 1 + line.slice(end + 1).search(/\t|$/), type: 'dtabBlockTag'})
+            }
             const indent = indentOf(line)
             while (n + 1 < lines.length && (!lines[n + 1].trim() || indentOf(lines[n + 1]) > indent)) n++   // the body is text, whatever it looks like
         } else if (DANGLING_LINE.test(line)) {

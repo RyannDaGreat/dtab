@@ -2,7 +2,7 @@
     "numbers": {"int": "42", "neg": "-7", "float": "3.25", "dot": ".5", "negdot": "-.5", "exp": "1e3", "leadzero": "007", "bad": "1/2"},
     "literals": {"t": "true", "f": "false", "n": "null", "quoted": "\"hello world\"", "arr": "[1,2,3]", "obj": "{\"a\":1}", "word": "hello", "two": "words here", "tilde": "a~b", "empty": "", "spacey": "f "},
     "dupe": {"k": "2"},
-    "overwrite": {"leaf": "1", "obj": "4"},
+    "overwrite": {"leaf": "1", "obj": {"child": "4"}},
     "attach": {"leaf": "child 5", "after": "6"},
     "deep": {"a": {"b": {"c": {"d": "1", "e": "2", "f": {"g": "3"}}}}},
     "mixed": {"x": "1", "y": {"z": "2", "w": "extra 4"}},

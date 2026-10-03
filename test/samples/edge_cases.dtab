@@ -4,7 +4,7 @@ literals	t true	f false	n null	quoted "hello world"	arr [1,2,3]	obj {"a":1}	word
 dupe	k 1	k 2
 overwrite	leaf 1
 overwrite	obj	child 3
-overwrite	obj 4
+overwrite	obj	child 4
 attach	leaf 1	 comment after leaf
 	child 5
 attach	 comment entry	after 6

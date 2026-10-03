@@ -10,10 +10,11 @@ Checks:
      sample except those in DEVIATING.
   3. dtab.py and dtab.js agree with each other on every sample; the deviating samples match their goldens
      in test/expected/, which were diffed against the original when written. The differences are exactly:
-     blank lines are ignored, an object can overwrite a leaf, comma keys respect line order (in game_config
+     blank lines are ignored, comma keys respect line order (in game_config
      that is one leaf, deltas.initial.l1.intensity, where the original ignored the later `l1	intensity 1`),
      multiline strings (`key word` with lines under it, including inline paths), ignored trailing tabs,
-     and whitespace after a comma in a key (comma_whitespace.dtab), which the original did not have.
+     whitespace after a comma in a key (comma_whitespace.dtab), and anonymous list entries (lists.dtab).
+     String/container replacements and mixed named/anonymous keys are errors.
   4. parse(stringify(parse(text))) == parse(text) for every sample.
   5. The key rule (letters, digits, _ . -): bad keys are rejected with a line number in parse and in
      stringify, and the Python and JS character classes agree on a set of Unicode probes. Whitespace after
@@ -57,7 +58,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SKILL = ROOT / "skills" / "dtab" / "SKILL.md"
 HIGHLIGHT_SAMPLE = ROOT / "test" / "samples" / "highlight.dtab"
 SAMPLES = sorted(path for path in (ROOT / "test" / "samples").glob("*.dtab") if path != HIGHLIGHT_SAMPLE)
-DEVIATING = {"deviations.dtab", "game_config.dtab", "multiline.dtab", "comma_whitespace.dtab", "edge_cases.dtab", "path_blocks.dtab"}  # multiline strings, ignored trailing tabs and whitespace after commas differ from the original
+DEVIATING = {"deviations.dtab", "game_config.dtab", "multiline.dtab", "comma_whitespace.dtab", "edge_cases.dtab", "path_blocks.dtab", "lists.dtab"}  # multiline strings, ignored trailing tabs and whitespace after commas differ from the original
 COMMENT_CASES = json.loads((ROOT / "test" / "comment_cases.json").read_text())["cases"]   # hand-written, shared by every editor's test
 COMMENT_ALPHABET = ["a", "b", " ", " ", "\t", "\t", ",", "\u00e9", "\U0001F600", "\u00a0"]   # what the entry scanner weighs, multibyte and a non-breaking space included
 RANDOM_COMMENT_CASES = 3000   # random documents and selections the toggle properties are checked on
@@ -149,8 +150,10 @@ def test_key_rule():
     assert dtab.parse("a sql\nb 1\nc \n\tline\n\t\ttabbed\nd any tag at all\n\ttext") == {"a": "sql", "b": "1", "c": "line\n\ttabbed", "d": "text"}, "a leaf is a leaf until lines follow; then its text is the tag and the lines, verbatim past one tab, the value"
     assert dtab.parse("123aa 1\nfile.json 2\nfile-thing.json 3\n123.json-yaml 4\nitems 5\n_p 6\ncafé 7\n-x 8\nassets/logo.png 9\n/ 10") == {
         "123aa": "1", "file.json": "2", "file-thing.json": "3", "123.json-yaml": "4", "items": "5", "_p": "6", "café": "7", "-x": "8", "assets/logo.png": "9", "/": "10"}
-    for tree in [{"a b": "1"}, {"a,b": "1"}, {"a|b": "1"}, {"": "1"}]:
+    for tree in [{"a b": "1"}, {"a,b": "1"}, {"a|b": "1"}, {"": "1"}, {",": "1"}]:
         raises_value_error(lambda: dtab.stringify(tree), "dtab")
+    for tree in [[], {"a": []}, [[]]]:
+        raises_value_error(lambda: dtab.stringify(tree), "empty lists have no representation")
     assert dtab.parse(dtab.stringify({0: "a", "file.json": "b"})) == {"0": "a", "file.json": "b"}   # int keys are written as text
     for value in ["x\ny", "x\ty", "a\n\n\tb\n  c", "#!/bin/bash\necho hi", ""]:
         assert dtab.parse(dtab.stringify({"a": value})) == {"a": value}, "multiline round trip failed for %r" % value
@@ -196,20 +199,52 @@ COMMA_CASES = {   # text -> the tree, or the fragment of the error; the same in 
     "a, ,b 1": "invalid key 'a,,b'",
     "a,\nb|c 1": "line 1: invalid key 'a,b|c': keys may contain",
     "a,\n\tb x\ty 2\n\tz 3": {"a": "x", "b": "x", "y": "z 3"},
+    ", red\n, blue": ["red", "blue"],
+    ", red\t, blue\t, red": ["red", "blue", "red"],
+    ", hello, world": ["hello, world"],
+    ",": [{}],
+    ", ": [""],
+    ",\n,": [{}, {}],
+    ",\t\t\n, last": [{}, "last"],
+    ",\t, 1\t, 2\n,\t, 3\t, 4": [["1", "2"], ["3", "4"]],
+    ",\n\t,\n\t\t, 1\n,\n\t,\n\t\t, 2": [[["1"]], [["2"]]],
+    "items\t, red\nitems\t, blue": {"items": ["red", "blue"]},
+    "a,b\t, x\nb\t, y": {"a": ["x"], "b": ["x", "y"]},
+    "a,a\t, x": {"a": ["x"]},
+    "a,\n\tb\t, x": {"a": ["x"], "b": ["x"]},
+    ",\tname Ada\tage 36\n,\tname Bea": [{"name": "Ada", "age": "36"}, {"name": "Bea"}],
+    ", txt\n\tline one\n\tline\ttwo\n, last": ["line one\nline\ttwo", "last"],
+    ", \n\t, literal": [", literal"],
+    ",\n\tname Ada\n\tname Grace\n, end": [{"name": "Grace"}, "end"],
+    "empty\nitems\t,": {"empty": {}, "items": [{}]},
+    "__proto__\t, x\nconstructor\t, y\ntoString z": {"__proto__": ["x"], "constructor": ["y"], "toString": "z"},
+    "bluej_insert_binary_random_code x": {"bluej_insert_binary_random_code": "x"},
+    ", 1\nkey 2": "cannot mix list entries and named keys",
+    "key 1\n, 2": "cannot mix list entries and named keys",
+    "a\t, 1\na\tkey 2": "cannot mix list entries and named keys",
+    "a\tkey 1\na\t, 2": "cannot mix list entries and named keys",
+    "a 1\na\tchild 2": "line 2: cannot replace a string with a container",
+    "a\tchild 1\na 2": "line 2: cannot replace a container with a string",
+    "a\na 2": "line 2: cannot replace a container with a string",
+    "a 1\na\t, 2": "line 2: cannot replace a string with a container",
+    "a\t, 1\na 2": "line 2: cannot replace a container with a string",
+    ",\n\tleaf 1\n\tleaf\tchild 2": "line 3: cannot replace a string with a container",
+    ",,": "invalid key ',,'",
 }
 
 
 def test_comma_whitespace():
-    """After a comma in a key, spaces, tabs and line breaks are skipped; both parsers agree on every case."""
+    """Command (runs Node). Both parsers agree on named-key commas, anonymous lists, and type errors."""
     js_results = json.loads(run(
         "node", "-e",
         "const d = require('./dtab.js'); console.log(JSON.stringify(%s.map(t => { try { return d.parse(t) } catch (e) { return e.message.replace(/\"/g, \"'\") } })))"
         % json.dumps(list(COMMA_CASES)),
     ))
     for (text, expected), js_result in zip(COMMA_CASES.items(), js_results):
-        if isinstance(expected, dict):
+        if isinstance(expected, (dict, list)):
             assert dtab.parse(text) == expected, "%r: dtab.py gives %r" % (text, dtab.parse(text))
             assert js_result == expected, "%r: dtab.js gives %r" % (text, js_result)
+            assert dtab.parse(dtab.stringify(expected)) == expected, repr(text)
         else:
             raises_value_error(lambda: dtab.parse(text), expected)
             assert isinstance(js_result, str) and expected in js_result, "%r: dtab.js gives %r" % (text, js_result)
@@ -517,17 +552,21 @@ def test_vim_tab_key():
     """In insert mode, Tab inside a multiline string (past the line's tabs) inserts spaces; elsewhere a tab."""
     with tempfile.TemporaryDirectory() as directory:
         sample = Path(directory) / "tab.dtab"
-        sample.write_text("A\tB\thello world\tcode python\t\n\tdef f():\n\t\nafter 1\nx\n\tcode \n\t\tbody\n\t\n\n")
+        sample.write_text("A\tB\thello world\tcode python\t\n\tdef f():\n\t\nafter 1\nx\n\tcode \n\t\tbody\n\t\n\n"
+                          "items\n\t, python\n\t\tprint(1)\n\t,\n\t\t, x\n")
         out = Path(directory) / "lines.txt"
         vim("syntax on", "source dtab.vim", "edit " + str(sample),
             "call cursor(3, 2) | execute \"normal a\\<Tab>return 1\" | call cursor(3, 1) | execute \"normal i\\<Tab>\" | call cursor(4, 6) | execute \"normal i\\<Tab>\"",
             "call cursor(8, 1) | execute \"normal A\\<Tab>\" | call cursor(9, 1) | execute \"normal A\\<Tab>\\<Esc>A\\<Tab>\\<Esc>A\\<Tab>\"",
-            "call writefile([getline(3), getline(4), getline(8), getline(9)], '%s')" % out)
+            "call cursor(12, 1) | execute \"normal A\\<Tab>\" | call cursor(14, 1) | execute \"normal A\\<Tab>\"",
+            "call writefile([getline(3), getline(4), getline(8), getline(9), getline(12), getline(14)], '%s')" % out)
         lines = out.read_text().split("\n")
     assert lines[0] == "\t\t    return 1", repr(lines[0])   # spaces past the block's tab; a tab at the line start
     assert lines[1] == "after\t 1", repr(lines[1])          # a tab outside the block
     assert lines[2] == "\t\t", repr(lines[2])               # a whitespace line at the header's depth is structure: a tab
     assert lines[3] == "\t\t    ", repr(lines[3])           # an empty line: tabs until the line is deeper than the header, then spaces
+    assert lines[4] == "\t\tprint(1)    ", repr(lines[4])    # anonymous string: spaces
+    assert lines[5] == "\t\t, x\t", repr(lines[5])          # anonymous nested list: tab
 
 
 def test_vim_shift_keys():
@@ -575,18 +614,25 @@ def test_vim_join():
 
 
 def test_vim_join_after_comma():
-    """J on a line whose key list ends in a comma joins the continuation with a space, `a,` and `b` to `a, b`, whatever the depths."""
-    text = "x,\ny 1\nlist\talpha,\n\tbeta,\n\tgamma\tport 80\nsame\tk,\nk2 2\n"
-    with tempfile.TemporaryDirectory() as directory:
-        sample = Path(directory) / "join.dtab"
-        sample.write_text(text)
-        out = Path(directory) / "lines.txt"
-        vim("syntax on", "source dtab.vim", "edit " + str(sample),
-            "execute '1normal J' | execute '2normal 3J' | execute '3normal J'",
-            "call writefile(getline(1, '$'), '%s')" % out)
-        lines = out.read_text().split("\n")[:-1]
-    assert lines == ["x, y 1", "list\talpha, beta, gamma\tport 80", "same\tk, k2 2"], lines
-    assert dtab.parse("\n".join(lines)) == dtab.parse(text)
+    """Command (runs Vim). J uses spaces for named-key continuations, tabs for anonymous list paths."""
+    cases = [
+        ("x,\ny 1\nlist\talpha,\n\tbeta,\n\tgamma\tport 80\nsame\tk,\nk2 2\n",
+         "execute '1normal J' | execute '2normal 3J' | execute '3normal J'",
+         ["x, y 1", "list\talpha, beta, gamma\tport 80", "same\tk, k2 2"]),
+        (",\n\t, 1\n\t, 2\n,\n\t, 3\n\t, 4\n",
+         "execute '2normal J' | execute '1normal J' | execute '1normal J' | execute '3normal J' | execute '2normal J'",
+         [",\t, 1\t, 2", ",\t, 3\t, 4"]),
+    ]
+    for text, commands, expected in cases:
+        with tempfile.TemporaryDirectory() as directory:
+            sample = Path(directory) / "join.dtab"
+            sample.write_text(text)
+            out = Path(directory) / "lines.txt"
+            vim("syntax on", "source dtab.vim", "edit " + str(sample), commands,
+                "call writefile(getline(1, '$'), '%s')" % out)
+            lines = out.read_text().split("\n")[:-1]
+        assert lines == expected, lines
+        assert dtab.parse("\n".join(lines)) == dtab.parse(text)
 
 
 def test_vim_preview():

@@ -1,0 +1,31 @@
+ Comma keys append; named containers can be reopened.
+colors	, red	, blue	, red
+colors	, green
+records
+	,	name Ada	age 36
+	,
+		name Bea
+		name Beatrice
+matrix
+	,	, 1	, 2
+	,	, 3	, 4
+cube
+	,
+		,	, 1	, 2
+	,
+		,	, 3	, 4
+mixed
+	, text
+	,	name Ada
+	,
+		, nested
+empty
+entries	,
+empty_string	, 
+notes
+	, txt
+		Hello
+		world	verbatim
+	, done
+left, right	, shared
+right	, extra

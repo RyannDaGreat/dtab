@@ -154,13 +154,21 @@ const EXAMPLE = [
     'lights\tkey,',
     '\tfill\tshadowBias .01',
     '',
-    ' Writing a key again replaces it. Last line wins.',
+    ' Writing a string key again replaces its value. Containers merge; changing type is an error.',
     'camera\tfov 35',
     '',
-    ' Every value is a string. Cast the ones you need.',
+    ' A lone comma appends. Comma-only containers become lists; named and comma keys cannot mix.',
+    ' A lone comma is complete, not a continuation. Empty containers stay dictionaries; no distinct empty list.',
+    'colors\t, red\t, blue',
+    'colors\t, green',
+    'matrix',
+    '\t,\t, 1\t, 2',
+    '\t,\t, 3\t, 4',
+    '',
+    ' Every leaf is a string. Cast the ones you need.',
     'debug\tenabled false\tlevel 2',
     '',
-    ' Deeper lines belong to the last non-comment entry: children for an object, text for a leaf.',
+    ' Deeper lines belong to the last non-comment entry: children for a container, text for a leaf.',
     ' The body starts one tab past the header line\'s leading tabs; earlier entries keep their values.',
     ' Its own text is a highlighting tag, not part of the value; an empty tag is plain text.',
     'hello world\tmoose meat',
@@ -178,7 +186,8 @@ const EXAMPLE = [
 
 const KEY_NAME = dtab.KEY   // the parser's own key rule
 // A key list within a line: runs of non-blanks, where a run ending in a comma goes on past spaces, then tabs
-const KEYS = '[^\\t ]+(?:(?<=,) *\\t*[^\\t ]+)*'
+const KEYS = '[^\\t ,][^\\t ]*(?:(?<=,) *\\t*[^\\t ]+)*'
+const CLOSED_KEYS = '(?:,|' + KEYS + '(?<!,))'   // lone comma is complete, not a named-key continuation
 
 /**
  * Pure function. The CodeMirror token class for one dtab entry (the text between tabs).
@@ -192,8 +201,10 @@ const KEYS = '[^\\t ]+(?:(?<=,) *\\t*[^\\t ]+)*'
  * @example entryClass('l1, l2', false)   // 'dtab-object-key'
  * @example entryClass('a|b', false)      // 'dtab-bad-key'
  * @example entryClass('a,,b', false)     // 'dtab-bad-key'
+ * @example entryClass(',', true)        // 'dtab-comma'
  */
 function entryClass(key, isLeaf) {
+    if (key === ',') return 'dtab-comma'
     if (!key.replace(/, *\t*/g, ',').split(',').every(name => KEY_NAME.test(name))) return 'dtab-bad-key'
     return isLeaf ? 'dtab-leaf-key' : 'dtab-object-key'
 }
@@ -245,7 +256,7 @@ function shebangTag(line) {
 const lineIndent = line => line.length - line.replace(/^\t+/, '').length
 
 // A header's last non-comment entry is a leaf; group 1 locates its keys, after any earlier entries.
-const HEADER_LINE = new RegExp('^\\t*(?:(?: [^\\t]*|' + KEYS + '(?<!,)(?: [^\\t]*)?)\\t+)*(' + KEYS + ')(?<!,) [^\\t]*(?:\\t+ [^\\t]*)*\\t*$', 'd')
+const HEADER_LINE = new RegExp('^\\t*(?:(?: [^\\t]*|' + CLOSED_KEYS + '(?: [^\\t]*)?)\\t+)*(' + CLOSED_KEYS + ') [^\\t]*(?:\\t+ [^\\t]*)*\\t*$', 'd')
 
 /**
  * Query (reads the lines after the stream's). Whether the next non-blank line is deeper than the stream's line.
@@ -310,16 +321,16 @@ CodeMirror.defineMode('dtab', config => ({
         if (stream.eat(' ')) { stream.skipTo('\t') || stream.skipToEnd(); return 'dtab-comment' }
         const start = stream.pos
         do { while (!stream.eol() && stream.peek() !== '\t' && stream.peek() !== ' ') stream.next() }   // a key, going on past a comma's whitespace
-        while (stream.string[stream.pos - 1] === ',' && stream.match(/^ *\t*(?=[^\t ])/))
+        while (stream.pos > start + 1 && stream.string[stream.pos - 1] === ',' && stream.match(/^ *\t*(?=[^\t ])/))
         let key = stream.string.slice(start, stream.pos)
-        const goesOn = key.endsWith(',') && stream.eol() ? continuation(stream) : null   // the list ends on a later line
+        const goesOn = key !== ',' && key.endsWith(',') && stream.eol() ? continuation(stream) : null   // the list ends on a later line
         if (goesOn) key = key.slice(0, -1)
         const isLeaf = goesOn ? goesOn === 'leaf' : stream.peek() === ' '
         if (start === state.header && isLeaf) {                         // the header's final key, then its tag; the string starts on the next line
             const tag = stream.string.slice(stream.pos + 1).split('\t')[0]
             state.pending = blockState(config, lineIndent(stream.string), tag || null)
             state.tagPending = true
-            return entryClass(key, true) === 'dtab-bad-key' ? 'dtab-bad-key' : 'dtab-block-key'
+            return key === ',' ? 'dtab-comma' : entryClass(key, true) === 'dtab-bad-key' ? 'dtab-bad-key' : 'dtab-block-key'
         }
         if (isLeaf && !goesOn) { stream.next(); state.inValue = !stream.eol() }
         return entryClass(key, isLeaf)

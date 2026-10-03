@@ -119,7 +119,7 @@ async function main() {
     stack = textmate.INITIAL
     for (const line of ['config\tdb', '\tinit sql']) stack = grammar.tokenizeLine(line, stack).ruleStack
     assert.ok(inLanguage(grammar.tokenizeLine('\t\tCREATE TABLE t', stack), 'sql', '.sql'), 'a nested sql string was not handed to sql')
-    for (const header of ['A\tB\tcode sql', 'A\tB\tcode sql\t', '\tA\tB\tcode sql\t note\t', 'A\thello world\tmoose sql\t note\t']) {
+    for (const header of ['A\tB\tcode sql', 'A\tB\tcode sql\t', '\tA\tB\tcode sql\t note\t', 'A\thello world\tmoose sql\t note\t', 'A\t,\t, sql']) {
         const result = grammar.tokenizeLine(header, textmate.INITIAL)
         assert.ok(result.tokens.some(tok => tok.scopes.includes('entity.name.type.object-key.dtab')), 'inline path lost its object scope')
         const body = grammar.tokenizeLine('\t\tSELECT * FROM t', result.ruleStack)
@@ -199,6 +199,9 @@ async function main() {
     assert.strictEqual(insideBlock(['A\tB\t', '\tcode py', '\t\treturn 1'], 2), true, 'trailing tabs keep the deeper header')
     assert.strictEqual(insideBlock(['A\tx 1\ty 2\t', '\tz 3'], 1), true, 'earlier leaves do not change the last entry rule')
     assert.strictEqual(insideBlock(['key, fill', '\ton true'], 1), false, 'a space after a comma continues the keys, it does not start a tag')
+    assert.deepStrictEqual([',', ', sql', ',\t, sql', ', 1\t,'].map(isHeaderLine), [false, true, true, false])
+    assert.strictEqual(insideBlock(['items', '\t, python', '\t\tprint(1)'], 2), true)
+    assert.strictEqual(insideBlock(['items', '\t,', '\t\t, 1'], 2), false)
     // The look-ahead tokens as [line, start, end, K|T|L]: a header's key and tag, and the names of a dangling key list that ends as a leaf
     const TYPE_LETTERS = {dtabBlockKey: 'K', dtabBlockTag: 'T', dtabLeafKey: 'L'}
     const spans = lines => lookaheadTokens(lines, require(path.join(ROOT, 'dtab.js')).KEY).map(t => [t.line, t.start, t.end, TYPE_LETTERS[t.type]])
@@ -211,6 +214,8 @@ async function main() {
     assert.deepStrictEqual(spans(['stats\tjob da', '\tquery pending', '\tcommand bash', '\t\tuv run x.py', '', '\tcommit', 'after sql', '\tSELECT 1']),
         [[0, 6, 9, 'K'], [0, 10, 12, 'T'], [6, 0, 5, 'K'], [6, 6, 9, 'T']], 'a header-shaped line inside a string body is text, not a header')
     assert.deepStrictEqual(spans(['a|b sql', '\tSELECT 1']), [], 'a header key the parser rejects is left to the grammar, which shows the error')
+    assert.deepStrictEqual(spans([', sql', '\tSELECT 1', ',', ', end']), [[0, 2, 5, 'T']], 'anonymous headers paint the tag, not their comma')
+    assert.deepStrictEqual(spans([',', '\tname Ada', ',', '\t, 1']), [], 'lone commas never continue a named-key list')
     assert.deepStrictEqual(spans([' samples', 'covisibility_attempted_count,', 'covisibility_null_count,', 'covisibility_scored_count int64']),
         [[1, 0, 28, 'L'], [2, 0, 23, 'L']], 'a key list that goes on over lines and ends as a leaf is leaf keys on every line')
     assert.deepStrictEqual(spans(['hello world\tmoose, elk,', '', '\t\t', '\tdeer meat']), [[0, 12, 17, 'L'], [0, 19, 22, 'L']],

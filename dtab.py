@@ -14,20 +14,22 @@ Rules:
   - Tabs indent, and separate the steps of a path (several in a row count as one, for alignment).
     An entry without a space is a key to step into.
   - An entry with a space is `key value`, split at the first space. It sets the key and stays put.
-  - Deeper lines belong to the last non-comment entry: children for an object, text for a leaf.
-  - Writing a key again replaces it; writing into an object merges. Last line wins.
+  - Deeper lines belong to the last non-comment entry: children for a container, text for a leaf.
+  - Writing a string key again replaces its value; writing into a container merges. Changing its type is an error.
+  - A lone comma key appends a fresh entry. Nonempty containers of only comma entries become lists, in order;
+    named and comma keys cannot mix. Empty containers stay dictionaries; there is no distinct empty list.
   - `a,b` writes the same value under a and under b. After the comma, spaces, then tabs or line breaks, are
     skipped, so `a, b` and `a,` at the end of a line with `b` on the next are the same. What follows the comma
-    must be a key: a comment there (a space after a tab or a line break), or nothing, is an error.
+    must be a key: a comment there (a space after a tab or a line break), or nothing, is an error. A lone comma is not a continuation.
   - An entry starting with a space is a comment. Trailing tabs outside string bodies are ignored.
   - When the last non-comment entry is a leaf, deeper lines replace its value with a multiline string.
     The body starts one tab past the header line's leading tabs and is verbatim from there, tabs included
     (the only way to put a tab in a value). Earlier entries keep their values. The leaf's own text is a
     tag for editors, `sql` or `python` or `txt` or nothing, not part of the value.
-  - Keys are one or more letters, digits, or KEY_PUNCTUATION (`_.-/`), so `file.json`, `a/b` and `123aa` are keys. Keys that
-    are also Python identifiers work as attributes (config.deltas.l1). Every value is a string.
+  - Named keys are one or more letters, digits, or KEY_PUNCTUATION (`_.-/`), so `file.json`, `a/b` and `123aa` are keys. Keys that
+    are also Python identifiers work as attributes (config.deltas.l1). Every leaf is a string.
 
-Single pass, one stack, O(total characters).
+One parsing pass, one stack, then linear list conversion. O(total characters).
 """
 
 import json
@@ -44,20 +46,20 @@ COMMA_RULE = "a comma needs a key on both sides; a comment does not count"
 _TAB_RUN = re.compile(r"\t+")  # Several tabs in a row are one separator, so columns can be aligned
 _KEY = re.compile(r"[\w" + re.escape(KEY_PUNCTUATION) + "]+")  # \w: letters, digits, _ (Unicode); the rest is reserved for syntax
 _SPACED_KEYS = re.compile(r"(?:^|(?<=\t))(?:[^\t\n ,]+, *[\t\n]*)+")  # keys at an entry's start whose commas are followed by whitespace
-_DANGLING = re.compile(r"(?:^|\t)[^\t\n ]*,\Z")  # a key list ending in a comma: it goes on on the next line
+_DANGLING = re.compile(r"(?:^|\t)[^\t\n ]+,\Z")  # a key list ending in a comma: it goes on on the next line
 _ENTRY = re.compile(r"( *)[^\t ][^\t]*")  # an entry: non-tab characters, not all spaces; group 1, its leading spaces, makes it a comment
 
 
 def parse(text):
     """
-    Pure function. Parses dtab text into nested dicts of strings. Raises ValueError, with the line
-    number, on a key that breaks KEY_RULE.
+    Pure function. Parses dtab into dicts, lists and string leaves. Rejects invalid keys, type changes
+    and mixed named/anonymous keys; key and string/container errors include the line number.
 
     Args:
         text (str): dtab source. Whitespace-only lines are ignored outside multiline strings.
 
     Returns:
-        dict
+        dict or list
 
     Examples:
         >>> parse('objects\\tl1,l2 light\\ndeltas\\tl1\\tposition\\n\\tx 1\\ty .5\\tz -2')
@@ -85,6 +87,10 @@ def parse(text):
         {'hello': 'world', 'moose': 'world happy'}
         >>> parse('x, y 1\\nservers\\talpha,\\n\\tbeta,\\tgamma\\tport 80')
         {'x': '1', 'y': '1', 'servers': {'alpha': {'port': '80'}, 'beta': {'port': '80'}, 'gamma': {'port': '80'}}}
+        >>> parse(',\\t, 1\\t, 2\\n,\\t, 3\\t, 4')
+        [['1', '2'], ['3', '4']]
+        >>> parse(',')
+        [{}]
         >>> parse('a,\\n comment\\nb 1')
         Traceback (most recent call last):
         ValueError: dtab line 1: invalid key 'a,': a comma needs a key on both sides; a comment does not count
@@ -113,30 +119,60 @@ def parse(text):
             key, space, value = entry.partition(" ")
             if not key:
                 continue  # Comment or trailing tabs; neither changes the path
-            names = _key_names(key, line_number, allow_commas=True)
+            names = [object()] if key == KEY_SEPARATOR else _key_names(key, line_number, allow_commas=True)
             if space:
                 for node in nodes:
                     for name in names:
+                        if isinstance(node.get(name), dict):
+                            raise ValueError("dtab line %d: cannot replace a container with a string" % line_number)
                         node[name] = value
                 block = (indent, nodes, names, [])
             else:
-                nodes = [_child(node, name) for node in nodes for name in names]
+                nodes = [_child(node, name, line_number) for node in nodes for name in names]
                 block = None
         stack.append((indent, nodes))
     if block is not None:
         _finish_block(block)
-    return root
+    return _resolve_lists(root)
+
+
+def _resolve_lists(node):
+    """
+    Pure function. Converts anonymous-only dictionaries to lists; mixed keys are an error.
+
+    Args:
+        node (dict or str): Parsed subtree; anonymous keys are opaque objects, named keys are strings.
+
+    Returns:
+        dict, list or str; empty dictionaries remain dictionaries.
+
+    Examples:
+        >>> _resolve_lists({'items': {object(): 'red', object(): {}}})
+        {'items': ['red', {}]}
+        >>> _resolve_lists({'empty': {}})
+        {'empty': {}}
+        >>> _resolve_lists({'name': 'red', object(): 'blue'})
+        Traceback (most recent call last):
+        ValueError: dtab: cannot mix list entries and named keys
+    """
+    if not isinstance(node, dict):
+        return node
+    anonymous = sum(not isinstance(key, str) for key in node)
+    if anonymous and anonymous != len(node):
+        raise ValueError("dtab: cannot mix list entries and named keys")
+    values = [_resolve_lists(value) for value in node.values()]
+    return values if anonymous else dict(zip(node, values))
 
 
 def stringify(tree):
     """
-    Pure function. Writes nested dicts as dtab, one key per line, tab-indented. Leaves are written
-    with str(); a leaf containing a newline or a tab is written as a multiline string tagged TEXT_TAG.
-    Raises ValueError on a key that breaks KEY_RULE. parse(stringify(tree)) == tree when every leaf is a
-    str without trailing newlines.
+    Pure function. Writes dicts and nonempty lists as dtab, one entry per line, tab-indented.
+    Leaves use str(); newlines or tabs use multiline strings tagged TEXT_TAG. Raises ValueError on
+    invalid keys or empty lists (use {} instead). parse(stringify(tree)) == tree when keys and leaves
+    are strings and multiline values end in a nonblank line.
 
     Args:
-        tree (dict): Nested dicts
+        tree (dict or list): Nested containers with scalar leaves.
 
     Returns:
         str
@@ -146,6 +182,11 @@ def stringify(tree):
         ['objects', '\\tl1 light', 'deltas', '\\tl1', '\\t\\tx 1', '\\t\\tname a b']
         >>> stringify({'query': 'SELECT *\\nFROM t', 'table': 'a\\tb'}).split('\\n')
         ['query txt', '\\tSELECT *', '\\tFROM t', 'table txt', '\\ta\\tb']
+        >>> stringify(['red', {}]).split('\\n')
+        [', red', ',']
+        >>> stringify([])
+        Traceback (most recent call last):
+        ValueError: dtab: empty lists have no representation; use {}
     """
     lines = []
     _stringify_into(tree, 0, lines)
@@ -258,19 +299,30 @@ def _key_names(key, line_number, allow_commas):
     return names
 
 
-def _child(node, name):
+def _child(node, name, line_number):
     """
-    Command (may mutate node). node[name] as a dict to step into, replacing a string value if there is one.
+    Command. Creates a missing child dictionary; rejects replacing a string with a container.
+
+    Args:
+        node (dict): Parent to mutate.
+        name (str or object): Named or anonymous key.
+        line_number (int): Source line for errors.
+
+    Returns:
+        dict: Child container.
 
     Examples:
-        >>> n = {'a': 'leaf'}; _child(n, 'a')['x'] = '1'; _child(n, 'b') is n['b']; n
-        True
-        {'a': {'x': '1'}, 'b': {}}
+        >>> n = {}; _child(n, 'a', 1)['x'] = '1'; n
+        {'a': {'x': '1'}}
+        >>> _child({'a': 'leaf'}, 'a', 2)
+        Traceback (most recent call last):
+        ValueError: dtab line 2: cannot replace a string with a container
     """
-    child = node.get(name)
-    if not isinstance(child, dict):
-        child = node[name] = {}
-    return child
+    if name not in node:
+        node[name] = {}
+    elif not isinstance(node[name], dict):
+        raise ValueError("dtab line %d: cannot replace a string with a container" % line_number)
+    return node[name]
 
 
 def _finish_block(block):
@@ -298,11 +350,26 @@ def _finish_block(block):
 
 
 def _stringify_into(node, depth, lines):
-    """Command (appends to lines). One dtab line per key of node, indented by depth tabs."""
-    for key, value in node.items():
-        [key] = _key_names(str(key), None, allow_commas=False)
+    """
+    Command. Appends one dtab entry per child, indented by depth tabs.
+
+    Args:
+        node (dict or list): Container to serialize.
+        depth (int): Indentation level.
+        lines (list): Destination, modified in place.
+
+    Examples:
+        >>> lines = []; _stringify_into(['red'], 0, lines); lines
+        [', red']
+    """
+    if isinstance(node, list) and not node:
+        raise ValueError("dtab: empty lists have no representation; use {}")
+    entries = ((KEY_SEPARATOR, value) for value in node) if isinstance(node, list) else node.items()
+    for key, value in entries:
+        if not isinstance(node, list):
+            [key] = _key_names(str(key), None, allow_commas=False)
         indent = "\t" * depth
-        if isinstance(value, dict):
+        if isinstance(value, (dict, list)):
             lines.append(indent + key)
             _stringify_into(value, depth + 1, lines)
         else:

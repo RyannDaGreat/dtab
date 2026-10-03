@@ -15,20 +15,22 @@
  *   - Tabs indent, and separate the steps of a path (several in a row count as one, for alignment).
  *     An entry without a space is a key to step into.
  *   - An entry with a space is `key value`, split at the first space. It sets the key and stays put.
- *   - Deeper lines belong to the last non-comment entry: children for an object, text for a leaf.
- *   - Writing a key again replaces it; writing into an object merges. Last line wins.
+ *   - Deeper lines belong to the last non-comment entry: children for a container, text for a leaf.
+ *   - Writing a string key again replaces its value; writing into a container merges. Changing its type is an error.
+ *   - A lone comma key appends a fresh entry. Nonempty containers of only comma entries become lists, in order;
+ *     named and comma keys cannot mix. Empty containers stay dictionaries; there is no distinct empty list.
  *   - `a,b` writes the same value under a and under b. After the comma, spaces, then tabs or line breaks, are
  *     skipped, so `a, b` and `a,` at the end of a line with `b` on the next are the same. What follows the comma
- *     must be a key: a comment there (a space after a tab or a line break), or nothing, is an error.
+ *     must be a key: a comment there (a space after a tab or a line break), or nothing, is an error. A lone comma is not a continuation.
  *   - An entry starting with a space is a comment. Trailing tabs outside string bodies are ignored.
  *   - When the last non-comment entry is a leaf, deeper lines replace its value with a multiline string.
  *     The body starts one tab past the header line's leading tabs and is verbatim from there, tabs included
  *     (the only way to put a tab in a value). Earlier entries keep their values. The leaf's own text is a
  *     tag for editors, `sql` or `python` or `txt` or nothing, not part of the value.
- *   - Keys are one or more letters, digits, or KEY_PUNCTUATION (`_.-/`), so `file.json`, `a/b` and `123aa` are keys. Keys that
- *     are also identifiers work as attributes (config.deltas.l1). Every value is a string.
+ *   - Named keys are one or more letters, digits, or KEY_PUNCTUATION (`_.-/`), so `file.json`, `a/b` and `123aa` are keys. Keys that
+ *     are also identifiers work as attributes (config.deltas.l1). Every leaf is a string.
  *
- * Single pass, one stack, O(total characters). Same algorithm and API as dtab.py.
+ * One parsing pass, one stack, then linear list conversion. O(total characters). Same algorithm and API as dtab.py.
  * Works as a browser <script> (defines window.dtab) and in node (module.exports, and `dtab FILE` on the command line).
  */
 'use strict'
@@ -41,14 +43,14 @@ const COMMA_RULE = 'a comma needs a key on both sides; a comment does not count'
 const TAB_RUN = /\t+/  // Several tabs in a row are one separator, so columns can be aligned
 const KEY = new RegExp('^[\\p{L}\\p{N}' + KEY_PUNCTUATION.replace(/[\]\\^-]/g, '\\$&') + ']+$', 'u')  // letters, digits (as Python's \w) and the punctuation; the rest is reserved for syntax
 const SPACED_KEYS = /(^|\t)((?:[^\t\n ,]+, *[\t\n]*)+)/g  // keys at an entry's start whose commas are followed by whitespace
-const DANGLING = /(?:^|\t)[^\t\n ]*,$/  // a key list ending in a comma: it goes on on the next line
+const DANGLING = /(?:^|\t)[^\t\n ]+,$/  // a key list ending in a comma: it goes on on the next line
 
 /**
- * Pure function. Parses dtab text into nested plain objects of strings. Throws, with the line number,
- * on a key that breaks KEY_RULE.
+ * Pure function. Parses dtab into objects, arrays and string leaves. Rejects invalid keys, type changes
+ * and mixed named/anonymous keys; key and string/container errors include the line number.
  *
  * @param {string} text - dtab source. Whitespace-only lines are ignored outside multiline strings.
- * @returns {object}
+ * @returns {object|Array}
  *
  * @example parse('objects\tl1,l2 light\ndeltas\tl1\tposition\n\tx 1\ty .5\tz -2')
  *   // {objects: {l1: 'light', l2: 'light'}, deltas: {l1: {position: {x: '1', y: '.5', z: '-2'}}}}
@@ -64,10 +66,12 @@ const DANGLING = /(?:^|\t)[^\t\n ]*,$/  // a key list ending in a comma: it goes
  * @example parse('hello world\tmoose meat\n\tworld happy')   // {hello: 'world', moose: 'world happy'}
  * @example parse('x, y 1\nservers\talpha,\n\tbeta,\tgamma\tport 80')
  *   // {x: '1', y: '1', servers: {alpha: {port: '80'}, beta: {port: '80'}, gamma: {port: '80'}}}
+ * @example parse(',\t, 1\t, 2\n,\t, 3\t, 4') // [['1', '2'], ['3', '4']]
+ * @example parse(',') // [{}]
  * @example parse('a,\n comment\nb 1')   // throws: dtab line 1: invalid key "a,": a comma needs a key on both sides; a comment does not count
  */
 function parse(text) {
-    const root = {}
+    const root = Object.create(null)  // internal dictionary: even __proto__ is an ordinary key
     const stack = [[-1, [root]]]  // [indent, nodes that deeper lines nest into]
     let block = null  // last entry is a leaf: {indent, nodes, names, deep: raw lines under it}
     const lines = text.split('\n')
@@ -92,20 +96,42 @@ function parse(text) {
             const spaceAt = entry.indexOf(' ')
             const key = spaceAt === -1 ? entry : entry.slice(0, spaceAt)
             if (!key) continue  // Comment or trailing tabs; neither changes the path
-            const names = keyNames(key, lineNumber, true)
+            const names = key === KEY_SEPARATOR ? [Symbol()] : keyNames(key, lineNumber, true)
             if (spaceAt !== -1) {
                 const value = entry.slice(spaceAt + 1)
-                for (const node of nodes) for (const name of names) node[name] = value
+                for (const node of nodes) for (const name of names) {
+                    if (isPlainObject(node[name])) throw new Error('dtab line ' + lineNumber + ': cannot replace a container with a string')
+                    node[name] = value
+                }
                 block = {indent, nodes, names, deep: []}
             } else {
-                nodes = nodes.flatMap(node => names.map(name => child(node, name)))
+                nodes = nodes.flatMap(node => names.map(name => child(node, name, lineNumber)))
                 block = null
             }
         }
         stack.push([indent, nodes])
     }
     if (block) finishBlock(block)
-    return root
+    return resolveLists(root)
+}
+
+/**
+ * Pure function. Converts anonymous-only dictionaries to arrays; mixed keys are an error.
+ *
+ * @param {object|string} node - Parsed subtree; anonymous keys are Symbols, named keys are strings.
+ * @returns {object|Array|string} Empty dictionaries remain dictionaries.
+ *
+ * @example resolveLists({items: {[Symbol()]: 'red', [Symbol()]: {}}}) // {items: ['red', {}]}
+ * @example resolveLists({empty: {}}) // {empty: {}}
+ * @example resolveLists({name: 'red', [Symbol()]: 'blue'}) // throws: dtab: cannot mix list entries and named keys
+ */
+function resolveLists(node) {
+    if (!isPlainObject(node)) return node
+    const keys = Reflect.ownKeys(node)
+    const anonymous = keys.filter(key => typeof key === 'symbol').length
+    if (anonymous && anonymous !== keys.length) throw new Error('dtab: cannot mix list entries and named keys')
+    const values = keys.map(key => resolveLists(node[key]))
+    return anonymous ? values : Object.fromEntries(keys.map((key, index) => [key, values[index]]))
 }
 
 /**
@@ -127,17 +153,19 @@ function finishBlock(block) {
 }
 
 /**
- * Pure function. Writes nested plain objects as dtab, one key per line, tab-indented. Leaves are
- * written with String(); a leaf containing a newline or a tab is written as a multiline string tagged
- * TEXT_TAG. Throws on a key that breaks KEY_RULE. parse(stringify(tree)) deep-equals tree when every
- * leaf is a string without trailing newlines.
+ * Pure function. Writes objects and nonempty arrays as dtab, one entry per line, tab-indented.
+ * Leaves use String(); newlines or tabs use multiline strings tagged TEXT_TAG. Throws on invalid
+ * keys or empty arrays (use {} instead). parse(stringify(tree)) deep-equals tree when leaves are
+ * strings and multiline values end in a nonblank line.
  *
- * @param {object} tree - Nested plain objects
+ * @param {object|Array} tree - Nested containers with scalar leaves.
  * @returns {string}
  *
  * @example stringify({objects: {l1: 'light'}, deltas: {l1: {x: 1, name: 'a b'}}})
  *   // 'objects\n\tl1 light\ndeltas\n\tl1\n\t\tx 1\n\t\tname a b'
  * @example stringify({query: 'SELECT *\nFROM t', table: 'a\tb'})   // 'query txt\n\tSELECT *\n\tFROM t\ntable txt\n\ta\tb'
+ * @example stringify(['red', {}]) // ', red\n,'
+ * @example stringify([]) // throws: dtab: empty lists have no representation; use {}
  */
 function stringify(tree) {
     const lines = []
@@ -238,32 +266,51 @@ function closeUp(line) {
 }
 
 /**
- * Command (may mutate node). node[name] as an object to step into, replacing a string value if there is one.
+ * Command. Creates a missing child dictionary; rejects replacing a string with a container.
  *
- * @example const n = {a: 'leaf'}; child(n, 'a').x = '1'; child(n, 'b'); n   // {a: {x: '1'}, b: {}}
+ * @param {object} node - Parent to mutate.
+ * @param {string|symbol} name - Named or anonymous key.
+ * @param {number} lineNumber - Source line for errors.
+ * @returns {object} Child container.
+ *
+ * @example const n = {}; child(n, 'a', 1).x = '1'; JSON.stringify(n) // '{"a":{"x":"1"}}'
+ * @example child({a: 'leaf'}, 'a', 2) // throws: dtab line 2: cannot replace a string with a container
  */
-function child(node, name) {
-    let value = node[name]
-    if (!isPlainObject(value)) value = node[name] = {}
-    return value
+function child(node, name, lineNumber) {
+    if (!Object.hasOwn(node, name)) node[name] = Object.create(null)
+    else if (!isPlainObject(node[name])) throw new Error('dtab line ' + lineNumber + ': cannot replace a string with a container')
+    return node[name]
 }
 
 /**
  * Pure function. Whether a value is a plain object (a dtab node rather than a leaf).
  *
+ * @param {*} value - Value to inspect.
+ * @returns {boolean}
+ *
  * @example isPlainObject({a: 1}) // true
  * @example isPlainObject([1])    // false
  */
 function isPlainObject(value) {
-    return value !== null && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype
+    return value !== null && typeof value === 'object' && [Object.prototype, null].includes(Object.getPrototypeOf(value))
 }
 
-/** Command (appends to lines). One dtab line per key of node, indented by depth tabs. */
+/**
+ * Command. Appends one dtab entry per child, indented by depth tabs.
+ *
+ * @param {object|Array} node - Container to serialize.
+ * @param {number} depth - Indentation level.
+ * @param {string[]} lines - Destination, modified in place.
+ * @returns {void}
+ *
+ * @example const lines = []; stringifyInto(['red'], 0, lines); lines // [', red']
+ */
 function stringifyInto(node, depth, lines) {
+    if (Array.isArray(node) && !node.length) throw new Error('dtab: empty lists have no representation; use {}')
     for (const [rawKey, rawValue] of Object.entries(node)) {
-        const [key] = keyNames(rawKey, null, false)
+        const [key] = Array.isArray(node) ? [KEY_SEPARATOR] : keyNames(rawKey, null, false)
         const indent = '\t'.repeat(depth)
-        if (isPlainObject(rawValue)) {
+        if (isPlainObject(rawValue) || Array.isArray(rawValue)) {
             lines.push(indent + key)
             stringifyInto(rawValue, depth + 1, lines)
         } else {

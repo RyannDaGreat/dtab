@@ -5,5 +5,5 @@ blank
 	before 1
 
 	after 2
-overwrite	leaf 1
+overwrite	leaf	child 1
 overwrite	leaf	child 2

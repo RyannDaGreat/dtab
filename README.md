@@ -26,9 +26,9 @@ dtab.parse(open("scene.dtab").read())
 
 ## Why
 
-- Less to look at. No braces, quotes, or commas between values. A file with its tabs aligned reads like pseudocode, and is easy to write by hand, even on paper.
-- Simple. Six rules, one pass, about 70 lines per implementation.
-- Everything is addressable. There are no lists, so every value has a path: `config.deltas.l1.position.x` with EasyDict in Python or plain property access in JavaScript, brackets for keys like `file.json`.
+- Less to look at. No braces or quotes around values. Tabs align paths and values into columns.
+- Small parser: one stack, followed by a linear pass to resolve lists.
+- Named entries are addressable: `config.deltas.l1.position.x` with EasyDict in Python or plain property access in JavaScript, brackets for keys like `file.json`. Anonymous list entries are append-only.
 - You choose the shape. Lines stack, and `c,d` writes one value under several keys, so the same tree can be written wide, deep, or on one line, trading horizontal space for vertical. These are the same file:
 
   ```
@@ -57,15 +57,27 @@ dtab.parse(open("scene.dtab").read())
 
 - Tabs separate the steps of a path. `deltas	l1	position` walks three keys down. Several tabs in a row count as one, so you can align columns. Trailing tabs outside string bodies are ignored.
 - An entry with a space is `key value`. It sets the key and stays at the same level, so `x 1	y .5` sets two keys.
-- Deeper lines belong to the last non-comment entry: children for an object, text for a leaf.
-- Writing a key again replaces it. Writing into an object merges.
-- `a,b` writes the same value under `a` and under `b`. Spaces, tabs or a line break may follow the comma, so `a, b`, and `a,` at the end of a line with `b` on the next, are the same list. A key must follow the comma: a comment cannot stand there.
+- Deeper lines belong to the last non-comment entry: children for a container, text for a leaf.
+- Writing a string key again replaces its value. Writing into a container merges. Changing its type is an error.
+- A lone `,` key appends a fresh entry. A nonempty container with only comma entries becomes a list, in order. Named and comma keys cannot mix. Empty containers stay dictionaries; a lone comma by itself produces `[{}]`, not `[]`.
+- `a,b` writes the same value under `a` and under `b`. Spaces, tabs or a line break may follow the comma, so `a, b`, and `a,` at the end of a line with `b` on the next, are the same list. A key must follow the comma: a comment cannot stand there. A lone comma is not a continuation.
 - An entry that starts with a space is a comment.
 - A leaf with lines indented under it is a multiline string. See below.
 
-Every value is a string. Cast the ones you need. A key is any run of letters, digits, `_`, `.`, `-` and `/`,
+Every leaf is a string. Cast the ones you need. A named key is any run of letters, digits, `_`, `.`, `-` and `/`,
 so `file.json`, `2026-09-07`, `assets/logo` and `0` are keys. Keys that happen to be identifiers work as attributes
 (`config.deltas.l1` with EasyDict and friends); the rest are reached with brackets (`config["file.json"]`).
+
+## Lists
+
+A comma entry follows the same path/leaf rules as a named entry. This matrix uses tabs between entries:
+
+```text
+,	, 1	, 2
+,	, 3	, 4
+```
+
+It produces `[["1", "2"], ["3", "4"]]`. Reopening a named list appends more entries; existing entries have no keys to revisit. Empty lists have no distinct representation; use an empty dictionary instead.
 
 ## Multiline strings
 
@@ -131,6 +143,6 @@ Commenting works the same in Vim (`gcc`, `gc` with a motion, `gc` on a visual se
 
 ## API
 
-- `parse(text)` returns nested dicts (Python) or plain objects (JavaScript). Raises on an invalid key, with the line number.
-- `stringify(tree)` writes the tree back out, one key per line.
+- `parse(text)` returns nested dicts/lists (Python) or objects/arrays (JavaScript), with string leaves. Invalid keys, mixed named/anonymous keys and type changes raise errors.
+- `stringify(tree)` writes the tree back out, one entry per line. Empty lists raise an error because they have no distinct representation.
 - Command line: `dtab scene.dtab` prints the tree as JSON.

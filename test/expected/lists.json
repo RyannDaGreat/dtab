@@ -1,0 +1,13 @@
+{
+    "colors": ["red", "blue", "red", "green"],
+    "records": [{"name": "Ada", "age": "36"}, {"name": "Beatrice"}],
+    "matrix": [["1", "2"], ["3", "4"]],
+    "cube": [[["1", "2"]], [["3", "4"]]],
+    "mixed": ["text", {"name": "Ada"}, ["nested"]],
+    "empty": {},
+    "entries": [{}],
+    "empty_string": [""],
+    "notes": ["Hello\nworld\tverbatim", "done"],
+    "left": ["shared"],
+    "right": ["shared", "extra"]
+}

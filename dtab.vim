@@ -4,7 +4,7 @@
 "
 " Object keys purple, leaf keys cyan, leaf values blue, comments (entries starting with a space) as
 " Comment. Errors: characters a key may not contain (letters, digits, _ . - / only), and a comma with no
-" key on one side. Trailing tabs are harmless separators.
+" key on one side, except a lone comma: an anonymous list entry. Trailing tabs are harmless separators.
 " A leaf with lines indented under it is a multiline string: the key yellow, the leaf's text (a tag for
 " editors) orange, and the lines colored as text, or by the tagged language's own syntax file (sql, python,
 " bash, ...), or by a shebang. A language item running past a line's end leaves the next line's tabs, dtab's
@@ -52,6 +52,7 @@ let g:WebDevIconsUnicodeDecorateFileNodesExtensionSymbols = get(g:, 'WebDevIcons
 let g:WebDevIconsUnicodeDecorateFileNodesExtensionSymbols['dtab'] = 'Δ'
 
 function! s:DtabSyntax() abort
+    " Command. Defines syntax highlighting for the buffer.
     " An entry is a run of non-tab characters bounded by tabs or the line's ends, except that a key's comma
     " may be followed by whitespace (s:keys). No space in the entry: object key. Space in the entry: leaf
     " `key value`. Leading space: comment.
@@ -83,6 +84,7 @@ function! s:DtabSyntax() abort
     " earlier column of the line.
     syntax match dtabBadComma    /,/                                                    contained
     syntax match dtabComma       /[^\t\n ,]\@4<=,\ze *[\t\n]*[^\t\n ,]/                 contained
+    syntax match dtabComma       /\%(^\|\t\)\@1<=,\ze\%([ \t]\|$\)/                  contained
     " A character outside the key bag: keyword characters (letters incl. multibyte, digits, _),
     " s:key_punctuation, the , that separates keys and the whitespace a comma allows
     execute 'syntax match dtabBadKey /\%(\k\|[,' . escape(s:key_punctuation, ']^-\/') . ' \t\n]\)\@!./ contained'
@@ -218,21 +220,23 @@ let s:key_punctuation = '_.-/'
 " the next non-blank. Any character goes in; dtabBadKey and dtabBadComma flag the wrong ones. Only the commas
 " divide the list, so it matches in one way: were `a,b,c` divisible anywhere, vim's backtracking engine would
 " try every division.
-let s:keys = '[^\t ]\@=[^\t ,]*\%(,\%(\%( \+[\t\n]*\|[\t\n]\+\)[^\t ]\@=\)\=[^\t ,]*\)*'
+let s:anonymous = ',\%([ \t]\|$\)\@='
+let s:not_anonymous = '\%(' . s:anonymous . '\)\@!'
+let s:keys = '\%(' . s:anonymous . '\|' . s:not_anonymous . '[^\t ]\@=[^\t ,]*\%(,\%(\%( \+[\t\n]*\|[\t\n]\+\)[^\t ]\@=\)\=[^\t ,]*\)*\)'
 " The same within one line
-let s:line_keys = '[^\t ]\@=[^\t ,]*\%(,\%(\%( \+\t*\|\t\+\)[^\t ]\@=\)\=[^\t ,]*\)*'
+let s:line_keys = '\%(' . s:anonymous . '\|' . s:not_anonymous . '[^\t ]\@=[^\t ,]*\%(,\%(\%( \+\t*\|\t\+\)[^\t ]\@=\)\=[^\t ,]*\)*\)'
 " A line's part of a key list going on to the next line: the keys to a comma ending the line, with the spaces,
 " then tabs, a comma allows before the line break. Followed by a line break and the rest of the whitespace
 " ([\t\n]*), s:keys or s:closed_keys then match the rest of the list, so together they are those lists spanning
 " lines. Only the commas divide it.
-let s:dangling_keys = '\%([^\t ,]*,\%( \+\t*\|\t\+\)\=\)\+'
+let s:dangling_keys = s:not_anonymous . '\%([^\t ,]*,\%( \+\t*\|\t\+\)\=\)\+'
 " A key list that does not end in a comma, which a leaf's key and an earlier entry of a header are: a comma
 " before the space would take the space in, so `l1, l2, l3` is not the leaf `l1, l2,` with value `l3`. Said
 " in the pattern, not by a lookbehind after it, which inside the header's earlier entries fills vim's NFA
 " engine's memory on a list of a few hundred keys.
-let s:closed_keys = '\%([^\t ,]*,\%( \+[\t\n]*\|[\t\n]\+\)\=\)*[^\t ,]\+'
+let s:closed_keys = '\%(' . s:anonymous . '\|' . s:not_anonymous . '\%([^\t ,]*,\%( \+[\t\n]*\|[\t\n]\+\)\=\)*[^\t ,]\+\)'
 " The same within one line, for patterns and functions that look at a line
-let s:line_closed_keys = '\%([^\t ,]*,\%( \+\t*\|\t\+\)\=\)*[^\t ,]\+'
+let s:line_closed_keys = '\%(' . s:anonymous . '\|' . s:not_anonymous . '\%([^\t ,]*,\%( \+\t*\|\t\+\)\=\)*[^\t ,]\+\)'
 " Earlier entries on the line of a multiline string's header, before its last leaf
 let s:header_prefix = '\%(\%( [^\t]*\|' . s:line_closed_keys . '\%( [^\t]*\)\=\)\t\+\)*'
 " Offsets for a pattern that starts with ^ and marks its item's start with \zs: it reads what comes before the
@@ -343,12 +347,16 @@ endfunction
 function! s:Entries(line) abort
     " Pure function. Entries after indentation; tab runs separate entries and trailing tabs are ignored.
     " Args: line (string). Returns: list of strings. Example: s:Entries("a, b\tc 1\t") -> ['a,b', 'c 1'].
-    return split(substitute(substitute(a:line, '^\t*', '', ''), ',\zs *\t*', '', 'g'), '\t\+')
+    let l:line = substitute(a:line, '\%(^\|\t\)\zs' . s:line_keys,
+        \ '\=substitute(submatch(0), '',\zs *\t*'', '''', ''g'')', 'g')
+    return split(substitute(l:line, '^\t*', '', ''), '\t\+')
 endfunction
 
 function! s:Dangling(line) abort
-    " Whether a line's last entry is a key ending in a comma, so the key list goes on on the next line.
-    return substitute(a:line, ',\zs *\t*', '', 'g') =~ '\%(^\t*\|\t\)[^\t ]*,$'
+    " Pure function. Whether the last entry continues a named-key list; a lone comma does not.
+    " Args: line (string). Returns: boolean. Example: s:Dangling('a,') -> 1; s:Dangling(',') -> 0.
+    let l:entries = s:Entries(a:line)
+    return !empty(l:entries) && l:entries[-1] =~ '^[^\t ]\+,$'
 endfunction
 
 function! s:StepsIn(line) abort

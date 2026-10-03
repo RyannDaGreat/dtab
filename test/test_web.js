@@ -138,6 +138,15 @@ async function main() {
         const commaError = await page.$eval('#output', element => element.textContent)
         assert.ok(commaError.includes('line 7') && commaError.includes('a comma needs a key'), 'error not shown: ' + commaError)
 
+        // Anonymous entries stay separate; their multiline headers work like named headers.
+        await setEditorText(page, ',\t, 1\t, 2\n,\t, 3\t, 4')
+        assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), [['1', '2'], ['3', '4']])
+        assert.strictEqual((await lineTokens(page, 1)).filter(([kind]) => kind === 'dtab-comma').length, 3)
+        await setEditorText(page, ', sql\n\tSELECT 1\n, done')
+        assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), ['SELECT 1', 'done'])
+        assert.deepStrictEqual((await lineTokens(page, 1)).map(([kind]) => kind), ['dtab-comma', 'dtab-block-tag'])
+        assert.ok((await lineTokens(page, 2)).some(([kind, text]) => kind === 'keyword' && text === 'SELECT'))
+
         // 3. The toggles: unchecking removes the colors and the tab glyphs, and the choice survives a reload.
         const valueColor = () => page.evaluate(() => getComputedStyle(document.querySelector('.cm-dtab-value')).color)
         const glyph = () => page.evaluate(() => getComputedStyle(document.querySelector('.cm-tab'), '::before').content)

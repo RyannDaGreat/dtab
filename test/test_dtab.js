@@ -35,6 +35,21 @@ function testDocumentedExamples() {
         {x: '1', y: '1', servers: {alpha: {port: '80'}, beta: {port: '80'}, gamma: {port: '80'}}}, 'whitespace after a comma is skipped, line breaks included')
     assert.throws(() => dtab.parse('a,\n comment\nb 1'), /line 1: invalid key "a,": a comma needs a key on both sides/)
     assert.strictEqual(dtab.parse('k a, b').k, 'a, b', 'a value keeps its comma and space')
+    for (const [text, expected] of [
+        [',\t, 1\t, 2\n,\t, 3\t, 4', [['1', '2'], ['3', '4']]],
+        [',', [{}]], [', ', ['']],
+        ['items\t, red\nitems\t, blue', {items: ['red', 'blue']}],
+        ['__proto__\t, x', JSON.parse('{"__proto__": ["x"]}')],
+    ]) {
+        assert.deepStrictEqual(dtab.parse(text), expected)
+        assert.deepStrictEqual(dtab.parse(dtab.stringify(expected)), expected)
+    }
+    for (const [text, error] of [
+        ['a 1\na\tb 2', /line 2: cannot replace a string with a container/],
+        ['a\tb 1\na 2', /line 2: cannot replace a container with a string/],
+        [', 1\nkey 2', /cannot mix list entries and named keys/],
+        ['key 1\n, 2', /cannot mix list entries and named keys/],
+    ]) assert.throws(() => dtab.parse(text), error)
     assert.strictEqual(dtab.stringify({query: 'SELECT *\nFROM t', table: 'a\tb'}), 'query txt\n\tSELECT *\n\tFROM t\ntable txt\n\ta\tb')
     for (const value of ['x\ny', 'x\ty', 'a\n\n\tb\n  c', '#!/bin/bash\necho hi', ''])
         assert.deepStrictEqual(dtab.parse(dtab.stringify({a: value})), {a: value}, 'multiline round trip: ' + JSON.stringify(value))
@@ -55,8 +70,10 @@ function testKeyRule() {
         assert.throws(() => dtab.parse(text), error => error.message.includes(fragment), text)
     assert.deepStrictEqual(dtab.parse('123aa 1\nfile.json 2\nfile-thing.json 3\n123.json-yaml 4\nitems 5\n_p 6\ncafé 7\n-x 8'),
         {'123aa': '1', 'file.json': '2', 'file-thing.json': '3', '123.json-yaml': '4', items: '5', _p: '6', café: '7', '-x': '8'})
-    for (const tree of [{'a b': '1'}, {'a,b': '1'}, {'a|b': '1'}, {'': '1'}])
+    for (const tree of [{'a b': '1'}, {'a,b': '1'}, {'a|b': '1'}, {'': '1'}, {',': '1'}])
         assert.throws(() => dtab.stringify(tree), /dtab/)
+    for (const tree of [[], {a: []}, [[]]])
+        assert.throws(() => dtab.stringify(tree), /empty lists have no representation/)
 }
 
 function testRoundTrips() {

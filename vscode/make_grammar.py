@@ -13,7 +13,8 @@ from pathlib import Path
 
 KEY_PUNCTUATION = "_.-/"  # Allowed in keys besides letters and digits. SEMANTIC BINDING: dtab-key-punctuation
 KEY = r"[\p{L}\p{N}" + re.escape(KEY_PUNCTUATION) + "]+"  # \p{L}\p{N}: what Python's \w matches
-KEYS = KEY + "(?:, *\\t*" + KEY + ")*"  # a,b comma keys; after a comma, spaces then tabs may follow (a line break may too, see the object key rule)
+NAMED_KEYS = KEY + "(?:, *\\t*" + KEY + ")*"  # a,b comma keys; whitespace may follow each comma
+KEYS = "(?:,|" + NAMED_KEYS + ")"  # a lone comma is an anonymous entry, never a continuation
 # The block goes on while lines are deeper than the header (its tabs are group 1) or blank. A lookahead, so the
 # match is empty and the embedded grammar scans each line from column 0: VS Code's shell grammar only starts a
 # statement after `^` or a separator (`;`, `|`, `&`, ...), so a scan that began after the tabs never saw a command.
@@ -76,7 +77,8 @@ def grammar():
         "scopeName": "source.dtab",
         "comment": "Same tokens as dtab.vim: an entry between tabs is a comment (leading space), a leaf (key value) or an "
                    "object key. Keys are letters, digits and " + " ".join(KEY_PUNCTUATION) + "; a comma between keys may be followed by "
-                   "whitespace, a line break included. A line ending in a non-comment `key tag` entry with lines "
+                   "whitespace, a line break included. A lone comma is an anonymous entry, not a continuation. "
+                   "A line ending in a non-comment `key tag` entry with lines "
                    "indented under it (bound with a backreference to its tabs) is a multiline string: those lines are text, "
                    "highlighted as the word's language, or as the language named by a shebang as the first text. Generated "
                    "by make_grammar.py; do not edit by hand.",
@@ -110,7 +112,7 @@ def grammar():
                 {"comment": "Object key: key(s) with no space. A comma at the end of the line continues the list on the next line, which a "
                             "grammar cannot see, so the keys are object keys even when the list ends as a leaf there (the extension and monaco.mjs then repaint them "
                             "as leaf keys through semantic tokens)",
-                 "match": "%s(?:,$)?(?=\\t|$)" % KEYS,
+                 "match": "(?:,|%s(?:,$)?)(?=\\t|$)" % NAMED_KEYS,
                  "captures": {"0": {"name": "entity.name.type.object-key.dtab", "patterns": [{"include": "#comma"}]}}},
                 {"comment": "Anything else before a space: a bad key, with its value",
                  "match": "([^\\t ]+) ([^\\t]*)",
