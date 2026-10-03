@@ -57,6 +57,8 @@
     }
     .CodeMirror-cursor { border-left-color: var(--text); }
     .CodeMirror-selected { background: var(--border); }
+    .CodeMirror-gutters { background: var(--panel); border-color: var(--border); }
+    .CodeMirror-linenumber { color: var(--muted); }
     .highlight .cm-dtab-object-key { color: var(--key-object); }
     .highlight .cm-dtab-leaf-key { color: var(--key-leaf); }
     .highlight .cm-dtab-list-key { font-weight: bold; }
@@ -128,7 +130,7 @@
 <script>
 // The repo's own dtab.js when served from a checkout (tests, local use). On GitHub Pages only docs/ is served,
 // so that 404s and the same file is loaded from the repo through jsDelivr's GitHub mirror instead. The mirror
-// caches a branch for up to ~12 hours; after changing dtab.js or tools.js, purge that file's mirror.
+// caches a branch for up to ~12 hours; after changing dtab.js or tools.js, purge both mirrors together.
 const DTAB_SCRIPT_ROOT = typeof dtab === 'undefined' ? 'https://cdn.jsdelivr.net/gh/RyannDaGreat/dtab@main/' : new URL('../', location.href).href
 if (typeof dtab === 'undefined') document.write('<script src="' + DTAB_SCRIPT_ROOT + 'dtab.js"><\/script>')
 </script>
@@ -450,6 +452,7 @@ const editor = CodeMirror.fromTextArea(document.getElementById('source'), {
     mode: 'dtab',
     indentWithTabs: true,
     tabSize: 4,
+    lineNumbers: true,
     lineWrapping: false,
     maxHighlightLength: Infinity,   // a very long line would otherwise hide its multiline string from the mode
     extraKeys: {

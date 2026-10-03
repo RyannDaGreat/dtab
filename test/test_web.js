@@ -89,9 +89,16 @@ async function main() {
         assert.deepStrictEqual(JSON.parse(shown), dtab.parse(sourceText), 'JSON pane differs from dtab.parse')
         assert.strictEqual(JSON.parse(shown).camera.fov, '35', 'last line should win')
         assert.strictEqual(JSON.parse(shown).lights.fill.castShadow, 'true', 'comma key should fan out')
+        assert.strictEqual(await page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror.getOption('lineNumbers')), true)
+        assert.ok(await page.$('.CodeMirror-code .CodeMirror-linenumber'), 'source line numbers should be visible')
+        assert.deepStrictEqual(await page.evaluate(() => [
+            getComputedStyle(document.querySelector('.CodeMirror-gutters')).backgroundColor === getComputedStyle(document.querySelector('.pane')).backgroundColor,
+            getComputedStyle(document.querySelector('.CodeMirror-linenumber')).color === getComputedStyle(document.querySelector('.pane .label')).color,
+        ]), [true, true], 'line-number gutter should match the dark theme')
 
         // 2. Highlighting: object keys, leaf keys, values, comments, tabs, and a bad key each get their class.
         await setEditorText(page, ' a comment\ncamera\tposition\tx 0\ty 5\nbad|key 1\n')
+        assert.deepStrictEqual(await page.$$eval('.CodeMirror-code .CodeMirror-linenumber', nodes => nodes.map(node => node.textContent)), ['1', '2', '3', '4'], 'numbers include blank lines and match parser error lines')
         assert.deepStrictEqual(await lineTokens(page, 1), [['dtab-comment', ' a comment']])
         assert.deepStrictEqual(await lineTokens(page, 2), [
             ['dtab-object-key', 'camera'], ['tab', '\t'], ['dtab-object-key', 'position'], ['tab', '\t'],
