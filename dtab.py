@@ -36,7 +36,7 @@ import json
 import math
 import re
 
-__version__ = "0.5.7"  # SEMANTIC BINDING: dtab-version (also package.json "version")
+__version__ = "0.5.8"  # SEMANTIC BINDING: dtab-version (also package.json "version")
 
 KEY_SEPARATOR = ","  # a,b writes the same value under each key
 TEXT_TAG = "txt"  # the tag stringify gives a multiline string; any single word is a tag, editors color the ones they know
@@ -46,14 +46,14 @@ COMMA_RULE = "a comma needs a key on both sides; a comment does not count"
 _TAB_RUN = re.compile(r"\t+")  # Several tabs in a row are one separator, so columns can be aligned
 _KEY = re.compile(r"[\w" + re.escape(KEY_PUNCTUATION) + "]+")  # \w: letters, digits, _ (Unicode); the rest is reserved for syntax
 _SPACED_KEYS = re.compile(r"(?:^|(?<=\t))(?:[^\t\n ,]+, *[\t\n]*)+")  # keys at an entry's start whose commas are followed by whitespace
-_DANGLING = re.compile(r"(?:^|\t)[^\t\n ]+,\Z")  # a key list ending in a comma: it goes on on the next line
+_DANGLING = re.compile(r"(?:^|\t)[^\t ]+,\n*\Z")  # a key list ending in a comma: it goes on on the next line
 _ENTRY = re.compile(r"( *)[^\t ][^\t]*")  # an entry: non-tab characters, not all spaces; group 1, its leading spaces, makes it a comment
 
 
 def parse(text):
     """
     Pure function. Parses dtab into dicts, lists and string leaves. Rejects invalid keys, type changes
-    and mixed named/anonymous keys; key and string/container errors include the line number.
+    and mixed named/anonymous keys. Errors identify the offending entry's source line.
 
     Args:
         text (str): dtab source. Whitespace-only lines are ignored outside multiline strings.
@@ -91,6 +91,9 @@ def parse(text):
         [['1', '2'], ['3', '4']]
         >>> parse(',')
         [{}]
+        >>> parse(', 1\\nkey 2')
+        Traceback (most recent call last):
+        ValueError: dtab line 2: cannot mix list entries and named keys
         >>> parse('a,\\n comment\\nb 1')
         Traceback (most recent call last):
         ValueError: dtab line 1: invalid key 'a,': a comma needs a key on both sides; a comment does not count
@@ -115,20 +118,26 @@ def parse(text):
         while stack[-1][0] >= indent:
             stack.pop()
         nodes = stack[-1][1]
-        for entry in _TAB_RUN.split(line[indent:]):
+        for raw_entry in _TAB_RUN.split(line[indent:]):
+            entry = raw_entry.replace("\n", "")
+            entry_line = line_number
+            line_number += len(raw_entry) - len(entry)
             key, space, value = entry.partition(" ")
             if not key:
                 continue  # Comment or trailing tabs; neither changes the path
-            names = [object()] if key == KEY_SEPARATOR else _key_names(key, line_number, allow_commas=True)
+            names = [object()] if key == KEY_SEPARATOR else _key_names(key, entry_line, allow_commas=True)
+            for node in nodes:
+                if node and isinstance(next(iter(node)), str) != isinstance(names[0], str):
+                    raise ValueError("dtab line %d: cannot mix list entries and named keys" % entry_line)
             if space:
                 for node in nodes:
                     for name in names:
                         if isinstance(node.get(name), dict):
-                            raise ValueError("dtab line %d: cannot replace a container with a string" % line_number)
+                            raise ValueError("dtab line %d: cannot replace a container with a string" % entry_line)
                         node[name] = value
                 block = (indent, nodes, names, [])
             else:
-                nodes = [_child(node, name, line_number) for node in nodes for name in names]
+                nodes = [_child(node, name, entry_line) for node in nodes for name in names]
                 block = None
         stack.append((indent, nodes))
     if block is not None:
@@ -138,10 +147,10 @@ def parse(text):
 
 def _resolve_lists(node):
     """
-    Pure function. Converts anonymous-only dictionaries to lists; mixed keys are an error.
+    Pure function. Converts validated anonymous-only dictionaries to lists.
 
     Args:
-        node (dict or str): Parsed subtree; anonymous keys are opaque objects, named keys are strings.
+        node (dict or str): Validated subtree; anonymous keys are opaque objects, named keys are strings.
 
     Returns:
         dict, list or str; empty dictionaries remain dictionaries.
@@ -151,17 +160,11 @@ def _resolve_lists(node):
         {'items': ['red', {}]}
         >>> _resolve_lists({'empty': {}})
         {'empty': {}}
-        >>> _resolve_lists({'name': 'red', object(): 'blue'})
-        Traceback (most recent call last):
-        ValueError: dtab: cannot mix list entries and named keys
     """
     if not isinstance(node, dict):
         return node
-    anonymous = sum(not isinstance(key, str) for key in node)
-    if anonymous and anonymous != len(node):
-        raise ValueError("dtab: cannot mix list entries and named keys")
     values = [_resolve_lists(value) for value in node.values()]
-    return values if anonymous else dict(zip(node, values))
+    return values if node and not isinstance(next(iter(node)), str) else dict(zip(node, values))
 
 
 def stringify(tree):
@@ -267,13 +270,19 @@ def toggle_comments(lines, selections):
 
 def _close_up(match):
     """
-    Pure function. A regex match's text without its whitespace: `a, b,` becomes `a,b,`.
+    Pure function. Removes key-list spacing, retaining newlines for source-line diagnostics.
+
+    Args:
+        match (re.Match): A key-list match from _SPACED_KEYS.
+
+    Returns:
+        str
 
     Examples:
-        >>> _close_up(re.match('.*', 'a, b,\\n\\t'))
-        'a,b,'
+        >>> _close_up(_SPACED_KEYS.search('a, b,\\n\\t'))
+        'a,b,\\n'
     """
-    return "".join(match.group().split())
+    return "\n".join("".join(line.split()) for line in match.group().split("\n"))
 
 
 def _key_names(key, line_number, allow_commas):

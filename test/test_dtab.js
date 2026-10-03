@@ -47,8 +47,11 @@ function testDocumentedExamples() {
     for (const [text, error] of [
         ['a 1\na\tb 2', /line 2: cannot replace a string with a container/],
         ['a\tb 1\na 2', /line 2: cannot replace a container with a string/],
-        [', 1\nkey 2', /cannot mix list entries and named keys/],
-        ['key 1\n, 2', /cannot mix list entries and named keys/],
+        [', 1\nkey 2', /line 2: cannot mix list entries and named keys/],
+        ['key 1\n, 2', /line 2: cannot mix list entries and named keys/],
+        ['a,\nb\t, 1\tkey 2', /line 2: cannot mix list entries and named keys/],
+        [', 1\tkey 2\ta,\nb 3', /line 1: cannot mix list entries and named keys/],
+        ['first\tname A\nsecond\t, B\nsecond\tname C\nfirst\t, D', /line 3: cannot mix list entries and named keys/],
     ]) assert.throws(() => dtab.parse(text), error)
     assert.strictEqual(dtab.stringify({query: 'SELECT *\nFROM t', table: 'a\tb'}), 'query txt\n\tSELECT *\n\tFROM t\ntable txt\n\ta\tb')
     for (const value of ['x\ny', 'x\ty', 'a\n\n\tb\n  c', '#!/bin/bash\necho hi', ''])

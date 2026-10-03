@@ -43,11 +43,11 @@ const COMMA_RULE = 'a comma needs a key on both sides; a comment does not count'
 const TAB_RUN = /\t+/  // Several tabs in a row are one separator, so columns can be aligned
 const KEY = new RegExp('^[\\p{L}\\p{N}' + KEY_PUNCTUATION.replace(/[\]\\^-]/g, '\\$&') + ']+$', 'u')  // letters, digits (as Python's \w) and the punctuation; the rest is reserved for syntax
 const SPACED_KEYS = /(^|\t)((?:[^\t\n ,]+, *[\t\n]*)+)/g  // keys at an entry's start whose commas are followed by whitespace
-const DANGLING = /(?:^|\t)[^\t\n ]+,$/  // a key list ending in a comma: it goes on on the next line
+const DANGLING = /(?:^|\t)[^\t ]+,\n*$/  // a key list ending in a comma: it goes on on the next line
 
 /**
  * Pure function. Parses dtab into objects, arrays and string leaves. Rejects invalid keys, type changes
- * and mixed named/anonymous keys; key and string/container errors include the line number.
+ * and mixed named/anonymous keys. Errors identify the offending entry's source line.
  *
  * @param {string} text - dtab source. Whitespace-only lines are ignored outside multiline strings.
  * @returns {object|Array}
@@ -68,16 +68,18 @@ const DANGLING = /(?:^|\t)[^\t\n ]+,$/  // a key list ending in a comma: it goes
  *   // {x: '1', y: '1', servers: {alpha: {port: '80'}, beta: {port: '80'}, gamma: {port: '80'}}}
  * @example parse(',\t, 1\t, 2\n,\t, 3\t, 4') // [['1', '2'], ['3', '4']]
  * @example parse(',') // [{}]
+ * @example parse(', 1\nkey 2') // throws: dtab line 2: cannot mix list entries and named keys
  * @example parse('a,\n comment\nb 1')   // throws: dtab line 1: invalid key "a,": a comma needs a key on both sides; a comment does not count
  */
 function parse(text) {
     const root = Object.create(null)  // internal dictionary: even __proto__ is an ordinary key
+    const kinds = new WeakMap()  // constant-time key-kind checks, without rescanning growing lists
     const stack = [[-1, [root]]]  // [indent, nodes that deeper lines nest into]
     let block = null  // last entry is a leaf: {indent, nodes, names, deep: raw lines under it}
     const lines = text.split('\n')
     for (let index = 0; index < lines.length; index++) {
         let line = lines[index]
-        const lineNumber = index + 1
+        let lineNumber = index + 1
         const indent = line.length - line.replace(/^\t+/, '').length
         if (block) {
             if (!line.trim() || indent > block.indent) {
@@ -92,20 +94,28 @@ function parse(text) {
         while (DANGLING.test(line) && index + 1 < lines.length) line = closeUp(line + '\n' + lines[++index])  // the key list goes on on the next line
         while (stack[stack.length - 1][0] >= indent) stack.pop()
         let nodes = stack[stack.length - 1][1]
-        for (const entry of line.slice(indent).split(TAB_RUN)) {
+        for (const rawEntry of line.slice(indent).split(TAB_RUN)) {
+            const entry = rawEntry.replace(/\n/g, '')
+            const entryLine = lineNumber
+            lineNumber += rawEntry.length - entry.length
             const spaceAt = entry.indexOf(' ')
             const key = spaceAt === -1 ? entry : entry.slice(0, spaceAt)
             if (!key) continue  // Comment or trailing tabs; neither changes the path
-            const names = key === KEY_SEPARATOR ? [Symbol()] : keyNames(key, lineNumber, true)
+            const names = key === KEY_SEPARATOR ? [Symbol()] : keyNames(key, entryLine, true)
+            const kind = typeof names[0]
+            for (const node of nodes) {
+                if (kinds.has(node) && kinds.get(node) !== kind) throw new Error('dtab line ' + entryLine + ': cannot mix list entries and named keys')
+                kinds.set(node, kind)
+            }
             if (spaceAt !== -1) {
                 const value = entry.slice(spaceAt + 1)
                 for (const node of nodes) for (const name of names) {
-                    if (isPlainObject(node[name])) throw new Error('dtab line ' + lineNumber + ': cannot replace a container with a string')
+                    if (isPlainObject(node[name])) throw new Error('dtab line ' + entryLine + ': cannot replace a container with a string')
                     node[name] = value
                 }
                 block = {indent, nodes, names, deep: []}
             } else {
-                nodes = nodes.flatMap(node => names.map(name => child(node, name, lineNumber)))
+                nodes = nodes.flatMap(node => names.map(name => child(node, name, entryLine)))
                 block = null
             }
         }
@@ -116,22 +126,19 @@ function parse(text) {
 }
 
 /**
- * Pure function. Converts anonymous-only dictionaries to arrays; mixed keys are an error.
+ * Pure function. Converts validated anonymous-only dictionaries to arrays.
  *
- * @param {object|string} node - Parsed subtree; anonymous keys are Symbols, named keys are strings.
+ * @param {object|string} node - Validated subtree; anonymous keys are Symbols, named keys are strings.
  * @returns {object|Array|string} Empty dictionaries remain dictionaries.
  *
  * @example resolveLists({items: {[Symbol()]: 'red', [Symbol()]: {}}}) // {items: ['red', {}]}
  * @example resolveLists({empty: {}}) // {empty: {}}
- * @example resolveLists({name: 'red', [Symbol()]: 'blue'}) // throws: dtab: cannot mix list entries and named keys
  */
 function resolveLists(node) {
     if (!isPlainObject(node)) return node
     const keys = Reflect.ownKeys(node)
-    const anonymous = keys.filter(key => typeof key === 'symbol').length
-    if (anonymous && anonymous !== keys.length) throw new Error('dtab: cannot mix list entries and named keys')
     const values = keys.map(key => resolveLists(node[key]))
-    return anonymous ? values : Object.fromEntries(keys.map((key, index) => [key, values[index]]))
+    return typeof keys[0] === 'symbol' ? values : Object.fromEntries(keys.map((key, index) => [key, values[index]]))
 }
 
 /**
@@ -255,14 +262,16 @@ function keyNames(key, lineNumber, allowCommas) {
 }
 
 /**
- * Pure function. A line with the whitespace after its keys' commas removed: `a, b,` becomes `a,b,`.
- * Values keep theirs, since only an entry's start is a key.
+ * Pure function. Removes key-list spacing, retaining newlines for source-line diagnostics.
+ * Values keep their whitespace, since only an entry's start is a key.
  *
+ * @param {string} line - Logical line, possibly continued across physical lines.
+ * @returns {string}
  * @example closeUp('x, y 1\tk a, b')   // 'x,y 1\tk a, b'
- * @example closeUp('a,\n\tb,\tc')      // 'a,b,c'
+ * @example closeUp('a,\n\tb,\tc')      // 'a,\nb,c'
  */
 function closeUp(line) {
-    return line.replace(SPACED_KEYS, (match, before, keys) => before + keys.replace(/[ \t\n]/g, ''))
+    return line.replace(SPACED_KEYS, (match, before, keys) => before + keys.replace(/[ \t]/g, ''))
 }
 
 /**
