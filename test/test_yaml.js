@@ -12,7 +12,7 @@ const {toYAML} = require('../tools.js')
  * @param {string} source - Valid DTAB.
  * @param {string} [label] - Assertion context.
  * @returns {string} Converted YAML.
- * @example check('a 1') // 'a: "1"\n'
+ * @example check('a 1') // 'a: 1\n'
  */
 function check(source, label = 'case') {
     console.log('Checking YAML:', label)
@@ -24,8 +24,8 @@ function check(source, label = 'case') {
         if (entry.type === 'comment') assert.ok(source.slice(entry.start, entry.end).startsWith(' '), label + ': comment range')
     }
     const yaml = toYAML(source)
-    assert.deepStrictEqual(YAML.parse(yaml), expected, label + ': YAML 1.2')
-    assert.deepStrictEqual(YAML.parse(yaml, {version: '1.1'}), expected, label + ': YAML 1.1')
+    assert.deepStrictEqual(dtab.parse(dtab.stringify(YAML.parse(yaml))), expected, label + ': YAML 1.2 cycle')
+    assert.deepStrictEqual(dtab.parse(dtab.stringify(YAML.parse(yaml, {version: '1.1'}))), expected, label + ': YAML 1.1 cycle')
     return yaml
 }
 
@@ -50,9 +50,20 @@ for (const source of [
     'x 1\r\n comment\r\ny 2\r\n',
 ]) check(source, JSON.stringify(source))
 
-assert.strictEqual(check('count 12\nflag false'), 'count: "12"\nflag: "false"\n')
+assert.strictEqual(check('count 12\nflag false'), 'count: 12\nflag: "false"\n')
+for (const [value, expected] of [
+    ['19677', 19677], ['0', 0], ['-12', -12],
+    ['9007199254740991', Number.MAX_SAFE_INTEGER], ['-9007199254740991', Number.MIN_SAFE_INTEGER],
+    ['019677', '019677'], ['+12', '+12'], ['-0', '-0'], ['1.0', '1.0'], ['1.25', '1.25'],
+    ['1e3', '1e3'], ['0x10', '0x10'], [' 19677', ' 19677'], ['19677 ', '19677 '],
+    ['9007199254740992', '9007199254740992'], ['9007199254740993', '9007199254740993'],
+    ['1000000000000000100', '1000000000000000100'], ['true', 'true'], ['null', 'null'], ['', ''],
+]) assert.strictEqual(YAML.parse(check('value ' + value, 'scalar ' + JSON.stringify(value))).value, expected)
+assert.strictEqual(check('19677 19677'), '"19677": 19677\n', 'numeric keys remain strings')
+assert.deepStrictEqual(YAML.parse(check(', 19677\n, 019677')), [19677, '019677'])
+assert.strictEqual(YAML.parse(check('body txt\n\t19677')).body, '19677', 'literal string bodies retain their layout and type')
 assert.strictEqual(check(','), '- {}\n')
-assert.strictEqual(check('\n note\n\n\nkey 1\n\n'), '\n# note\n\n\nkey: "1"\n\n')
+assert.strictEqual(check('\n note\n\n\nkey 1\n\n'), '\n# note\n\n\nkey: 1\n\n')
 assert.strictEqual(check(' note'), '# note\n{}\n')
 const notes = check('a 1\t old note\nb 2\na 3\t new note')
 assert.strictEqual((notes.match(/old note/g) || []).length, 1)
@@ -87,7 +98,7 @@ assert.ok(converted.includes('A final note stays below the queries'))
 const leadingBody = '\n  leading\n# dtab-layout-0\nlast'
 const literalTree = {rows: [leadingBody, {text: leadingBody}], after: 'next'}
 for (const tabSize of [1, 2, 4, 8, 9]) {
-    assert.deepStrictEqual(YAML.parse(toYAML(annotated, {tabSize})), dtab.parse(annotated))
+    assert.deepStrictEqual(dtab.parse(dtab.stringify(YAML.parse(toYAML(annotated, {tabSize})))), dtab.parse(annotated))
     assert.deepStrictEqual(YAML.parse(toYAML(dtab.stringify(literalTree), {tabSize})), literalTree,
         'leading blanks and literal comment-looking text must survive every indentation width')
 }

@@ -153,10 +153,10 @@ Commenting works the same in Vim (`gcc`, `gc` with a motion, `gc` on a visual se
 ```javascript
 const {toYAML} = require('deltatab/tools')
 console.log(toYAML('port 19677\t Local service\n', {tabSize: 4}))
-// port: "19677" # Local service
+// port: 19677 # Local service
 ```
 
-`toYAML(text, {tabSize: 4})` uses the `yaml` package for YAML syntax, quoting, and literal string blocks. Its output parses to the same data as `dtab.parse(text)`, with string leaves, including values that resemble numbers, booleans, or dates. The web editor's **JSON / YAML** selector uses this same function and remembers your choice; JSON remains the default.
+`toYAML(text, {tabSize: 4})` uses the `yaml` package for YAML syntax, quoting, and literal string blocks. Canonical safe integer values such as `19677` are emitted without quotes when `String(Number(value)) === value`; converting those integers back to strings recovers the DTAB data exactly. Leading zeros, explicit `+`, `-0`, decimal spellings, integers outside JavaScript's safe range, booleans, dates, and literal string bodies retain their string types. Keys also stay strings. The web editor's **JSON / YAML** selector uses this same function and remembers your choice; JSON remains the default and keeps all leaves as strings.
 
 This is source conversion, not `stringify(parse(text))`: comments and blank runs are retained, tabs are expanded at their original stops, and aligned documentation columns stay aligned. Sibling annotation rows share any extra horizontal shift needed when YAML punctuation or quotes consume their padding. Short uncommented paths and matrix rows use compact YAML collections when possible. See [the annotated example](test/yaml/annotated.dtab).
 
@@ -174,4 +174,4 @@ console.log(dtabTools.toYAML('port 19677'))
 </script>
 ```
 
-Conversion errors are reported, not replaced with a comment-free dump. Generated YAML is checked against the parsed DTAB data before it is returned.
+Conversion errors are reported, not replaced with a comment-free dump. Generated YAML is checked against the parsed DTAB data after recovering integer leaves as strings, before it is returned.

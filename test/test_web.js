@@ -2,8 +2,9 @@
 // same text, the editor highlights entries with the same classes dtab.vim uses, tabs are drawn, typing
 // a tab inserts a tab, a bad key shows the parser's error with its line number, and Cmd-/ or Ctrl-/ toggles
 // comments as test/comment_cases.json says.
-// Serves the repo root over HTTP so the page's CDN-or-local script fallback works offline.
-// Run:  node test/test_web.js        (needs `npm install --no-save puppeteer` and a downloaded Chrome)
+// Default: serves the repo locally and substitutes the installed YAML build. DTAB_DEMO_URL tests real deployed assets instead.
+// Run: node test/test_web.js, or DTAB_DEMO_URL=https://ryanndagreat.github.io/dtab/ node test/test_web.js
+// Needs Puppeteer and a downloaded Chrome.
 'use strict'
 const assert = require('assert')
 const fs = require('fs')
@@ -48,20 +49,27 @@ const lineTokens = (page, line) => page.evaluate(n =>
         .map(s => { const cls = s.className.replace(/\s*cm-/g, ' ').trim(); return [cls, cls === 'tab' ? '\t' : s.textContent] })
         .filter((token, i, all) => !(token[0] === 'tab' && i > 0 && all[i - 1][0] === 'tab')), line)
 
+/**
+ * Command. Tests the local or deployed demo in a fresh browser; writes a preview screenshot and closes browser/server.
+ * @returns {Promise<void>}
+ * @example await main() // Resolves after all UI assertions pass; rejects on failure.
+ */
 async function main() {
+    const liveURL = process.env.DTAB_DEMO_URL
     const RICH_PREVIEW_VIEWPORT = {width: 2400, height: 1800} // Fits both annotation grids and the full 70-line fixture.
     const YAML_CDN = 'https://cdn.jsdelivr.net/npm/yaml@' + require('yaml/package.json').version + '/'
     const YAML_ROOT = path.join(ROOT, 'node_modules', 'yaml')
-    const [server, port] = await serve()
+    const [server, port] = liveURL ? [null, null] : await serve()
     const browser = await puppeteer.launch({headless: true})
     try {
         const page = await browser.newPage()
         const failures = [], yamlRequests = []
-        // Use the installed, pinned YAML browser build while exercising the production module URLs.
-        await page.setRequestInterception(true)
+        // Local checks substitute YAML; deployed checks must fetch every asset from its real server.
+        if (!liveURL) await page.setRequestInterception(true)
         page.on('request', request => {
-            if (!request.url().startsWith(YAML_CDN)) { request.continue(); return }
+            if (!request.url().startsWith(YAML_CDN)) { if (!liveURL) request.continue(); return }
             yamlRequests.push(request.url())
+            if (liveURL) return
             const file = path.resolve(YAML_ROOT, decodeURIComponent(request.url().slice(YAML_CDN.length).split('?')[0]))
             if (!file.startsWith(YAML_ROOT + path.sep) || !fs.existsSync(file)) {
                 request.respond({status: 404, body: 'Missing YAML browser module'}); return
@@ -69,8 +77,11 @@ async function main() {
             request.respond({status: 200, contentType: 'text/javascript', headers: {'Access-Control-Allow-Origin': '*'}, body: fs.readFileSync(file)})
         })
         page.on('pageerror', error => { failures.push(error.message); console.error('Page error:', error.message) })
-        await page.goto('http://127.0.0.1:' + port + '/docs/index.html', {waitUntil: 'networkidle0'})
+        const url = liveURL || 'http://127.0.0.1:' + port + '/docs/index.html'
+        console.log('Testing', url, liveURL ? '(real CDN assets)' : '(local assets)')
+        await page.goto(url, {waitUntil: 'networkidle0'})
         assert.deepStrictEqual(failures, [], 'page startup errors')
+        assert.strictEqual(await page.evaluate(() => typeof dtab.parseWithSource), 'function', 'stale parser: YAML tools require parseWithSource')
 
         // 1. The example renders as JSON, and it is exactly what dtab.js says about the same text.
         const sourceText = await editorText(page)
@@ -278,12 +289,20 @@ async function main() {
         })
         await page.waitForFunction(() => globalThis.dtabTools)
         assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), {latest: '2'}, 'stale YAML load replaced JSON')
-        assert.ok(yamlRequests.length > 0)
+        assert.ok(yamlRequests.length > 0, 'YAML was not requested at the pinned version')
         const annotated = fs.readFileSync(path.join(ROOT, 'test', 'yaml', 'annotated.dtab'), 'utf8')
         await setEditorText(page, annotated)
         await page.select('#preview-format', 'yaml')
         await page.waitForFunction(expected => document.getElementById('output').textContent === expected, {}, toYAML(annotated))
-        assert.deepStrictEqual(YAML.parse(await page.$eval('#output', e => e.textContent)), dtab.parse(annotated))
+        assert.deepStrictEqual(dtab.parse(dtab.stringify(YAML.parse(await page.$eval('#output', e => e.textContent)))), dtab.parse(annotated))
+        await setEditorText(page, 'port 19677\nid 019677')
+        await page.waitForFunction(expected => document.getElementById('output').textContent === expected, {}, toYAML('port 19677\nid 019677'))
+        assert.deepStrictEqual(YAML.parse(await page.$eval('#output', e => e.textContent)), {port: 19677, id: '019677'})
+        await page.select('#preview-format', 'json')
+        assert.deepStrictEqual(JSON.parse(await page.$eval('#output', e => e.textContent)), {port: '19677', id: '019677'}, 'JSON remains string-valued')
+        await setEditorText(page, annotated)
+        await page.select('#preview-format', 'yaml')
+        await page.waitForFunction(expected => document.getElementById('output').textContent === expected, {}, toYAML(annotated))
         assert.ok(await page.$('#output .cm-comment'), 'YAML comments should be highlighted')
         await page.setViewport(RICH_PREVIEW_VIEWPORT)
         await page.evaluate(() => document.querySelector('.CodeMirror').CodeMirror.refresh())
@@ -309,7 +328,7 @@ async function main() {
         console.log('test_web.js: all checks passed')
     } finally {
         await browser.close()
-        server.close()
+        server?.close()
     }
 }
 

@@ -10,7 +10,8 @@ Bump the version in `dtab.py` (`__version__`), `package.json`, and `vscode/packa
 2. **PyPI**: `python -m build && twine upload dist/* && rm -rf dist build dtab.egg-info` (username `__token__`, password a PyPI token).
 3. **VS Code**: `cd vscode && npx vsce package --no-dependencies`, then upload the `.vsix` at https://marketplace.visualstudio.com/manage/publishers/RyannDaGreat (`⋮` next to dtab, Update).
 4. **Vim**: nothing; plugin managers pull from GitHub.
-5. If `dtab.js` or `tools.js` changed, refresh each changed demo copy: `curl https://purge.jsdelivr.net/gh/RyannDaGreat/dtab@main/dtab.js` and `curl https://purge.jsdelivr.net/gh/RyannDaGreat/dtab@main/tools.js`.
+5. If `dtab.js` or `tools.js` changed, purge both demo copies after pushing: `curl --fail https://purge.jsdelivr.net/gh/RyannDaGreat/dtab@main/dtab.js && curl --fail https://purge.jsdelivr.net/gh/RyannDaGreat/dtab@main/tools.js`. The branch URLs cache independently; mismatched copies can break the YAML preview.
+6. Once Pages is deployed, run `DTAB_DEMO_URL=https://ryanndagreat.github.io/dtab/ node test/test_web.js`. This tests the actual public URL and real CDN assets; localhost tests alone do not verify deployment. Existing browser tabs may need a hard refresh after a purge.
 
 JavaScript YAML conversion lives in `tools.js`, using `dtab.parseWithSource()` rather than a second DTAB parser. Keep the `yaml` version in `package.json` and the demo's module URL in `docs/index.html` identical. `test/test_yaml.js` checks data and layout, including `test/yaml/annotated.dtab`; the web test exercises both preview modes.
 

@@ -50,7 +50,7 @@
     }
 
     /**
-     * Command. Indexes a fresh YAML tree, orders keys by first occurrence, and keeps string-body style.
+     * Command. Indexes and orders a fresh YAML tree; retains string bodies and emits cycle-safe integers.
      * @param {object} node - YAML AST node to mutate.
      * @param {Array<string|number>} path - Its final DTAB path.
      * @param {Map} records - First/last source entry per serialized path.
@@ -62,7 +62,10 @@
         const id = JSON.stringify(path)
         const info = {node, key: null, path, ...records.get(id)}
         nodes.set(id, info)
-        if (YAML.isScalar(node) && info.last?.body) node.type = YAML.Scalar.BLOCK_LITERAL
+        if (YAML.isScalar(node)) {
+            if (info.last?.body) node.type = YAML.Scalar.BLOCK_LITERAL
+            else if (Number.isSafeInteger(Number(node.value)) && String(Number(node.value)) === node.value) node.value = Number(node.value)
+        }
         if (YAML.isMap(node)) {
             node.items.sort((a, b) => records.get(JSON.stringify([...path, a.key.value])).order - records.get(JSON.stringify([...path, b.key.value])).order)
             for (const pair of node.items) {
@@ -171,7 +174,7 @@
      * Sibling documentation rows share any extra shift required by YAML punctuation or quoting.
      * @param {string} text - YAML containing only converter-generated comment markers.
      * @param {Map<string, object>} groups - Marker content and original columns.
-     * @param {string[]} scalars - AST scalar values in emission order, including keys.
+     * @param {(string|number)[]} scalars - AST scalar values in emission order, including keys.
      * @returns {string} YAML with original comments and structural blanks restored.
      * @example alignLayout('x: "1" # marker\n', new Map([['# marker', {column: 8, text: 'note', scope: '[]'}]]), ['x', '1'])
      *   // 'x: "1"  # note\n'
@@ -247,8 +250,8 @@
      * @param {string} text - Original DTAB, including its comments and spacing.
      * @param {object} [options]
      * @param {number} [options.tabSize=4] - Source tab stops and YAML indentation, from 1 through 9.
-     * @returns {string} YAML whose parsed data equals core.parse(text); invalid DTAB still throws.
-     * @example toYAML('count 12\nflag false') // 'count: "12"\nflag: "false"\n'
+     * @returns {string} YAML matching core.parse(text) after integer leaves are converted back to strings.
+     * @example toYAML('count 12\nflag false') // 'count: 12\nflag: "false"\n'
      * @example toYAML(',') // '- {}\n'
      */
     function toYAML(text, {tabSize = DEFAULT_TAB_SIZE} = {}) {
@@ -269,7 +272,8 @@
         const scalars = []
         YAML.visit(doc, {Scalar: (_, node) => { scalars.push(node.value) }})
         const output = alignLayout(doc.toString({indent: tabSize, lineWidth: 0, blockQuote: 'literal'}), groups, scalars)
-        if (JSON.stringify(YAML.parse(output)) !== JSON.stringify(value)) throw new Error('YAML conversion changed DTAB data')
+        const recovered = JSON.stringify(YAML.parse(output), (_, item) => typeof item === 'number' ? String(item) : item)
+        if (recovered !== JSON.stringify(value)) throw new Error('YAML conversion changed DTAB data')
         return output
     }
 
