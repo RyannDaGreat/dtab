@@ -50,18 +50,36 @@ for (const source of [
     'x 1\r\n comment\r\ny 2\r\n',
 ]) check(source, JSON.stringify(source))
 
-assert.strictEqual(check('count 12\nflag false'), 'count: 12\nflag: "false"\n')
+assert.strictEqual(check('count 12\nflag false'), 'count: 12\nflag: false\n')
 for (const [value, expected] of [
     ['19677', 19677], ['0', 0], ['-12', -12],
     ['9007199254740991', Number.MAX_SAFE_INTEGER], ['-9007199254740991', Number.MIN_SAFE_INTEGER],
-    ['019677', '019677'], ['+12', '+12'], ['-0', '-0'], ['1.0', '1.0'], ['1.25', '1.25'],
+    ['019677', '019677'], ['+12', '+12'], ['-0', '-0'], ['1.0', '1.0'], ['1.25', 1.25],
+    ['.3', '.3'], ['0.3', 0.3], ['1e-7', 1e-7], ['0.0000001', '0.0000001'],
     ['1e3', '1e3'], ['0x10', '0x10'], [' 19677', ' 19677'], ['19677 ', '19677 '],
-    ['9007199254740992', '9007199254740992'], ['9007199254740993', '9007199254740993'],
-    ['1000000000000000100', '1000000000000000100'], ['true', 'true'], ['null', 'null'], ['', ''],
-]) assert.strictEqual(YAML.parse(check('value ' + value, 'scalar ' + JSON.stringify(value))).value, expected)
+    ['9007199254740992', 9007199254740992], ['9007199254740993', '9007199254740993'],
+    ['1000000000000000100', 1000000000000000100], ['true', true], ['false', false], ['null', null],
+    ['TRUE', 'TRUE'], ['Null', 'Null'], ['~', '~'], ['y', 'y'], ['yes', 'yes'], ['on', 'on'],
+    ['2026-10-03', '2026-10-03'], ['.inf', '.inf'], ['.nan', '.nan'], ['NaN', 'NaN'],
+    ['[1, 2]', '[1, 2]'], ['[', '['], ['key: value', 'key: value'], ['*alias', '*alias'],
+    ['value # note', 'value # note'], ['', ''], ['!!bool true', '!!bool true'],
+    ['true\r', 'true\r'], // A bare CR is data; only CRLF is normalized.
+]) {
+    const actual = YAML.parse(check('value ' + value, 'scalar ' + JSON.stringify(value))).value
+    assert.strictEqual(actual, expected)
+    const evaluated = YAML.parseDocument(value, {version: '1.2'})
+    const candidate = !evaluated.errors.length && YAML.isScalar(evaluated.contents) ? evaluated.contents.value : value
+    assert.strictEqual(actual, String(candidate) === value ? candidate : value, 'matches actual YAML evaluation and the text-cycle predicate')
+}
 assert.strictEqual(check('19677 19677'), '"19677": 19677\n', 'numeric keys remain strings')
 assert.deepStrictEqual(YAML.parse(check(', 19677\n, 019677')), [19677, '019677'])
-assert.strictEqual(YAML.parse(check('body txt\n\t19677')).body, '19677', 'literal string bodies retain their layout and type')
+assert.strictEqual(YAML.parse(check('body txt\n\t19677')).body, 19677, 'single-line bodies follow the same scalar rule')
+assert.strictEqual(YAML.parse(check('body txt\n\ttrue')).body, true)
+assert.strictEqual(YAML.parse(check('body txt\n\t.3')).body, '.3')
+const camera = check('camera\tposition\tx 0\ty 5\tz 25')
+assert.ok(camera.includes('"y": 5'), 'y is quoted to preserve the key under YAML 1.1')
+assert.strictEqual(YAML.parse('y', {version: '1.1'}), true)
+assert.strictEqual(YAML.parse('y'), 'y')
 assert.strictEqual(check(','), '- {}\n')
 assert.strictEqual(check('\n note\n\n\nkey 1\n\n'), '\n# note\n\n\nkey: 1\n\n')
 assert.strictEqual(check(' note'), '# note\n{}\n')

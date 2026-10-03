@@ -156,7 +156,9 @@ console.log(toYAML('port 19677\t Local service\n', {tabSize: 4}))
 // port: 19677 # Local service
 ```
 
-`toYAML(text, {tabSize: 4})` uses the `yaml` package for YAML syntax, quoting, and literal string blocks. Canonical safe integer values such as `19677` are emitted without quotes when `String(Number(value)) === value`; converting those integers back to strings recovers the DTAB data exactly. Leading zeros, explicit `+`, `-0`, decimal spellings, integers outside JavaScript's safe range, booleans, dates, and literal string bodies retain their string types. Keys also stay strings. The web editor's **JSON / YAML** selector uses this same function and remembers your choice; JSON remains the default and keeps all leaves as strings.
+`toYAML(text, {tabSize: 4})` uses the `yaml` package for YAML syntax, quoting, and literal string blocks. One rule decides scalar types: evaluate a leaf with YAML 1.2's native scalar schema, and use that value only when `String(candidate) === original`. Thus `19677`, `0.3`, `true`, and `null` become native YAML scalars; `.3`, `1.0`, `TRUE`, `019677`, and `-0` stay strings because their spelling would change. There is no dtype whitelist or safe-integer cutoff: this guarantees text recovery, not exact arithmetic. String-valued bodies retain block style, and keys remain strings. YAML 1.1 compatibility can require quotes around keys such as `y`, which older schemas treat as a boolean.
+
+The web editor's **JSON / YAML** selector uses this same function and remembers your choice; JSON remains the default and keeps all leaves as strings.
 
 This is source conversion, not `stringify(parse(text))`: comments and blank runs are retained, tabs are expanded at their original stops, and aligned documentation columns stay aligned. Sibling annotation rows share any extra horizontal shift needed when YAML punctuation or quotes consume their padding. Short uncommented paths and matrix rows use compact YAML collections when possible. See [the annotated example](test/yaml/annotated.dtab).
 
@@ -174,4 +176,4 @@ console.log(dtabTools.toYAML('port 19677'))
 </script>
 ```
 
-Conversion errors are reported, not replaced with a comment-free dump. Generated YAML is checked against the parsed DTAB data after recovering integer leaves as strings, before it is returned.
+Conversion errors are reported, not replaced with a comment-free dump. Generated YAML is checked against the parsed DTAB data after recovering every scalar leaf with JavaScript `String()`, before it is returned.
